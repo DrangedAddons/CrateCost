@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.17.1
+- `/writs` and `/writ` open the writ list.
+
 ## 0.17.0
 - **Writs** window (`/crates writs`, the Writs button on `/crates`, or ctrl-click the minimap button): all 150 Craftsman's Writs with the writ's AH price, the required item's AH price, the cost to craft it, the total, cost per reputation and a rating.
 - Craft cost prices each reagent at Auctionator's vendor price, else its AH price, or crafts it when that's cheaper (bolts, cured leather and so on). The cheaper of buying and crafting the item is gold and counts toward the total.

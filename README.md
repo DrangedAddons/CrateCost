@@ -71,7 +71,7 @@ The **Merchant** button on `/crates`, `/crates merchant`, or shift-click (or mid
 
 ## Writs
 
-The **Writs** button on `/crates`, `/crates writs`, or ctrl-click the minimap button: all 150 Craftsman's Writs (Alchemy, Blacksmithing, Engineering, Leatherworking, Tailoring), sorted by the cheapest reputation.
+The **Writs** button on `/crates`, `/writs` (or `/writ`, `/crates writs`), or ctrl-click the minimap button: all 150 Craftsman's Writs (Alchemy, Blacksmithing, Engineering, Leatherworking, Tailoring), sorted by the cheapest reputation.
 
 - **Writ cost**: the writ on the AH. **Buy item**: the required item on the AH. **Craft item**: its reagents, each at the vendor price (from Auctionator's vendor cache), the AH price, or crafted when that's cheaper. The cheaper of buy and craft is gold.
 - **Total** = writ + the cheaper way to get the item. **Per rep** = total / the writ's reputation (75 Journeyman, 125 Expert, 200 Artisan).

@@ -436,12 +436,17 @@ SlashCmdList.CRATECOST = function(msg)
   else
     Print("/crates - crate list sorted by cost per favor")
     Print("/crates merchant - everything Merchant's Favor buys")
-    Print("/crates writs - Craftsman's Writs by cost per reputation")
+    Print("/writs (or /crates writs) - Craftsman's Writs by cost per reputation")
     Print("/cratecost config - settings")
     Print("/cratecost cart - the shopping cart")
     Print("/cratecost debug - print the next crate tooltip's raw lines")
   end
 end
+
+-- /writ and /writs open the writ list directly
+SLASH_CRATECOSTWRITS1 = "/writs"
+SLASH_CRATECOSTWRITS2 = "/writ"
+SlashCmdList.CRATECOSTWRITS = function() ns.ToggleWrits() end
 
 -- shared with Window.lua
 ns.Price, ns.Money, ns.FavorFor, ns.FavorIcon, ns.ParseCrate = Price, Money, FavorFor, FavorIcon, ParseCrate

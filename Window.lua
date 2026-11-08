@@ -77,7 +77,7 @@ local function Record(id, name)
   local crate = type(name) == "string" and name:match("^Waylaid Crate:%s*(.+)$")
   if crate and DB().ids[crate] ~= id then
     DB().ids[crate] = id
-    ns.InvalidateRatings()
+    ns.InvalidateCrates()
     QueueRefresh()
   end
 end
@@ -126,14 +126,27 @@ end)
 
 ---------------------------------------------------------------------------------------------
 -- Live amounts from hovered tooltips win over the guide's.
+-- The crates themselves (names, bundles, item IDs, favor) only change when a hovered crate
+-- shows new amounts or a new ID turns up, so the list is built once and kept. Prices and
+-- what you own are worked out again on each refresh (Evaluate), into the same tables.
+local crateList
+
+function ns.InvalidateCrates()
+  crateList = nil
+  if ns.InvalidateRatings then ns.InvalidateRatings() end
+end
+
 local function CrateList()
+  if crateList then return crateList end
   local db = DB()
   local list, seen = {}, {}
   local function add(name, bundles, live)
     local rank, kind = ns.ParseCrate("Waylaid Crate: " .. name)
     local s = db.crates[name]
     list[#list + 1] = { name = name, rank = rank, kind = kind, bundles = bundles, live = live,
-                        id = (s and s.id) or db.ids[name] or ns.CrateIDs[name] }
+                        id = (s and s.id) or db.ids[name] or ns.CrateIDs[name],
+                        favor = ns.FavorFor(rank, kind),
+                        prices = {}, owned = {}, allowed = {}, req = {}, units = {} }
     seen[name] = true
   end
   for _, c in ipairs(ns.Crates) do
@@ -143,17 +156,18 @@ local function CrateList()
   for name, s in pairs(db.crates) do
     if not seen[name] and #s > 0 then add(name, s, true) end
   end
+  crateList = list
   return list
 end
 
 local function Evaluate(c, mine)
-  c.favor = ns.FavorFor(c.rank, c.kind)
   c.have = c.id and Owned(c.id) or nil
   -- crates needed to reach the target (one without a target, or when favor is unknown)
   local target = Target()
   c.n = (target and c.favor) and math.ceil(target / c.favor) or 1
   c.nUnknown = target and not c.favor
-  c.prices, c.owned, c.allowed, c.req, c.best = {}, {}, {}, {}, nil
+  wipe(c.prices) wipe(c.owned) wipe(c.allowed) wipe(c.req) wipe(c.units)
+  c.best = nil
   local prof = view.filter and view.filter.group == "prof" and view.filter.value
   for i, b in ipairs(c.bundles) do
     c.allowed[i] = not prof or ns.MatProf[b[1]] == prof
@@ -167,7 +181,6 @@ local function Evaluate(c, mine)
     end
     local total = need == 0 and 0 or (unit and unit * need)
     c.prices[i] = total
-    c.units = c.units or {}
     c.units[i] = unit
     if c.allowed[i] and total and (not c.best or total < c.prices[c.best]) then c.best = i end
   end
@@ -209,7 +222,7 @@ function ns.CrateRatings()
   if ratingCache and GetTime() - ratingTime < RATING_TTL then return ratingCache end
   local rated = {}
   for _, c in ipairs(CrateList()) do
-    local favor = ns.FavorFor(c.rank, c.kind)
+    local favor = c.favor
     local bundle
     for _, b in ipairs(c.bundles) do
       local id = ns.ItemIDs[b[1]]
@@ -670,7 +683,7 @@ local function Build()
   refresh:SetSize(70, 20)
   refresh:SetPoint("TOPRIGHT", -30, -6)
   refresh:SetText("Refresh")
-  refresh:SetScript("OnClick", function() ns.InvalidateRatings() ScanIDs(true) ns.RefreshWindow() end)
+  refresh:SetScript("OnClick", function() ns.InvalidateCrates() ScanIDs(true) ns.RefreshWindow() end)
 
   local mode = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
   mode:SetSize(110, 20)

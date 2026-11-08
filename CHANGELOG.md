@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.5
+- The crate list is built once and kept: names, bundles, item IDs and favor only change when a hovered crate shows new amounts or a new crate ID is found. Each refresh only re-prices it and recounts what you own, reusing the same tables.
+- Auctionator prices are kept for one second, so a crate list refresh, its ratings and a crate tooltip don't look up the same items over and over.
+
 ## 0.13.4
 - Efficiency pass:
   - Item tooltips that aren't Waylaid Crates are skipped by item ID before any work.

@@ -53,10 +53,24 @@ local function Strip(s)
   return (s:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
 end
 
+-- Prices are kept for a second: one crate list refresh, its ratings and a crate tooltip ask
+-- for the same items many times over, and Auctionator's data doesn't move that fast.
+local PRICE_TTL = 1
+local priceCache, priceTime = {}, 0
 local function Price(itemID)
   if not (Auctionator and Auctionator.API and Auctionator.API.v1) then return nil end
-  local ok, p = pcall(Auctionator.API.v1.GetAuctionPriceByItemID, CALLER, itemID)
-  if ok and type(p) == "number" and p > 0 then return p end
+  local now = GetTime()
+  if now - priceTime >= PRICE_TTL then
+    wipe(priceCache)
+    priceTime = now
+  end
+  local p = priceCache[itemID]
+  if p == nil then
+    local ok, v = pcall(Auctionator.API.v1.GetAuctionPriceByItemID, CALLER, itemID)
+    p = (ok and type(v) == "number" and v > 0) and v or false
+    priceCache[itemID] = p
+  end
+  return p or nil
 end
 
 -- "Waylaid Crate: Journeyman Textiles" -> "Journeyman", "Textiles"
@@ -208,7 +222,7 @@ local function Process(tooltip, itemID)
     local saved = { id = itemID }
     for i, b in ipairs(bundles) do saved[i] = { b.item, b.qty } end
     CrateCostDB.crates[crateName] = saved
-    if ns.InvalidateRatings then ns.InvalidateRatings() end
+    if ns.InvalidateCrates then ns.InvalidateCrates() end
   end
   if not On("tooltip") then return end
   if not On("highlight") then best = nil end

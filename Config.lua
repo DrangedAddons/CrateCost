@@ -62,7 +62,7 @@ end
 
 local function Build()
   frame = CreateFrame("Frame", "CrateCostConfig", UIParent, "BackdropTemplate")
-  frame:SetSize(420, 330)
+  frame:SetSize(420, 356)
   frame:SetPoint("CENTER")
   frame:SetFrameStrata("DIALOG")
   frame:SetBackdrop({
@@ -106,15 +106,18 @@ local function Build()
   Check(frame, "Highlight the best bundle in gold", get, set, L, -120)
   get, set = Setting("favorLine")
   Check(frame, "Show the Merchant's Favor line", get, set, L, -146)
+  get, set = Setting("rating")
+  Check(frame, "Show the crate's rating", get, set, L, -172,
+    "Rates the crate 0-10 against every other crate by market cost per Merchant's Favor.")
 
-  Text(frame, "General", "GameFontNormal"):SetPoint("TOPLEFT", L, -182)
+  Text(frame, "General", "GameFontNormal"):SetPoint("TOPLEFT", L, -208)
   Check(frame, "Show minimap button",
     function() return not (CrateCostDB.minimap and CrateCostDB.minimap.hide) end,
-    function(on) ns.SetMinimapShown(on) end, L, -200)
+    function(on) ns.SetMinimapShown(on) end, L, -226)
 
   local note = Text(frame, "Prices come from Auctionator. Hovering a crate in your bags saves its real "
     .. "bundle amounts for the crate list.", "GameFontDisableSmall")
-  note:SetPoint("TOPLEFT", L + 4, -236)
+  note:SetPoint("TOPLEFT", L + 4, -262)
   note:SetWidth(372)
   note:SetJustifyH("LEFT")
 

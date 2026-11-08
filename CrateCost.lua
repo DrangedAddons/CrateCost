@@ -36,7 +36,7 @@ ns.SILVER_SAMPLE, ns.COPPER_SAMPLE = "99" .. SILVER, "99" .. COPPER
 
 -- Settings (Config.lua edits them). Account-wide: they're display preferences. Every
 -- toggle defaults to on = the normal behaviour.
-local DEFAULTS = { tooltip = true, sortTooltip = true, highlight = true, favorLine = true }
+local DEFAULTS = { tooltip = true, sortTooltip = true, highlight = true, favorLine = true, rating = true }
 function ns.Settings()
   if type(CrateCostDB) ~= "table" then CrateCostDB = {} end
   local st = CrateCostDB.settings
@@ -284,6 +284,11 @@ local function Process(tooltip, itemID)
     else
       tooltip:AddDoubleLine("Merchant's Favor", "unknown yet", 0.4, 0.8, 1, 0.5, 0.5, 0.5)
     end
+  end
+  -- how this crate's favor price compares with every other crate's (Window.lua)
+  if On("rating") and ns.AddRatingLines then
+    if not On("favorLine") then tooltip:AddLine(" ") end
+    ns.AddRatingLines(tooltip, crateName)
   end
   tooltip:Show()
 

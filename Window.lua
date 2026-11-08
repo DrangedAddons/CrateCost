@@ -5,7 +5,7 @@ local _, ns = ...
 -- search crate or material names, filter by crate type or by the profession the material
 -- comes from (then only that profession's bundles count). Hover a row for every bundle.
 
-local ROW_H, WIDTH, TOP = 18, 1010, 84
+local ROW_H, WIDTH, TOP = 18, 1070, 84
 -- money columns show gold / silver / copper in fixed right-aligned slots so units line up
 local SUB = 28
 local CART_ATLAS, CART_FILE = "Perks-ShoppingCart", "Interface\\AddOns\\CrateCost\\cart"
@@ -18,7 +18,8 @@ local COLS = {
   { key = "cost",   title = "Total cost",  x = 669, w = 96,  justify = "RIGHT", desc = false, money = true },
   { key = "favor",  title = "Favor",       x = 770, w = 50,  justify = "RIGHT", desc = true  },
   { key = "per",    title = "Per favor",   x = 825, w = 92,  justify = "RIGHT", desc = false, money = true },
-  { key = "have",   title = "Have",        x = 922, w = 35,  justify = "RIGHT", desc = true  },
+  { key = "rating", title = "Rating",      x = 922, w = 55,  justify = "RIGHT", desc = true  },
+  { key = "have",   title = "Have",        x = 982, w = 35,  justify = "RIGHT", desc = true  },
 }
 local TYPES = { "Textiles", "Ore", "Herbs", "Curiosities", "Fabrics", "Ingots", "Parts" }
 local RANK_ORDER = { Apprentice = 1, Journeyman = 2, Expert = 3, Artisan = 4 }
@@ -173,6 +174,83 @@ local function Evaluate(c, mine)
   c.bestName = c.best and c.bundles[c.best][1]
 end
 
+---------------------------------------------------------------------------------------------
+-- Rating: how good a crate's Merchant's Favor price is next to every other crate's.
+-- Market cost per favor p = (crate AH price + cheapest bundle) / favor, for each crate with
+-- a known favor and a priced bundle. Then, on a log scale between the cheapest (best) and the
+-- dearest (worst):
+--     score = 10 * ln(worst / p) / ln(worst / best)
+-- 10 = the best crate, 0 = the worst. Log because the gap is a ratio: 2x the best price
+-- costs the same points whether the best is 1g or 5g, and one very dear crate doesn't
+-- squash everything else up near 10.
+local TIERS = {
+  { 9, "Best" }, { 7, "Great" }, { 5, "Good" }, { 3, "Fair" }, { 1, "Poor" }, { -1, "Worst" },
+}
+
+function ns.CrateRatings()
+  local rated = {}
+  for _, c in ipairs(CrateList()) do
+    local favor = ns.FavorFor(c.rank, c.kind)
+    local bundle
+    for _, b in ipairs(c.bundles) do
+      local id = ns.ItemIDs[b[1]]
+      local unit = id and ns.Price(id)
+      if unit and (not bundle or unit * b[2] < bundle) then bundle = unit * b[2] end
+    end
+    if favor and bundle then
+      local crate = c.id and ns.Price(c.id)
+      rated[#rated + 1] = { name = c.name, per = (bundle + (crate or 0)) / favor, noCrate = crate == nil }
+    end
+  end
+  table.sort(rated, function(a, b) return a.per < b.per end)
+  local out = {}
+  local best, worst = rated[1] and rated[1].per, rated[#rated] and rated[#rated].per
+  for i, r in ipairs(rated) do
+    r.rank, r.total = i, #rated
+    r.ratio = r.per / best
+    if worst > best then
+      r.score = 10 * math.log(worst / r.per) / math.log(worst / best)
+    else
+      r.score = 10
+    end
+    out[r.name] = r
+  end
+  return out
+end
+
+-- Colour from red (0) through yellow (5) to green (10).
+local function ScoreColor(score)
+  local t = math.max(0, math.min(1, score / 10))
+  local r, g
+  if t < 0.5 then r, g = 1, 0.25 + t * 2 * 0.6 else r, g = 1 - (t - 0.5) * 2 * 0.75, 0.85 + (t - 0.5) * 2 * 0.15 end
+  return string.format("|cff%02x%02x%02x", r * 255, g * 255, 0.25 * 255)
+end
+
+function ns.RatingText(r)
+  local label = "Worst"
+  for _, t in ipairs(TIERS) do
+    if r.score >= t[1] then label = t[2] break end
+  end
+  return ScoreColor(r.score), string.format("%.1f", r.score), label
+end
+
+-- Two tooltip lines for crate `name`. Returns true if it had a rating.
+function ns.AddRatingLines(tooltip, name)
+  local r = ns.CrateRatings()[name]
+  if not r then
+    tooltip:AddDoubleLine("Rating", "not rated (no price or favor yet)", 0.4, 0.8, 1, 0.5, 0.5, 0.5)
+    return false
+  end
+  local color, score, label = ns.RatingText(r)
+  tooltip:AddDoubleLine("Rating", color .. score .. " / 10  " .. label .. "|r", 0.4, 0.8, 1, 1, 1, 1)
+  local how = r.rank == 1 and "cheapest favor of all crates"
+    or string.format("%.1fx the cheapest favor", r.ratio)
+  tooltip:AddDoubleLine(string.format("#%d of %d crates", r.rank, r.total),
+    ns.Money(math.floor(r.per + 0.5)) .. " per favor, " .. how
+    .. (r.noCrate and " (crate not priced)" or ""), 0.6, 0.6, 0.6, 0.6, 0.6, 0.6)
+  return true
+end
+
 local function Matches(c)
   local f = view.filter
   if f and f.group == "type" and c.kind ~= f.value then return false end
@@ -197,6 +275,7 @@ local function SortValue(c, key)
   if key == "have" then return c.have or 0 end
   if key == "bundle" then return c.bundleCost end
   if key == "crate" then return c.crateCost end
+  if key == "rating" then return c.rating and c.rating.score end
   return c[key]
 end
 
@@ -261,6 +340,8 @@ local function ShowRowTooltip(row)
       GameTooltip:AddDoubleLine(label, val, 1, 1, 1, 1, 1, 1)
     end
   end
+  GameTooltip:AddLine(" ")
+  ns.AddRatingLines(GameTooltip, c.name)
   if not c.live then
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine("Amounts from the beta guide. Hover this crate in your bags to use its real amounts.",
@@ -421,8 +502,10 @@ function ns.RefreshWindow()
   if not frame then return end
   local mine = Mode() == "mine"
   local all, list = CrateList(), {}
+  local ratings = ns.CrateRatings()
   for _, c in ipairs(all) do
     Evaluate(c, mine)
+    c.rating = ratings[c.name]
     if Matches(c) then list[#list + 1] = c end
   end
   table.sort(list, Compare)
@@ -464,6 +547,12 @@ function ns.RefreshWindow()
     cl.n:SetText(c.nUnknown and "|cff808080?|r" or ((c.n > 1 and "|cffffffff" or "|cff808080") .. c.n .. "|r"))
     cl.favor:SetText(c.favor and (c.favor .. icon) or "|cff808080?|r")
     SetMoney(row, "per", c.per, ns.BEST, "")
+    if c.rating then
+      local color, score = ns.RatingText(c.rating)
+      cl.rating:SetText(color .. score .. "|r")
+    else
+      cl.rating:SetText("|cff808080?|r")
+    end
     cl.have:SetText(c.have and c.have > 0 and c.have or "")
     row:Show()
   end

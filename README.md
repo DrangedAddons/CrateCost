@@ -11,6 +11,15 @@ Hover a Waylaid Crate:
 - each bundle gets its Auctionator price, with gold, silver and copper in their own columns
 - the cheapest bundle is listed first and highlighted in gold
 - a Merchant's Favor line shows what the crate pays (the same whichever bundle you use)
+- a **Rating** from 0 to 10 against every other crate, with its rank and how it compares to the cheapest favor
+
+### How the rating works
+
+Each crate's market cost per favor is `p = (crate AH price + cheapest bundle) / favor`. Crates without a known favor or any priced bundle aren't rated. With `best` and `worst` the cheapest and dearest `p` across all rated crates:
+
+    score = 10 * ln(worst / p) / ln(worst / best)
+
+The log scale rates ratios: costing twice the best loses the same points whether the best is 1g or 5g, and one very expensive crate doesn't push everything else up to 9-10. Labels: 9+ Best, 7+ Great, 5+ Good, 3+ Fair, 1+ Poor, below 1 Worst. A crate with no AH price of its own is rated on its bundle alone (the tooltip says so).
 
 Hovering a crate also saves its real bundle amounts for the crate list. The beta guides don't always match the live game (Journeyman Textiles wants 20 Wool Cloth, not 40).
 
@@ -26,6 +35,7 @@ Every Waylaid Crate, sorted by the cheapest Merchant's Favor:
 | Best bundle | material, amount, price per unit |
 | Bundle cost / Total cost | the materials, and crate + materials |
 | Favor / Per favor | favor per crate, and total cost per favor |
+| Rating | 0-10 against the other crates (see above) |
 | Have | crates in your bags and bank |
 
 - Click a header to sort; click again to reverse.
@@ -55,7 +65,7 @@ The **Merchant** button on `/crates`, `/crates merchant`, or shift-click (or mid
 
 `/cratecost config`, right-click the minimap button, or Options > AddOns > CrateCost:
 
-- bundle prices on crate tooltips, cheapest first, gold highlight, the Merchant's Favor line
+- bundle prices on crate tooltips, cheapest first, gold highlight, the Merchant's Favor line, the rating
 - the minimap button (left-click: crate list, shift- or middle-click: merchant list, right-click: settings)
 
 ## Data

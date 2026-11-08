@@ -195,9 +195,21 @@ local function Process(tooltip, itemID)
   -- Remember the live amounts (and the crate's item ID) for the /crates window.
   if type(CrateCostDB) ~= "table" then CrateCostDB = {} end
   CrateCostDB.crates = CrateCostDB.crates or {}
-  local saved = { id = itemID }
-  for i, b in ipairs(bundles) do saved[i] = { b.item, b.qty } end
-  CrateCostDB.crates[crateName] = saved
+  -- only write (and drop the cached ratings) when something actually changed: the game
+  -- re-runs a hovered item's tooltip over and over
+  local old = CrateCostDB.crates[crateName]
+  local same = old and old.id == itemID and #old == #bundles
+  if same then
+    for i, b in ipairs(bundles) do
+      if not old[i] or old[i][1] ~= b.item or old[i][2] ~= b.qty then same = false break end
+    end
+  end
+  if not same then
+    local saved = { id = itemID }
+    for i, b in ipairs(bundles) do saved[i] = { b.item, b.qty } end
+    CrateCostDB.crates[crateName] = saved
+    if ns.InvalidateRatings then ns.InvalidateRatings() end
+  end
   if not On("tooltip") then return end
   if not On("highlight") then best = nil end
 
@@ -327,6 +339,10 @@ local function Safe(tooltip, itemID)
   end
 end
 
+-- Waylaid Crates are items 248682-248713 (Data.lua ns.CrateIDs); Window.lua scans the same
+-- wider range by name in case new ones appear.
+local CRATE_ID_MIN, CRATE_ID_MAX = 248600, 248800
+
 local function ItemIDFromTooltip(tooltip)
   local _, link = tooltip:GetItem()
   return link and tonumber(link:match("item:(%d+)"))
@@ -335,7 +351,11 @@ end
 if TooltipDataProcessor and Enum and Enum.TooltipDataType then
   TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip, data)
     if tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip then return end
-    Safe(tooltip, data and data.id or ItemIDFromTooltip(tooltip))
+    -- runs for every item tooltip: leave anything outside the crates' item ID range alone
+    -- before touching the tooltip (an unknown ID still goes through the title check)
+    local id = data and data.id
+    if id and (id < CRATE_ID_MIN or id > CRATE_ID_MAX) then return end
+    Safe(tooltip, id or ItemIDFromTooltip(tooltip))
   end)
 else
   for _, tt in ipairs({ GameTooltip, ItemRefTooltip }) do

@@ -59,6 +59,41 @@ ns.Favor = {
   crafted = { Apprentice = 10, Journeyman = 20, Expert = 30 },
 }
 ns.CraftedKinds = { Fabrics = true, Ingots = true, Parts = true }
+-- Crate item IDs from the wow-professions.com tables, so the list knows them without
+-- scanning item IDs at login. IDs seen in game (hover, scan) are saved and win.
+ns.CrateIDs = {
+  ["Apprentice Textiles"] = 248684,
+  ["Apprentice Ore"] = 248683,
+  ["Apprentice Herbs"] = 248682,
+  ["Apprentice Curiosities"] = 248685,
+  ["Apprentice Fabrics"] = 248702,
+  ["Apprentice Ingots"] = 248703,
+  ["Apprentice Parts"] = 248704,
+  ["Journeyman Textiles"] = 248688,
+  ["Journeyman Ore"] = 248687,
+  ["Journeyman Herbs"] = 248686,
+  ["Journeyman Curiosities"] = 248689,
+  ["Journeyman Fabrics"] = 248705,
+  ["Journeyman Ingots"] = 248706,
+  ["Journeyman Parts"] = 248707,
+  ["Expert Textiles"] = 248693,
+  ["Expert Ore"] = 248692,
+  ["Earthly Expert Herbs"] = 248690,
+  ["Flowering Expert Herbs"] = 248691,
+  ["Expert Curiosities"] = 248694,
+  ["Expert Fabrics"] = 248708,
+  ["Expert Ingots"] = 248709,
+  ["Expert Parts"] = 248710,
+  ["Artisan Textiles"] = 248698,
+  ["Artisan Ore"] = 248697,
+  ["Earthly Artisan Herbs"] = 248695,
+  ["Flowering Artisan Herbs"] = 248696,
+  ["Artisan Curiosities"] = 248699,
+  ["Artisan Fabrics"] = 248711,
+  ["Artisan Ingots"] = 248712,
+  ["Artisan Parts"] = 248713,
+}
+
 -- Every crate and its bundles, from the wow-professions.com tables (beta amounts).
 -- Hovering a real crate saves its live amounts in CrateCostDB.crates, which win over these.
 ns.Crates = {

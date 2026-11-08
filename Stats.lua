@@ -242,7 +242,7 @@ end
 -- a word in the name, profession, type, slot, effect or the item's Equip / Use lines.
 function ns.EntryMatches(e, q)
   if q == "" then return true end
-  local name = e.name:lower()
+  local name = e.lname or e.name:lower()
   if not ALIAS[q] and name:find(q, 1, true) then return true end
   local text = e.text
   local fx = e.craft and ns.ItemEffectText(e.craft) or ""

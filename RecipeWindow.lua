@@ -60,6 +60,8 @@ local function Entries()
     local p = e.name:match("^(%a+) Certification$")
     if p then e.prof, e.skill = p, 300 end
     e.text = table.concat({ e.name, e.prof, e.type, e.slot, e.effect }, "\n"):lower()
+    e.lname = e.name:lower()
+    e.key = FavKey(e)
   end
   return all
 end
@@ -97,17 +99,18 @@ local function EffectShown(e)
   return e.effect .. "; " .. fx
 end
 
-local function SortValue(e, key)
+local function SortValue(e, key, favs)
   if key == "known" then return e.known and 1 or 0 end
-  if key == "fav" then return Favorites()[FavKey(e)] and 1 or 0 end
+  if key == "fav" then return favs[e.key] and 1 or 0 end
   if key == "rep" or key == "skill" or key == "level" or key == "cost" then return e[key] or 0 end
   if key == "effect" then return EffectShown(e):lower() end
   return (e[key] or ""):lower()
 end
 
+-- e.sortValue is filled once per refresh for the shown rows, so the comparator doesn't
+-- rebuild strings O(n log n) times
 local function Compare(a, b)
-  local k = view.sort
-  local va, vb = SortValue(a, k), SortValue(b, k)
+  local va, vb = a.sortValue, b.sortValue
   if va ~= vb then
     if view.desc then return va > vb end
     return va < vb
@@ -197,21 +200,21 @@ local function MakeRow(i)
   star:SetScript("OnClick", function()
     local e = row.entry
     if not e then return end
-    local favs, k = Favorites(), FavKey(e)
+    local favs, k = Favorites(), e.key
     favs[k] = (not favs[k]) and true or nil
     if view.favOnly or view.sort == "fav" then ns.RefreshRecipes() else Draw() end
   end)
   star:SetScript("OnEnter", function(self)
     local e = row.entry
-    PaintStar(self, e and Favorites()[FavKey(e)])
+    PaintStar(self, e and Favorites()[e.key])
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-    GameTooltip:SetText(e and Favorites()[FavKey(e)] and "Remove from favorites" or "Add to favorites", 1, 1, 1)
+    GameTooltip:SetText(e and Favorites()[e.key] and "Remove from favorites" or "Add to favorites", 1, 1, 1)
     GameTooltip:Show()
   end)
   star:SetScript("OnLeave", function(self)
     local e = row.entry
     GameTooltip:Hide()
-    PaintStar(self, e and Favorites()[FavKey(e)])
+    PaintStar(self, e and Favorites()[e.key])
   end)
   row.star = star
 
@@ -267,7 +270,7 @@ function Draw()
       c.rep:SetText(REP_COLOR[e.rep] .. REP_NAME[e.rep] .. "|r")
       c.cost:SetText((have >= e.cost and "|cff40ff40" or "|cffffffff") .. e.cost .. "|r" .. ns.FavorIcon())
       c.known:SetText(e.known and "|cff40ff40yes|r" or "")
-      PaintStar(row.star, favs[FavKey(e)])
+      PaintStar(row.star, favs[e.key])
       row:Show()
     else
       row:Hide()
@@ -288,18 +291,28 @@ local function StatsOn()
   return n
 end
 
+-- Learned state only changes when you learn something: worked out on open and on the learn
+-- events, not on every keystroke in the search box.
+local knownDirty = true
+local lastFavor
+
 function ns.RefreshRecipes()
   if not (frame and frame:IsShown()) then return end
   local mine = view.prof == "mine" and MyProfessions() or nil
   local have, favs = Favor(), Favorites()
+  lastFavor = have
   local statFilter = next(view.stats) ~= nil
+  local entries = Entries()
+  if knownDirty then
+    knownDirty = false
+    for _, e in ipairs(entries) do e.known = Known(e) end
+  end
   wipe(list)
-  for _, e in ipairs(Entries()) do
-    e.known = Known(e)
+  for _, e in ipairs(entries) do
     local ok = true
     if view.prof == "mine" then ok = mine[e.prof] or false
     elseif view.prof then ok = e.prof == view.prof end
-    if ok and view.favOnly and not favs[FavKey(e)] then ok = false end
+    if ok and view.favOnly and not favs[e.key] then ok = false end
     if ok and view.hideKnown and e.known then ok = false end
     if ok and view.afford and e.cost > have then ok = false end
     if ok and statFilter then
@@ -311,7 +324,10 @@ function ns.RefreshRecipes()
       end
     end
     if ok and not ns.EntryMatches(e, view.search) then ok = false end
-    if ok then list[#list + 1] = e end
+    if ok then
+      list[#list + 1] = e
+      e.sortValue = SortValue(e, view.sort, favs)
+    end
   end
   table.sort(list, Compare)
   frame.count:SetText(string.format("%d shown  |  You have %d%s", #list, have, ns.FavorIcon()))
@@ -498,7 +514,10 @@ local function Build()
       CrateCostDB.merchantPos = { x = self:GetLeft(), y = self:GetTop() }
     end
   end)
-  frame:SetScript("OnShow", ns.RefreshRecipes)
+  frame:SetScript("OnShow", function()
+    knownDirty = true
+    ns.RefreshRecipes()
+  end)
   frame:EnableMouseWheel(true)
   frame:SetScript("OnMouseWheel", function(_, delta)
     view.offset = view.offset - delta * 3
@@ -511,7 +530,13 @@ local function Build()
       pcall(frame.RegisterEvent, frame, ev)
     end
   end
-  frame:SetScript("OnEvent", function() ns.RefreshRecipes() end)
+  frame:SetScript("OnEvent", function(_, event)
+    if event ~= "CURRENCY_DISPLAY_UPDATE" then knownDirty = true end
+    if not frame:IsShown() then return end
+    -- CURRENCY_DISPLAY_UPDATE fires for every currency: only Merchant's Favor matters here
+    if event == "CURRENCY_DISPLAY_UPDATE" and Favor() == lastFavor then return end
+    ns.RefreshRecipes()
+  end)
   tinsert(UISpecialFrames, "CrateCostRecipes")
 
   local title = frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")

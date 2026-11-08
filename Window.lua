@@ -77,6 +77,7 @@ local function Record(id, name)
   local crate = type(name) == "string" and name:match("^Waylaid Crate:%s*(.+)$")
   if crate and DB().ids[crate] ~= id then
     DB().ids[crate] = id
+    ns.InvalidateRatings()
     QueueRefresh()
   end
 end
@@ -86,7 +87,16 @@ local function ItemName(id)
   return GetItemInfo and (GetItemInfo(id))
 end
 
-local function ScanIDs()
+-- force: the Refresh button. At login the scan is skipped once every crate's ID is saved,
+-- so it doesn't ask the server about 200 items (and field 200 replies) each session.
+local function ScanIDs(force)
+  if not force then
+    local ids, missing = DB().ids, false
+    for _, c in ipairs(ns.Crates) do
+      if not (ids[c[1]] or ns.CrateIDs[c[1]]) then missing = true break end
+    end
+    if not missing then return end
+  end
   for id = SCAN_FROM, SCAN_TO do
     local name = ItemName(id)
     if name then
@@ -123,7 +133,7 @@ local function CrateList()
     local rank, kind = ns.ParseCrate("Waylaid Crate: " .. name)
     local s = db.crates[name]
     list[#list + 1] = { name = name, rank = rank, kind = kind, bundles = bundles, live = live,
-                        id = (s and s.id) or db.ids[name] }
+                        id = (s and s.id) or db.ids[name] or ns.CrateIDs[name] }
     seen[name] = true
   end
   for _, c in ipairs(ns.Crates) do
@@ -187,7 +197,16 @@ local TIERS = {
   { 9, "Best" }, { 7, "Great" }, { 5, "Good" }, { 3, "Fair" }, { 1, "Poor" }, { -1, "Worst" },
 }
 
+-- Cached: one crate tooltip asks twice (title + detail line), and the game re-runs item
+-- tooltips while you hover. Dropped when crate data changes (ns.InvalidateRatings) and
+-- after RATING_TTL seconds so new Auctionator prices come through.
+local RATING_TTL = 5
+local ratingCache, ratingTime
+
+function ns.InvalidateRatings() ratingCache = nil end
+
 function ns.CrateRatings()
+  if ratingCache and GetTime() - ratingTime < RATING_TTL then return ratingCache end
   local rated = {}
   for _, c in ipairs(CrateList()) do
     local favor = ns.FavorFor(c.rank, c.kind)
@@ -215,6 +234,7 @@ function ns.CrateRatings()
     end
     out[r.name] = r
   end
+  ratingCache, ratingTime = out, GetTime()
   return out
 end
 
@@ -650,7 +670,7 @@ local function Build()
   refresh:SetSize(70, 20)
   refresh:SetPoint("TOPRIGHT", -30, -6)
   refresh:SetText("Refresh")
-  refresh:SetScript("OnClick", function() ScanIDs() ns.RefreshWindow() end)
+  refresh:SetScript("OnClick", function() ns.InvalidateRatings() ScanIDs(true) ns.RefreshWindow() end)
 
   local mode = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
   mode:SetSize(110, 20)

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.13.4
+- Efficiency pass:
+  - Item tooltips that aren't Waylaid Crates are skipped by item ID before any work.
+  - Crate ratings are cached (one crate tooltip used to work them out twice, on every tooltip refresh) and recomputed when crate data changes or after 5 seconds for new prices.
+  - Hovering a crate only writes saved data when its bundles changed.
+  - Crate item IDs ship with the addon, so the login scan of 200 item IDs is skipped (the crate list's Refresh button still scans).
+  - Merchant list: learned recipes are checked when the window opens or you learn something, not on every keystroke; sort keys are worked out once per refresh; currency updates for other currencies no longer refresh it.
+
 ## 0.13.3
 - The rating label sits right under the crate's name instead of at the top right, still big and outlined.
 

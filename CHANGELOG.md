@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.11.2
+- Fixed: the recipe list opened as a blank window that wouldn't close. It registered an event this client doesn't have.
+
 ## 0.11.1
 - `/crate` works as well as `/crates`.
 

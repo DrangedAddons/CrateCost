@@ -268,9 +268,13 @@ local function Build()
     view.offset = view.offset - delta * 3
     Draw()
   end)
-  frame:RegisterEvent("CURRENCY_DISPLAY_UPDATE")
-  frame:RegisterEvent("LEARNED_SPELL_IN_TAB")
-  frame:RegisterEvent("NEW_RECIPE_LEARNED")
+  -- RegisterEvent throws on events the client doesn't have (LEARNED_SPELL_IN_TAB is gone
+  -- from retail-based clients), which aborted Build and left a blank, unclosable frame.
+  for _, ev in ipairs({ "CURRENCY_DISPLAY_UPDATE", "NEW_RECIPE_LEARNED", "LEARNED_SPELL_IN_TAB" }) do
+    if not (C_EventUtils and C_EventUtils.IsEventValid) or C_EventUtils.IsEventValid(ev) then
+      pcall(frame.RegisterEvent, frame, ev)
+    end
+  end
   frame:SetScript("OnEvent", function() ns.RefreshRecipes() end)
   tinsert(UISpecialFrames, "CrateCostRecipes")
 
@@ -423,6 +427,18 @@ local function Build()
 end
 
 function ns.ToggleRecipes()
-  if not frame then Build() frame:Hide() end
+  if not frame then
+    local ok, err = pcall(Build)
+    if not ok then
+      -- never leave a half-built window stuck on screen
+      if frame then frame:Hide() end
+      frame = nil
+      wipe(headers)
+      wipe(rows)
+      ns.Print("couldn't open the recipe list: " .. tostring(err))
+      return
+    end
+    frame:Hide()
+  end
   frame:SetShown(not frame:IsShown())
 end

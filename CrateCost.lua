@@ -36,7 +36,8 @@ ns.SILVER_SAMPLE, ns.COPPER_SAMPLE = "99" .. SILVER, "99" .. COPPER
 
 -- Settings (Config.lua edits them). Account-wide: they're display preferences. Every
 -- toggle defaults to on = the normal behaviour.
-local DEFAULTS = { tooltip = true, sortTooltip = true, highlight = true, favorLine = true, rating = true }
+local DEFAULTS = { tooltip = true, sortTooltip = true, highlight = true, favorLine = true, rating = true,
+  writTooltip = true }
 function ns.Settings()
   if type(CrateCostDB) ~= "table" then CrateCostDB = {} end
   local st = CrateCostDB.settings
@@ -69,6 +70,24 @@ local function Price(itemID)
     local ok, v = pcall(Auctionator.API.v1.GetAuctionPriceByItemID, CALLER, itemID)
     p = (ok and type(v) == "number" and v > 0) and v or false
     priceCache[itemID] = p
+  end
+  return p or nil
+end
+
+-- What a vendor sells `itemID` for, from Auctionator's vendor cache (it records prices when you
+-- visit a merchant). Shares the price memo, keyed negative.
+local function VendorPrice(itemID)
+  if not (Auctionator and Auctionator.API and Auctionator.API.v1
+    and Auctionator.API.v1.GetVendorPriceByItemID) then return nil end
+  if GetTime() - priceTime >= PRICE_TTL then
+    wipe(priceCache)
+    priceTime = GetTime()
+  end
+  local p = priceCache[-itemID]
+  if p == nil then
+    local ok, v = pcall(Auctionator.API.v1.GetVendorPriceByItemID, CALLER, itemID)
+    p = (ok and type(v) == "number" and v > 0) and v or false
+    priceCache[-itemID] = p
   end
   return p or nil
 end
@@ -358,6 +377,8 @@ end
 -- Waylaid Crates are items 248682-248713 (Data.lua ns.CrateIDs); Window.lua scans the same
 -- wider range by name in case new ones appear.
 local CRATE_ID_MIN, CRATE_ID_MAX = 248600, 248800
+-- Craftsman's Writs (264012-264161) and the Sealed envelopes (262888-262890)
+local WRIT_ID_MIN, WRIT_ID_MAX = 262880, 264200
 
 local function ItemIDFromTooltip(tooltip)
   local _, link = tooltip:GetItem()
@@ -370,6 +391,16 @@ if TooltipDataProcessor and Enum and Enum.TooltipDataType then
     -- runs for every item tooltip: leave anything outside the crates' item ID range alone
     -- before touching the tooltip (an unknown ID still goes through the title check)
     local id = data and data.id
+    if id and id >= WRIT_ID_MIN and id <= WRIT_ID_MAX then
+      if ns.WritTooltip and On("writTooltip") then
+        local ok, err = pcall(ns.WritTooltip, tooltip, id)
+        if not ok and not reported then
+          reported = true
+          Print("|cffff4040writ tooltip error:|r " .. tostring(err))
+        end
+      end
+      return
+    end
     if id and (id < CRATE_ID_MIN or id > CRATE_ID_MAX) then return end
     Safe(tooltip, id or ItemIDFromTooltip(tooltip))
   end)
@@ -400,9 +431,12 @@ SlashCmdList.CRATECOST = function(msg)
     ns.ShowCart()
   elseif msg == "merchant" or msg == "recipes" or msg == "recipe" then
     ns.ToggleRecipes()
+  elseif msg == "writs" or msg == "writ" then
+    ns.ToggleWrits()
   else
     Print("/crates - crate list sorted by cost per favor")
     Print("/crates merchant - everything Merchant's Favor buys")
+    Print("/crates writs - Craftsman's Writs by cost per reputation")
     Print("/cratecost config - settings")
     Print("/cratecost cart - the shopping cart")
     Print("/cratecost debug - print the next crate tooltip's raw lines")
@@ -411,4 +445,4 @@ end
 
 -- shared with Window.lua
 ns.Price, ns.Money, ns.FavorFor, ns.FavorIcon, ns.ParseCrate = Price, Money, FavorFor, FavorIcon, ParseCrate
-ns.BEST, ns.Print = BEST, Print
+ns.BEST, ns.Print, ns.VendorPrice = BEST, Print, VendorPrice

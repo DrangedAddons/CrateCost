@@ -62,7 +62,7 @@ end
 
 local function Build()
   frame = CreateFrame("Frame", "CrateCostConfig", UIParent, "BackdropTemplate")
-  frame:SetSize(420, 356)
+  frame:SetSize(420, 382)
   frame:SetPoint("CENTER")
   frame:SetFrameStrata("DIALOG")
   frame:SetBackdrop({
@@ -108,20 +108,23 @@ local function Build()
   Check(frame, "Show the Merchant's Favor line", get, set, L, -146)
   get, set = Setting("rating")
   Check(frame, "Show the crate's rating", get, set, L, -172,
-    "Rates the crate 0-10 against every other crate by market cost per Merchant's Favor.")
+    "Best, Great, Good, Fair, Poor or Worst against every other crate, by market cost per Merchant's Favor.")
+  get, set = Setting("writTooltip")
+  Check(frame, "Rate Craftsman's Writs on their tooltips", get, set, L, -198,
+    "Cost to fill, cost per reputation and rating on writ and Sealed writ tooltips.")
 
-  Text(frame, "General", "GameFontNormal"):SetPoint("TOPLEFT", L, -208)
+  Text(frame, "General", "GameFontNormal"):SetPoint("TOPLEFT", L, -234)
   Check(frame, "Show minimap button",
     function() return not (CrateCostDB.minimap and CrateCostDB.minimap.hide) end,
-    function(on) ns.SetMinimapShown(on) end, L, -226)
+    function(on) ns.SetMinimapShown(on) end, L, -252)
 
   local note = Text(frame, "Prices come from Auctionator. Hovering a crate in your bags saves its real "
     .. "bundle amounts for the crate list.", "GameFontDisableSmall")
-  note:SetPoint("TOPLEFT", L + 4, -262)
+  note:SetPoint("TOPLEFT", L + 4, -288)
   note:SetWidth(372)
   note:SetJustifyH("LEFT")
 
-  local list = Button(frame, "Crate list", 110, 24, function() ns.ToggleWindow() end)
+  local list = Button(frame, "Crate list", 90, 24, function() ns.ToggleWindow() end)
   list:SetPoint("BOTTOMLEFT", 24, 20)
   Tip(list, "/crates")
   local cart = Button(frame, "Cart", 80, 24, function() ns.ShowCart() end)
@@ -129,6 +132,9 @@ local function Build()
   local rec = Button(frame, "Merchant", 90, 24, function() ns.ToggleRecipes() end)
   rec:SetPoint("LEFT", cart, "RIGHT", 10, 0)
   Tip(rec, "/crates merchant")
+  local writs = Button(frame, "Writs", 80, 24, function() ns.ToggleWrits() end)
+  writs:SetPoint("LEFT", rec, "RIGHT", 10, 0)
+  Tip(writs, "/crates writs")
 end
 
 function ns.ToggleConfig()
@@ -159,6 +165,11 @@ reg:SetScript("OnEvent", function()
     ns.ToggleRecipes()
   end)
   rec:SetPoint("LEFT", crates, "RIGHT", 10, 0)
+  local writs = Button(panel, "Writs", 140, 24, function()
+    if SettingsPanel and SettingsPanel:IsShown() then HideUIPanel(SettingsPanel) end
+    ns.ToggleWrits()
+  end)
+  writs:SetPoint("LEFT", rec, "RIGHT", 10, 0)
   local category = Settings.RegisterCanvasLayoutCategory(panel, "CrateCost")
   Settings.RegisterAddOnCategory(category)
 end)
@@ -166,6 +177,7 @@ end)
 -- AddOn compartment (the minimap's addon menu)
 function CrateCost_OnCompartmentClick(_, button)
   if button == "RightButton" then ns.ToggleConfig()
+  elseif IsControlKeyDown() then ns.ToggleWrits()
   elseif button == "MiddleButton" or IsShiftKeyDown() then ns.ToggleRecipes()
   else ns.ToggleWindow() end
 end

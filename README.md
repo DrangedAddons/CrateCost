@@ -69,15 +69,29 @@ The **Merchant** button on `/crates`, `/crates merchant`, or shift-click (or mid
 - Filter by profession or "My professions", hide recipes you've learned, or show only what your current favor can buy (affordable costs are green).
 - Hover a row for the crafted item's tooltip (the enchant's for enchants). Shift-click links it in chat.
 
+## Writs
+
+The **Writs** button on `/crates`, `/crates writs`, or ctrl-click the minimap button: all 150 Craftsman's Writs (Alchemy, Blacksmithing, Engineering, Leatherworking, Tailoring), sorted by the cheapest reputation.
+
+- **Writ cost**: the writ on the AH. **Buy item**: the required item on the AH. **Craft item**: its reagents, each at the vendor price (from Auctionator's vendor cache), the AH price, or crafted when that's cheaper. The cheaper of buy and craft is gold.
+- **Total** = writ + the cheaper way to get the item. **Per rep** = total / the writ's reputation (75 Journeyman, 125 Expert, 200 Artisan).
+- **Rating**: the crate tiers on cost per rep. A writ with no AH price is rated on the item alone and marked *.
+- **Have**: W if you hold the writ, then how many of the item you have. **Today**: the writ's daily is done.
+- Under the list, each Sealed envelope (a random writ of that rank): its price + the rank's average fill = the expected cost per rep.
+- Filter by profession, rank, writs on the AH, writs you have, or hide those done today. Hover a row for the reagent breakdown and the recipient. Shift-click searches Auctionator (the item columns search the item, the rest the writ).
+- Writ and Sealed writ tooltips in your bags show the same breakdown and rating.
+
 ## Settings
 
 `/cratecost config`, right-click the minimap button, or Options > AddOns > CrateCost:
 
 - bundle prices on crate tooltips, cheapest first, gold highlight, the Merchant's Favor line, the rating
-- the minimap button (left-click: crate list, shift- or middle-click: merchant list, right-click: settings)
+- the writ rating on writ tooltips
+- the minimap button (left-click: crate list, shift- or middle-click: merchant list, ctrl-click: writs, right-click: settings)
 
 ## Data
 
 - Recipes, costs and reputation come from wow-professions.com's Merchant's Favor guide. Crafted item IDs and base stats come from CraftRoute's Forever recipe data (`tools/join.py` rebuilds Recipes.lua from both).
+- Writs (writ and quest IDs, required item, skill, rank, reputation, recipient) come from wow.gg's Merchant's Favor guide. What each item is made from comes from endgametools.com's Forever profession pages (`tools/writs.py` rebuilds Writs.lua from both).
 - Favor per crate comes from wow-professions.com's beta tables: raw goods 5/10/15, crafted goods (Fabrics, Ingots, Parts) 10/20/30 for Apprentice/Journeyman/Expert. Artisan is unknown so far.
 - Crate item IDs are found by name at login. Material IDs and professions were checked against CraftRoute's Forever data.

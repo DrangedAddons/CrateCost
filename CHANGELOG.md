@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.17.0
+- **Writs** window (`/crates writs`, the Writs button on `/crates`, or ctrl-click the minimap button): all 150 Craftsman's Writs with the writ's AH price, the required item's AH price, the cost to craft it, the total, cost per reputation and a rating.
+- Craft cost prices each reagent at Auctionator's vendor price, else its AH price, or crafts it when that's cheaper (bolts, cured leather and so on). The cheaper of buying and crafting the item is gold and counts toward the total.
+- Ratings use the crate tiers (Best, Great, Good, Fair, Poor, Worst) on cost per reputation. Writs without an AH price are rated on the item alone and marked *.
+- Under the list: each Sealed writ envelope's price plus that rank's average fill cost, as an expected cost per reputation.
+- Columns for rank, skill, rep, what you hold (W = the writ, then the item count) and whether it's done today (each writ is a daily). Filter by profession, rank, writs on the AH, writs you have, or hide those done today.
+- Writ and Sealed writ item tooltips show the same breakdown and rating (setting: "Rate Craftsman's Writs on their tooltips").
+- Data: the writs come from wow.gg's Merchant's Favor guide and the recipes from endgametools.com, built by `tools/writs.py`. No other addon is needed.
+- The rating setting's tooltip no longer says 0-10.
+
 ## 0.16.0
 - Merchant list: **Sort by stat** dropdown, like CraftRoute's. Pick a stat (under Attributes, Spell, Physical, Defense, Resistances, Bags; only stats something in the list has) and switch between highest and lowest first. The stat's value leads each row's Effect cell, rows without it go last, and clicking a column header returns to column sorting.
 

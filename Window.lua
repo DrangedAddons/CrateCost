@@ -245,26 +245,37 @@ function ns.CrateRatings()
       rated[#rated + 1] = { name = c.name, per = (bundle + (crate or 0)) / favor, noCrate = crate == nil }
     end
   end
-  table.sort(rated, function(a, b) return a.per < b.per end)
   local out = {}
+  for _, r in ipairs(ns.RateList(rated)) do out[r.name] = r end
+  ratingCache, ratingTime = out, GetTime()
+  return out
+end
+
+-- Tier for a ratio to the cheapest (no Best / Worst): label, colour.
+function ns.TierFor(ratio)
+  for _, t in ipairs(TIERS) do
+    if ratio <= t[1] then return t[2], t[3] end
+  end
+end
+
+-- Sorts `rated` (entries with .per = cost per favor / per rep) cheapest first and sets
+-- rank, total, ratio, label and colour on each. Shared by the crate and writ lists.
+function ns.RateList(rated)
+  table.sort(rated, function(a, b) return a.per < b.per end)
   local best = rated[1] and rated[1].per
   local worst = rated[#rated] and rated[#rated].per
   for i, r in ipairs(rated) do
     r.rank, r.total = i, #rated
-    r.ratio = r.per / best
+    r.ratio = best > 0 and r.per / best or 1
     if r.per - best <= EXTREME_MARGIN then
       r.label, r.color = BEST[1], BEST[2]
     elseif #rated > 1 and worst - r.per <= EXTREME_MARGIN then
       r.label, r.color = WORST[1], WORST[2]
     else
-      for _, t in ipairs(TIERS) do
-        if r.ratio <= t[1] then r.label, r.color = t[2], t[3] break end
-      end
+      r.label, r.color = ns.TierFor(r.ratio)
     end
-    out[r.name] = r
   end
-  ratingCache, ratingTime = out, GetTime()
-  return out
+  return rated
 end
 
 -- Tier colour and label. Blue for the best rather than green, so it doesn't look like the
@@ -293,10 +304,11 @@ local function Restore(tooltip)
   if l then l:Hide() end
 end
 
-function ns.SetTitleRating(tooltip, name)
+-- `text` (already coloured) is used instead of crate `name`'s rating when given.
+function ns.SetTitleRating(tooltip, name, text)
   local tn = tooltip.GetName and tooltip:GetName()
   local left = tn and _G[tn .. "TextLeft1"]
-  local text = ns.RatingTitle(name)
+  text = text or (name and ns.RatingTitle(name))
   local title = left and left:GetText()
   if not (text and type(title) == "string") then return false end
   local font, size = left:GetFont()
@@ -483,6 +495,8 @@ local function SearchAuctionator(itemID, name)
     ns.Print("open the Auctionator Shopping tab at the AH, then shift-click again.")
   end
 end
+
+ns.SearchAuctionator = SearchAuctionator
 
 local function RowClick(row)
   if not IsShiftKeyDown() or not row.crate then return end
@@ -743,6 +757,18 @@ local function Build()
     GameTooltip:Show()
   end)
   recipes:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+  local writs = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+  writs:SetSize(70, 20)
+  writs:SetPoint("RIGHT", recipes, "LEFT", -4, 0)
+  writs:SetText("Writs")
+  writs:SetScript("OnClick", function() ns.ToggleWrits() end)
+  writs:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine("Craftsman's Writs by cost per reputation", 1, 1, 1)
+    GameTooltip:Show()
+  end)
+  writs:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
   -- search box
   local search = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")

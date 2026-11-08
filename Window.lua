@@ -200,14 +200,20 @@ end
 ---------------------------------------------------------------------------------------------
 -- Rating: how good a crate's Merchant's Favor price is next to every other crate's.
 -- Market cost per favor p = (crate AH price + cheapest bundle) / favor, for each crate with
--- a known favor and a priced bundle. Then, on a log scale between the cheapest (best) and the
--- dearest (worst):
---     score = 10 * ln(worst / p) / ln(worst / best)
--- 10 = the best crate, 0 = the worst. Log because the gap is a ratio: 2x the best price
--- costs the same points whether the best is 1g or 5g, and one very dear crate doesn't
--- squash everything else up near 10.
+-- a known favor and a priced bundle. Each crate is rated by how many times the cheapest
+-- favor it costs (ratio = p / best p), in four tiers with fixed, distinct colours:
+--   Best  up to 1.25x the cheapest   (blue)
+--   Good  up to 1.75x                (yellow)
+--   Fair  up to 3x                   (orange)
+--   Poor  over 3x                    (red)
+-- Tiers by ratio (not by spread between best and worst) keep each tier tight: one very
+-- expensive crate can't drag mid-priced crates into Best. Each tier's top is about 1.4-1.7x
+-- its bottom, so crates sharing a label cost roughly the same per favor.
 local TIERS = {
-  { 9, "Best" }, { 7, "Great" }, { 5, "Good" }, { 3, "Fair" }, { 1, "Poor" }, { -1, "Worst" },
+  { 1.25,      "Best", "|cff4da6ff" },
+  { 1.75,      "Good", "|cffffe14d" },
+  { 3,         "Fair", "|cffff9426" },
+  { math.huge, "Poor", "|cffff3b3b" },
 }
 
 -- Cached: one crate tooltip asks twice (title + detail line), and the game re-runs item
@@ -236,14 +242,12 @@ function ns.CrateRatings()
   end
   table.sort(rated, function(a, b) return a.per < b.per end)
   local out = {}
-  local best, worst = rated[1] and rated[1].per, rated[#rated] and rated[#rated].per
+  local best = rated[1] and rated[1].per
   for i, r in ipairs(rated) do
     r.rank, r.total = i, #rated
     r.ratio = r.per / best
-    if worst > best then
-      r.score = 10 * math.log(worst / r.per) / math.log(worst / best)
-    else
-      r.score = 10
+    for _, t in ipairs(TIERS) do
+      if r.ratio <= t[1] then r.label, r.color = t[2], t[3] break end
     end
     out[r.name] = r
   end
@@ -251,34 +255,10 @@ function ns.CrateRatings()
   return out
 end
 
--- Colour from red (0) through orange and a pale cream (middle) to blue (10). Blue rather
--- than green so the good end doesn't look like the game's own green tooltip text; the pale
--- middle keeps the orange-to-blue blend from going muddy grey-green.
-local COLOR_STOPS = {
-  { 0,  1.00, 0.25, 0.25 },   -- red
-  { 4,  1.00, 0.62, 0.20 },   -- orange
-  { 6,  0.95, 0.90, 0.78 },   -- pale cream
-  { 10, 0.30, 0.62, 1.00 },   -- blue
-}
-local function ScoreColor(score)
-  local s = math.max(0, math.min(10, score))
-  local a, b = COLOR_STOPS[1], COLOR_STOPS[#COLOR_STOPS]
-  for i = 1, #COLOR_STOPS - 1 do
-    if s <= COLOR_STOPS[i + 1][1] then a, b = COLOR_STOPS[i], COLOR_STOPS[i + 1] break end
-  end
-  local t = (s - a[1]) / (b[1] - a[1])
-  local r = a[2] + (b[2] - a[2]) * t
-  local g = a[3] + (b[3] - a[3]) * t
-  local bl = a[4] + (b[4] - a[4]) * t
-  return string.format("|cff%02x%02x%02x", r * 255, g * 255, bl * 255)
-end
-
+-- Tier colour and label. Blue for the best rather than green, so it doesn't look like the
+-- game's own green tooltip text.
 function ns.RatingText(r)
-  local label = "Worst"
-  for _, t in ipairs(TIERS) do
-    if r.score >= t[1] then label = t[2] break end
-  end
-  return ScoreColor(r.score), string.format("%.1f", r.score), label
+  return r.color, r.label
 end
 
 -- Two tooltip lines for crate `name`. Returns true if it had a rating.
@@ -286,7 +266,7 @@ end
 function ns.RatingTitle(name)
   local r = ns.CrateRatings()[name]
   if not r then return nil end
-  local color, _, label = ns.RatingText(r)
+  local color, label = ns.RatingText(r)
   return color .. label .. "|r"
 end
 
@@ -346,7 +326,7 @@ function ns.AlignTitleRating(tooltip, edge)
   l:SetPoint("BOTTOMRIGHT", left, "BOTTOMLEFT", right - x0, 1)
 end
 
--- The detail line under the favor line (the score itself is on the title row).
+-- The detail line under the favor line (the label itself sits above the prices).
 function ns.AddRatingLines(tooltip, name)
   local r = ns.CrateRatings()[name]
   if not r then
@@ -385,7 +365,7 @@ local function SortValue(c, key)
   if key == "have" then return c.have or 0 end
   if key == "bundle" then return c.bundleCost end
   if key == "crate" then return c.crateCost end
-  if key == "rating" then return c.rating and c.rating.score end
+  if key == "rating" then return c.rating and -c.rating.ratio end   -- higher = better
   return c[key]
 end
 
@@ -660,8 +640,8 @@ function ns.RefreshWindow()
     cl.favor:SetText(c.favor and (c.favor .. icon) or "|cff808080?|r")
     SetMoney(row, "per", c.per, ns.BEST, "")
     if c.rating then
-      local color, score = ns.RatingText(c.rating)
-      cl.rating:SetText(color .. score .. "|r")
+      local color, label = ns.RatingText(c.rating)
+      cl.rating:SetText(color .. label .. "|r")
     else
       cl.rating:SetText("|cff808080?|r")
     end

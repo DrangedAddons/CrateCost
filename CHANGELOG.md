@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.14.0
+- Rating is four tiers with fixed, distinct colours instead of a 0-10 gradient: **Best** (up to 1.25x the cheapest favor, blue), **Good** (up to 1.75x, yellow), **Fair** (up to 3x, orange), **Poor** (over 3x, red).
+- Tiers are set by the ratio to the cheapest crate, so crates sharing a label cost about the same per favor and one very expensive crate doesn't shift everyone else's rating.
+- The `/crates` Rating column shows the tier and sorts by the ratio.
+
 ## 0.13.7
 - The rating label moves to the right, under the crate name's row and above the bundle prices, lined up with the price column.
 

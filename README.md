@@ -11,15 +11,20 @@ Hover a Waylaid Crate:
 - each bundle gets its Auctionator price, with gold, silver and copper in their own columns
 - the cheapest bundle is listed first and highlighted in gold
 - a Merchant's Favor line shows what the crate pays (the same whichever bundle you use)
-- a **Rating** from 0 to 10 against every other crate, under the crate's name, above the price column, with its rank and how it compares to the cheapest favor under the favor line
+- a **Rating** (Best, Good, Fair, Poor) against every other crate, under the crate's name, above the price column, with its rank and how it compares to the cheapest favor under the favor line
 
 ### How the rating works
 
-Each crate's market cost per favor is `p = (crate AH price + cheapest bundle) / favor`. Crates without a known favor or any priced bundle aren't rated. With `best` and `worst` the cheapest and dearest `p` across all rated crates:
+Each crate's market cost per favor is `p = (crate AH price + cheapest bundle) / favor`. Crates without a known favor or any priced bundle aren't rated. Each rated crate is compared with the cheapest one (`ratio = p / cheapest p`) and gets one of four tiers:
 
-    score = 10 * ln(worst / p) / ln(worst / best)
+| Tier | Ratio to the cheapest favor | Colour |
+|---|---|---|
+| Best | up to 1.25x | blue |
+| Good | up to 1.75x | yellow |
+| Fair | up to 3x | orange |
+| Poor | over 3x | red |
 
-The log scale rates ratios: costing twice the best loses the same points whether the best is 1g or 5g, and one very expensive crate doesn't push everything else up to 9-10. Labels: 9+ Best, 7+ Great, 5+ Good, 3+ Fair, 1+ Poor, below 1 Worst. A crate with no AH price of its own is rated on its bundle alone (the tooltip says so).
+Tiers by ratio keep each one tight: one very expensive crate can't drag mid-priced crates into Best. A crate with no AH price of its own is rated on its bundle alone (the tooltip says so). The `/crates` Rating column sorts by the ratio itself.
 
 Hovering a crate also saves its real bundle amounts for the crate list. The beta guides don't always match the live game (Journeyman Textiles wants 20 Wool Cloth, not 40).
 
@@ -35,7 +40,7 @@ Every Waylaid Crate, sorted by the cheapest Merchant's Favor:
 | Best bundle | material, amount, price per unit |
 | Bundle cost / Total cost | the materials, and crate + materials |
 | Favor / Per favor | favor per crate, and total cost per favor |
-| Rating | 0-10 against the other crates (see above) |
+| Rating | Best / Good / Fair / Poor against the other crates (see above) |
 | Have | crates in your bags and bank |
 
 - Click a header to sort; click again to reverse.

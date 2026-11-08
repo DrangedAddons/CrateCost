@@ -243,37 +243,43 @@ function ns.RatingTitle(name)
   return color .. label .. "|r"
 end
 
--- Puts the label on the right of the tooltip's first line, next to the crate's name, in a
--- bigger outlined font. TextRight1 is shared by every tooltip the game shows, so its own
--- font goes back when the tooltip is cleared or hidden.
+-- Puts the label right under the crate's name, bigger than the title and outlined.
+-- A tooltip line can only have one font size, so the title gets blank rows added below the
+-- name to make room, and our own font string sits in that gap. It's hidden again when the
+-- tooltip is cleared or hidden (the game resets the title text itself).
 local TITLE_GROW = 8
-local saved = {}   -- tooltip -> { font, size, flags } while enlarged
+local labels = {}   -- tooltip -> its rating font string
 local function Restore(tooltip)
-  local s = saved[tooltip]
-  if not s then return end
-  saved[tooltip] = nil
-  s.fs:SetFont(s.font, s.size, s.flags)
+  local l = labels[tooltip]
+  if l then l:Hide() end
 end
 
 function ns.SetTitleRating(tooltip, name)
   local tn = tooltip.GetName and tooltip:GetName()
-  local right = tn and _G[tn .. "TextRight1"]
+  local left = tn and _G[tn .. "TextLeft1"]
   local text = ns.RatingTitle(name)
-  if not (right and text) then return false end
-  if not saved[tooltip] then
-    local font, size, flags = right:GetFont()
-    if font and size then
-      saved[tooltip] = { fs = right, font = font, size = size, flags = flags }
-      right:SetFont(font, size + TITLE_GROW, "OUTLINE")
-    end
-  end
-  if not tooltip.crateCostRestoreHooked then
-    tooltip.crateCostRestoreHooked = true
+  local title = left and left:GetText()
+  if not (text and type(title) == "string") then return false end
+  local font, size = left:GetFont()
+  if not (font and size) then return false end
+
+  local l = labels[tooltip]
+  if not l then
+    l = tooltip:CreateFontString(nil, "OVERLAY")
+    labels[tooltip] = l
     pcall(tooltip.HookScript, tooltip, "OnTooltipCleared", Restore)
     pcall(tooltip.HookScript, tooltip, "OnHide", Restore)
   end
-  right:SetText(text)
-  right:Show()
+  if l:IsShown() then return true end   -- already placed on this tooltip
+  l:SetFont(font, size + TITLE_GROW, "OUTLINE")
+
+  -- enough blank title rows for the bigger text (a row is about the font size plus spacing)
+  local rows = math.ceil((size + TITLE_GROW + 2) / (size + 2))
+  left:SetText(title .. string.rep("\n ", rows))
+  l:ClearAllPoints()
+  l:SetPoint("BOTTOMLEFT", left, "BOTTOMLEFT", 0, 1)
+  l:SetText(text)
+  l:Show()
   return true
 end
 

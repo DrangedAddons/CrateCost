@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.13.3
+- The rating label sits right under the crate's name instead of at the top right, still big and outlined.
+
 ## 0.13.2
 - The title-row rating is just the label (Best, Great, Good...) in a bigger outlined font. The score number is gone from it.
 

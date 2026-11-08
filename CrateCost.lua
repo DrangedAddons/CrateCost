@@ -64,6 +64,8 @@ end
 local function ParseCrate(title)
   local rest = title:match("^Waylaid Crate:%s*(.+)$")
   if not rest then return end
+  -- the rating adds blank rows under the name; never let them into the crate's name
+  rest = rest:match("^(.-)%s*$")
   local rank
   for _, r in ipairs(RANKS) do
     if rest:find(r, 1, true) then rank = r break end

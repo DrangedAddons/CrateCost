@@ -480,6 +480,7 @@ local function Build()
   frame:SetSize(WIDTH, TOP + VISIBLE * ROW_H + 28)
   frame:SetPoint("CENTER")
   frame:SetFrameStrata("HIGH")
+  frame:SetToplevel(true)   -- clicking it brings it in front of the crate list
   frame:SetBackdrop({
     bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1,
   })
@@ -490,7 +491,13 @@ local function Build()
   frame:EnableMouse(true)
   frame:RegisterForDrag("LeftButton")
   frame:SetScript("OnDragStart", frame.StartMoving)
-  frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+  frame:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+    -- remember where it was put (account-wide, like the minimap button)
+    if type(CrateCostDB) == "table" and self:GetLeft() then
+      CrateCostDB.merchantPos = { x = self:GetLeft(), y = self:GetTop() }
+    end
+  end)
   frame:SetScript("OnShow", ns.RefreshRecipes)
   frame:EnableMouseWheel(true)
   frame:SetScript("OnMouseWheel", function(_, delta)
@@ -659,6 +666,25 @@ local function Build()
     .. "|cff40ff40Green|r|cff808080 favor = you can afford it. Data: wow-professions.com, CraftRoute.|r")
 end
 
+-- Where the window opens: where you last dragged it; otherwise, with the crate list open,
+-- below and right of it so the crate list's title and rows stay visible; otherwise centred.
+-- SetClampedToScreen keeps it on screen either way.
+local function Place()
+  frame:ClearAllPoints()
+  local pos = type(CrateCostDB) == "table" and CrateCostDB.merchantPos
+  if pos and pos.x and pos.y then
+    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", pos.x, pos.y)
+    return
+  end
+  local crates = _G.CrateCostFrame
+  if crates and crates:IsShown() and crates:GetLeft() then
+    -- anchored to the screen, not the crate list, so moving one doesn't drag the other
+    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", crates:GetLeft() + 80, crates:GetTop() - 120)
+  else
+    frame:SetPoint("CENTER")
+  end
+end
+
 function ns.ToggleRecipes()
   if not frame then
     local ok, err = pcall(Build)
@@ -673,5 +699,8 @@ function ns.ToggleRecipes()
     end
     frame:Hide()
   end
-  frame:SetShown(not frame:IsShown())
+  if frame:IsShown() then frame:Hide() return end
+  Place()
+  frame:Show()
+  frame:Raise()
 end

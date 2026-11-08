@@ -485,6 +485,7 @@ local function Build()
   frame:SetSize(WIDTH, 400)
   frame:SetPoint("CENTER")
   frame:SetFrameStrata("HIGH")
+  frame:SetToplevel(true)   -- clicking it brings it in front of the Merchant list
   frame:SetBackdrop({
     bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1,
   })

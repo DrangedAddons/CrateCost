@@ -60,7 +60,7 @@ ns.Favor = {
 }
 ns.CraftedKinds = { Fabrics = true, Ingots = true, Parts = true }
 -- Every crate and its bundles, from the wow-professions.com tables (beta amounts).
--- Hovering a real crate saves its live amounts in CrateValueDB.crates, which win over these.
+-- Hovering a real crate saves its live amounts in CrateCostDB.crates, which win over these.
 ns.Crates = {
   { "Apprentice Textiles",     { { "Linen Cloth", 40 }, { "Light Leather", 20 } } },
   { "Apprentice Ore",          { { "Copper Ore", 20 }, { "Tin Ore", 20 } } },

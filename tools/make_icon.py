@@ -1,4 +1,4 @@
-"""CrateValue icon: Wowhead's 56x56 racial_dwarf_findtreasure (the game's Merchant's Favor
+"""CrateCost icon: Wowhead's 56x56 racial_dwarf_findtreasure (the game's Merchant's Favor
 currency icon) scaled up like HoTForecast's and CraftRoute's.
 
 Usage: python tools/make_icon.py <racial_dwarf_findtreasure.jpg>

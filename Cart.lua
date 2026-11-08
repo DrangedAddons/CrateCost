@@ -3,16 +3,16 @@ local _, ns = ...
 -- The cart: crates and their best bundles added from /crates, merged by item. Ported from
 -- CraftRoute's cart: tick items on/off, change amounts, remove them, name the list, then
 -- Create Shopping List makes an Auctionator list (exact searches with quantities).
--- Kept per character in CrateValueCharDB.cart until it's cleared or turned into a list.
+-- Kept per character in CrateCostCharDB.cart until it's cleared or turned into a list.
 
-local CALLER = "CrateValue"
+local CALLER = "CrateCost"
 local ROWS, ROW_H = 12, 22
 local TOP, FOOT = 36, 110
 
 local function Cart()
-  if type(CrateValueCharDB) ~= "table" then CrateValueCharDB = {} end
-  CrateValueCharDB.cart = CrateValueCharDB.cart or {}
-  return CrateValueCharDB.cart
+  if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
+  CrateCostCharDB.cart = CrateCostCharDB.cart or {}
+  return CrateCostCharDB.cart
 end
 
 local function ItemName(id, fallback)
@@ -58,11 +58,11 @@ local function Cost(it)
   return p and p * it.qty or nil
 end
 
--- The list CrateValue made last time is replaced, unless you named it yourself.
+-- The list CrateCost made last time is replaced, unless you named it yourself.
 local function RemovePrevious()
-  if type(CrateValueDB) ~= "table" then return end
-  local old = CrateValueDB.lastList
-  CrateValueDB.lastList = nil
+  if type(CrateCostDB) ~= "table" then return end
+  local old = CrateCostDB.lastList
+  CrateCostDB.lastList = nil
   if type(old) ~= "string" then return end
   local lm = Auctionator.Shopping and Auctionator.Shopping.ListManager
   if lm and lm.GetIndexForName and lm.Delete then
@@ -90,8 +90,8 @@ local function CreateList(name, suggested, chosen)
     ns.Print("Couldn't create the shopping list: " .. tostring(err))
     return false
   end
-  if type(CrateValueDB) ~= "table" then CrateValueDB = {} end
-  CrateValueDB.lastList = (name == suggested) and name or nil
+  if type(CrateCostDB) ~= "table" then CrateCostDB = {} end
+  CrateCostDB.lastList = (name == suggested) and name or nil
   ns.Print(string.format("Auctionator shopping list '%s' created with %d item%s.",
     name, #terms, #terms == 1 and "" or "s"))
   return true
@@ -99,7 +99,7 @@ end
 
 local f
 local function Build()
-  f = CreateFrame("Frame", "CrateValueCart", UIParent, "BackdropTemplate")
+  f = CreateFrame("Frame", "CrateCostCart", UIParent, "BackdropTemplate")
   f:SetSize(440, TOP + ROWS * ROW_H + FOOT)
   f:SetPoint("CENTER", 0, 80)
   f:SetFrameStrata("FULLSCREEN_DIALOG")
@@ -113,7 +113,7 @@ local function Build()
   f:SetScript("OnDragStart", f.StartMoving)
   f:SetScript("OnDragStop", f.StopMovingOrSizing)
   f:Hide()
-  tinsert(UISpecialFrames, "CrateValueCart")
+  tinsert(UISpecialFrames, "CrateCostCart")
 
   local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   title:SetPoint("TOPLEFT", 14, -12)
@@ -228,7 +228,7 @@ local function Build()
       for _, it in ipairs(Cart()) do
         if not (it.on and it.qty > 0) then keep[#keep + 1] = it end
       end
-      CrateValueCharDB.cart = keep
+      CrateCostCharDB.cart = keep
       if ns.OnCartChanged then ns.OnCartChanged() end
       f:Hide()
     end
@@ -245,7 +245,7 @@ local function Build()
   local clear = Btn("Clear", 80)
   clear:SetPoint("BOTTOMLEFT", 14, 12)
   clear:SetScript("OnClick", function()
-    CrateValueCharDB.cart = {}
+    CrateCostCharDB.cart = {}
     if ns.OnCartChanged then ns.OnCartChanged() end
     f:Fill()
   end)
@@ -314,7 +314,7 @@ end
 
 function ns.ShowCart()
   if not f then Build() end
-  f.suggested = "CrateValue crates (" .. date("%H:%M") .. ")"
+  f.suggested = "CrateCost crates (" .. date("%H:%M") .. ")"
   f.box:SetText(f.suggested)
   f.box:HighlightText()
   f.offset = 0

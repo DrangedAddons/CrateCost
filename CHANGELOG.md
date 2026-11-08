@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.0
+- Renamed to **CrateCost** (was CrateValue). Settings: `/cratecost config`. `/crates` is unchanged.
+- Merchant's Favor recipe list: every recipe the favor vendors sell, plus the mount, pet, tabard, title and certifications. Search, sort by any column, filter by profession or your own professions, hide learned recipes, or show only what you can afford. Open it from the Recipes button on `/crates`, `/crates recipes`, or shift-click the minimap button.
+
 ## 0.10.0
 - Icon: the game's Merchant's Favor coin.
 - Minimap button (left-click: crate list, right-click: settings) and an AddOn compartment entry.

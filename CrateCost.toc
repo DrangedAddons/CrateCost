@@ -1,0 +1,24 @@
+## Interface: 16001
+## Title: CrateCost
+## Notes: Waylaid Crates: Auctionator prices for each bundle, Merchant's Favor, and a crate list sorted by cost per favor with a shopping cart, and every Merchant's Favor recipe.
+## Author: Dranged
+## Version: 0.11.0
+## Dependencies: Auctionator
+## X-DrangedAddons-Games: _forever_
+## IconTexture: Interface\AddOns\CrateCost\icon
+## AddonCompartmentFunc: CrateCost_OnCompartmentClick
+## SavedVariables: CrateCostDB
+## SavedVariablesPerCharacter: CrateCostCharDB
+
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
+Data.lua
+Recipes.lua
+CrateCost.lua
+Window.lua
+Cart.lua
+RecipeWindow.lua
+Config.lua
+Minimap.lua

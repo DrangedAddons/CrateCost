@@ -8,7 +8,7 @@ local _, ns = ...
 local ROW_H, WIDTH, TOP = 18, 1010, 84
 -- money columns show gold / silver / copper in fixed right-aligned slots so units line up
 local SUB = 28
-local CART_ATLAS, CART_FILE = "Perks-ShoppingCart", "Interface\\AddOns\\CrateValue\\cart"
+local CART_ATLAS, CART_FILE = "Perks-ShoppingCart", "Interface\\AddOns\\CrateCost\\cart"
 local COLS = {
   { key = "name",   title = "Crate",       x = 10,  w = 165, justify = "LEFT"  },
   { key = "n",      title = "Crates",      x = 175, w = 40,  justify = "RIGHT", desc = false },
@@ -34,14 +34,14 @@ local view = { sort = "per", desc = false, search = "", filter = nil }
 -- own is free and materials in your bags/bank are subtracted. Per character (it's about
 -- what this character owns).
 local function Mode()
-  if type(CrateValueCharDB) ~= "table" then CrateValueCharDB = {} end
-  return CrateValueCharDB.mode == "mine" and "mine" or "market"
+  if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
+  return CrateCostCharDB.mode == "mine" and "mine" or "market"
 end
 
 -- Target Merchant's Favor (nil = off: one crate each). Per character.
 local function Target()
-  if type(CrateValueCharDB) ~= "table" then CrateValueCharDB = {} end
-  local t = tonumber(CrateValueCharDB.target)
+  if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
+  local t = tonumber(CrateCostCharDB.target)
   return t and t > 0 and t or nil
 end
 
@@ -51,10 +51,10 @@ local function Owned(id)
 end
 
 local function DB()
-  if type(CrateValueDB) ~= "table" then CrateValueDB = {} end
-  CrateValueDB.crates = CrateValueDB.crates or {}
-  CrateValueDB.ids = CrateValueDB.ids or {}
-  return CrateValueDB
+  if type(CrateCostDB) ~= "table" then CrateCostDB = {} end
+  CrateCostDB.crates = CrateCostDB.crates or {}
+  CrateCostDB.ids = CrateCostDB.ids or {}
+  return CrateCostDB
 end
 
 ---------------------------------------------------------------------------------------------
@@ -481,7 +481,7 @@ function ns.RefreshWindow()
 end
 
 local function Build()
-  frame = CreateFrame("Frame", "CrateValueFrame", UIParent, "BackdropTemplate")
+  frame = CreateFrame("Frame", "CrateCostFrame", UIParent, "BackdropTemplate")
   frame:SetSize(WIDTH, 400)
   frame:SetPoint("CENTER")
   frame:SetFrameStrata("HIGH")
@@ -497,7 +497,7 @@ local function Build()
   frame:SetScript("OnDragStart", frame.StartMoving)
   frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
   frame:SetScript("OnShow", ns.RefreshWindow)
-  tinsert(UISpecialFrames, "CrateValueFrame")
+  tinsert(UISpecialFrames, "CrateCostFrame")
 
   local title = frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
   title:SetPoint("TOPLEFT", 12, -10)
@@ -517,7 +517,7 @@ local function Build()
   mode:SetPoint("RIGHT", refresh, "LEFT", -4, 0)
   mode:SetScript("OnClick", function()
     Mode()
-    CrateValueCharDB.mode = Mode() == "mine" and "market" or "mine"
+    CrateCostCharDB.mode = Mode() == "mine" and "market" or "mine"
     ns.RefreshWindow()
   end)
   mode:SetScript("OnEnter", function(self)
@@ -535,6 +535,18 @@ local function Build()
   cartBtn:SetScript("OnClick", function() ns.ShowCart() end)
   frame.cartBtn = cartBtn
   ns.OnCartChanged()
+
+  local recipes = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+  recipes:SetSize(80, 20)
+  recipes:SetPoint("RIGHT", cartBtn, "LEFT", -4, 0)
+  recipes:SetText("Recipes")
+  recipes:SetScript("OnClick", function() ns.ToggleRecipes() end)
+  recipes:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine("Every recipe sold for Merchant's Favor", 1, 1, 1)
+    GameTooltip:Show()
+  end)
+  recipes:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
   -- search box
   local search = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
@@ -643,7 +655,7 @@ local function Build()
     if t == 0 then t = nil end
     if t == Target() then return end
     local was = Target()
-    CrateValueCharDB.target = t
+    CrateCostCharDB.target = t
     -- with a target the question is the cheapest way to reach it: sort by total cost
     if t and not was and view.sort == "per" then view.sort, view.desc = "cost", false end
     ns.RefreshWindow()

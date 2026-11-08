@@ -1,9 +1,9 @@
--- CrateValue settings window: /cratevalue config, right-click the minimap button, or
--- Options > AddOns > CrateValue.
+-- CrateCost settings window: /cratecost config, right-click the minimap button, or
+-- Options > AddOns > CrateCost.
 
 local ADDON, ns = ...
 
-ns.ICON = "Interface\\AddOns\\CrateValue\\icon"
+ns.ICON = "Interface\\AddOns\\CrateCost\\icon"
 
 local frame
 local refreshers = {}
@@ -61,7 +61,7 @@ local function Setting(key)
 end
 
 local function Build()
-  frame = CreateFrame("Frame", "CrateValueConfig", UIParent, "BackdropTemplate")
+  frame = CreateFrame("Frame", "CrateCostConfig", UIParent, "BackdropTemplate")
   frame:SetSize(420, 330)
   frame:SetPoint("CENTER")
   frame:SetFrameStrata("DIALOG")
@@ -78,9 +78,9 @@ local function Build()
   frame:SetScript("OnDragStart", frame.StartMoving)
   frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
   frame:SetScript("OnShow", ns.RefreshConfig)
-  tinsert(UISpecialFrames, "CrateValueConfig")
+  tinsert(UISpecialFrames, "CrateCostConfig")
 
-  local title = Text(frame, "CrateValue", "GameFontNormalLarge")
+  local title = Text(frame, "CrateCost", "GameFontNormalLarge")
   title:SetPoint("TOP", 0, -18)
   local icon = frame:CreateTexture(nil, "ARTWORK")
   icon:SetSize(20, 20)
@@ -107,7 +107,7 @@ local function Build()
 
   Text(frame, "General", "GameFontNormal"):SetPoint("TOPLEFT", L, -182)
   Check(frame, "Show minimap button",
-    function() return not (CrateValueDB.minimap and CrateValueDB.minimap.hide) end,
+    function() return not (CrateCostDB.minimap and CrateCostDB.minimap.hide) end,
     function(on) ns.SetMinimapShown(on) end, L, -200)
 
   local note = Text(frame, "Prices come from Auctionator. Hovering a crate in your bags saves its real "
@@ -121,6 +121,9 @@ local function Build()
   Tip(list, "/crates")
   local cart = Button(frame, "Cart", 80, 24, function() ns.ShowCart() end)
   cart:SetPoint("LEFT", list, "RIGHT", 10, 0)
+  local rec = Button(frame, "Recipes", 90, 24, function() ns.ToggleRecipes() end)
+  rec:SetPoint("LEFT", cart, "RIGHT", 10, 0)
+  Tip(rec, "/crates recipes")
 end
 
 function ns.ToggleConfig()
@@ -134,7 +137,7 @@ reg:RegisterEvent("PLAYER_LOGIN")
 reg:SetScript("OnEvent", function()
   if not (Settings and Settings.RegisterCanvasLayoutCategory) then return end
   local panel = CreateFrame("Frame")
-  local t = Text(panel, "CrateValue", "GameFontNormalLarge")
+  local t = Text(panel, "CrateCost", "GameFontNormalLarge")
   t:SetPoint("TOPLEFT", 16, -16)
   local open = Button(panel, "Open settings", 140, 24, function()
     if SettingsPanel and SettingsPanel:IsShown() then HideUIPanel(SettingsPanel) end
@@ -146,11 +149,18 @@ reg:SetScript("OnEvent", function()
     ns.ToggleWindow()
   end)
   crates:SetPoint("LEFT", open, "RIGHT", 10, 0)
-  local category = Settings.RegisterCanvasLayoutCategory(panel, "CrateValue")
+  local rec = Button(panel, "Recipes", 140, 24, function()
+    if SettingsPanel and SettingsPanel:IsShown() then HideUIPanel(SettingsPanel) end
+    ns.ToggleRecipes()
+  end)
+  rec:SetPoint("LEFT", crates, "RIGHT", 10, 0)
+  local category = Settings.RegisterCanvasLayoutCategory(panel, "CrateCost")
   Settings.RegisterAddOnCategory(category)
 end)
 
 -- AddOn compartment (the minimap's addon menu)
-function CrateValue_OnCompartmentClick(_, button)
-  if button == "RightButton" then ns.ToggleConfig() else ns.ToggleWindow() end
+function CrateCost_OnCompartmentClick(_, button)
+  if button == "RightButton" then ns.ToggleConfig()
+  elseif button == "MiddleButton" or IsShiftKeyDown() then ns.ToggleRecipes()
+  else ns.ToggleWindow() end
 end

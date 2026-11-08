@@ -4,7 +4,7 @@ local ADDON, ns = ...
 -- one wrapped "Use:" line). This appends the Auctionator value to each bundle line, marks the
 -- cheapest one green, and adds a Merchant's Favor line with the cost per favor.
 
-local CALLER = "CrateValue"
+local CALLER = "CrateCost"
 local RANKS = { "Apprentice", "Journeyman", "Expert", "Artisan" }
 
 local COIN = "|TInterface\\MoneyFrame\\UI-%sIcon:0:0:2:0|t"
@@ -38,16 +38,16 @@ ns.SILVER_SAMPLE, ns.COPPER_SAMPLE = "99" .. SILVER, "99" .. COPPER
 -- toggle defaults to on = the normal behaviour.
 local DEFAULTS = { tooltip = true, sortTooltip = true, highlight = true, favorLine = true }
 function ns.Settings()
-  if type(CrateValueDB) ~= "table" then CrateValueDB = {} end
-  local st = CrateValueDB.settings
-  if type(st) ~= "table" then st = {} CrateValueDB.settings = st end
+  if type(CrateCostDB) ~= "table" then CrateCostDB = {} end
+  local st = CrateCostDB.settings
+  if type(st) ~= "table" then st = {} CrateCostDB.settings = st end
   for k, v in pairs(DEFAULTS) do if st[k] == nil then st[k] = v end end
-  CrateValueDB.minimap = CrateValueDB.minimap or { hide = false }
+  CrateCostDB.minimap = CrateCostDB.minimap or { hide = false }
   return st
 end
 local function On(key) return ns.Settings()[key] ~= false end
 
-local function Print(msg) print("|cffd4a017CrateValue:|r " .. msg) end
+local function Print(msg) print("|cffd4a017CrateCost:|r " .. msg) end
 
 local function Strip(s)
   return (s:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
@@ -191,11 +191,11 @@ local function Process(tooltip, itemID)
   if #bundles == 0 then return end
 
   -- Remember the live amounts (and the crate's item ID) for the /crates window.
-  if type(CrateValueDB) ~= "table" then CrateValueDB = {} end
-  CrateValueDB.crates = CrateValueDB.crates or {}
+  if type(CrateCostDB) ~= "table" then CrateCostDB = {} end
+  CrateCostDB.crates = CrateCostDB.crates or {}
   local saved = { id = itemID }
   for i, b in ipairs(bundles) do saved[i] = { b.item, b.qty } end
-  CrateValueDB.crates[crateName] = saved
+  CrateCostDB.crates[crateName] = saved
   if not On("tooltip") then return end
   if not On("highlight") then best = nil end
 
@@ -339,9 +339,9 @@ for _, tt in ipairs({ GameTooltip, ItemRefTooltip }) do
   pcall(tt.HookScript, tt, "OnHide", ClearColumns)
 end
 
-SLASH_CRATEVALUE1 = "/cratevalue"
-SLASH_CRATEVALUE2 = "/crates"
-SlashCmdList.CRATEVALUE = function(msg)
+SLASH_CRATECOST1 = "/cratecost"
+SLASH_CRATECOST2 = "/crates"
+SlashCmdList.CRATECOST = function(msg)
   msg = (msg or ""):lower():match("^%s*(.-)%s*$")
   if msg == "debug" then
     debugNext = true
@@ -352,11 +352,14 @@ SlashCmdList.CRATEVALUE = function(msg)
     ns.ToggleConfig()
   elseif msg == "cart" then
     ns.ShowCart()
+  elseif msg == "recipes" or msg == "recipe" then
+    ns.ToggleRecipes()
   else
     Print("/crates - crate list sorted by cost per favor")
-    Print("/cratevalue config - settings")
-    Print("/cratevalue cart - the shopping cart")
-    Print("/cratevalue debug - print the next crate tooltip's raw lines")
+    Print("/crates recipes - every Merchant's Favor recipe")
+    Print("/cratecost config - settings")
+    Print("/cratecost cart - the shopping cart")
+    Print("/cratecost debug - print the next crate tooltip's raw lines")
   end
 end
 

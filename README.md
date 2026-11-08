@@ -1,4 +1,4 @@
-# CrateValue
+# CrateCost
 
 A WoW Forever addon for Waylaid Crates. It prices every way of filling a crate from your Auctionator data and shows the Merchant's Favor it pays.
 
@@ -39,14 +39,25 @@ Every Waylaid Crate, sorted by the cheapest Merchant's Favor:
 
 **[+cart]** on a row adds the crate and its best bundle's materials. The cart lets you tick items, change amounts and remove them, then **Create Shopping List** makes an Auctionator shopping list. The cart is kept per character.
 
+## Merchant's Favor recipes
+
+The **Recipes** button on `/crates`, `/crates recipes`, or shift-click (or middle-click) the minimap button: all 308 recipes the Durotar Supply / Azeroth Commerce vendors sell for Merchant's Favor, plus the mount, pet, tabard, title and profession certifications.
+
+- Columns: recipe, profession, type, skill, required level, effect or slot, reputation, favor cost, learned. Click a header to sort.
+- Search matches name, profession, type and the effect text (try "spirit" or "wrist").
+- Filter by profession or "My professions", hide recipes you've learned, or show only what your current favor can buy (affordable costs are green).
+- Hover a row for the game's recipe tooltip. Shift-click links it in chat.
+
 ## Settings
 
-`/cratevalue config`, right-click the minimap button, or Options > AddOns > CrateValue:
+`/cratecost config`, right-click the minimap button, or Options > AddOns > CrateCost:
 
 - bundle prices on crate tooltips, cheapest first, gold highlight, the Merchant's Favor line
-- the minimap button (left-click: crate list, right-click: settings)
+- the minimap button (left-click: crate list, shift- or middle-click: recipes, right-click: settings)
 
 ## Data
+
+- Recipes, costs and reputation come from wow-professions.com's Merchant's Favor guide.
 
 - Favor per crate comes from wow-professions.com's beta tables: raw goods 5/10/15, crafted goods (Fabrics, Ingots, Parts) 10/20/30 for Apprentice/Journeyman/Expert. Artisan is unknown so far.
 - Crate item IDs are found by name at login. Material IDs and professions were checked against CraftRoute's Forever data.

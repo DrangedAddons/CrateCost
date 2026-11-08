@@ -341,6 +341,7 @@ end
 
 SLASH_CRATECOST1 = "/cratecost"
 SLASH_CRATECOST2 = "/crates"
+SLASH_CRATECOST3 = "/crate"
 SlashCmdList.CRATECOST = function(msg)
   msg = (msg or ""):lower():match("^%s*(.-)%s*$")
   if msg == "debug" then

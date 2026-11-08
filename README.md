@@ -14,7 +14,7 @@ Hover a Waylaid Crate:
 
 Hovering a crate also saves its real bundle amounts for the crate list. The beta guides don't always match the live game (Journeyman Textiles wants 20 Wool Cloth, not 40).
 
-## Crate list: `/crates`
+## Crate list: `/crates` (or `/crate`)
 
 Every Waylaid Crate, sorted by the cheapest Merchant's Favor:
 

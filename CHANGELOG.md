@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.15.0
+- **Best** and **Worst** are kept for the single cheapest and dearest crate per favor (and any within 10c per favor of them), in their own colours: purple and deep crimson.
+- The top ratio tier (up to 1.25x the cheapest) is now **Great**.
+
 ## 0.14.0
 - Rating is four tiers with fixed, distinct colours instead of a 0-10 gradient: **Best** (up to 1.25x the cheapest favor, blue), **Good** (up to 1.75x, yellow), **Fair** (up to 3x, orange), **Poor** (over 3x, red).
 - Tiers are set by the ratio to the cheapest crate, so crates sharing a label cost about the same per favor and one very expensive crate doesn't shift everyone else's rating.

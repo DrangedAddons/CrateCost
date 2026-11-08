@@ -202,19 +202,24 @@ end
 -- Market cost per favor p = (crate AH price + cheapest bundle) / favor, for each crate with
 -- a known favor and a priced bundle. Each crate is rated by how many times the cheapest
 -- favor it costs (ratio = p / best p), in four tiers with fixed, distinct colours:
---   Best  up to 1.25x the cheapest   (blue)
---   Good  up to 1.75x                (yellow)
---   Fair  up to 3x                   (orange)
---   Poor  over 3x                    (red)
+--   Great  up to 1.25x the cheapest   (blue)
+--   Good   up to 1.75x                (yellow)
+--   Fair   up to 3x                   (orange)
+--   Poor   over 3x                    (red)
 -- Tiers by ratio (not by spread between best and worst) keep each tier tight: one very
--- expensive crate can't drag mid-priced crates into Best. Each tier's top is about 1.4-1.7x
+-- expensive crate can't drag mid-priced crates up a tier. Each tier's top is about 1.4-1.7x
 -- its bottom, so crates sharing a label cost roughly the same per favor.
+-- Best and Worst are kept for the single cheapest and dearest crate, plus any within
+-- EXTREME_MARGIN copper per favor of them (a near-tie shouldn't lose the label).
 local TIERS = {
-  { 1.25,      "Best", "|cff4da6ff" },
-  { 1.75,      "Good", "|cffffe14d" },
-  { 3,         "Fair", "|cffff9426" },
-  { math.huge, "Poor", "|cffff3b3b" },
+  { 1.25,      "Great", "|cff4da6ff" },
+  { 1.75,      "Good",  "|cffffe14d" },
+  { 3,         "Fair",  "|cffff9426" },
+  { math.huge, "Poor",  "|cffff3b3b" },
 }
+local EXTREME_MARGIN = 10
+local BEST = { "Best", "|cffc77dff" }     -- purple, like an epic item
+local WORST = { "Worst", "|cffb3122e" }   -- deep crimson, darker than Poor
 
 -- Cached: one crate tooltip asks twice (title + detail line), and the game re-runs item
 -- tooltips while you hover. Dropped when crate data changes (ns.InvalidateRatings) and
@@ -243,11 +248,18 @@ function ns.CrateRatings()
   table.sort(rated, function(a, b) return a.per < b.per end)
   local out = {}
   local best = rated[1] and rated[1].per
+  local worst = rated[#rated] and rated[#rated].per
   for i, r in ipairs(rated) do
     r.rank, r.total = i, #rated
     r.ratio = r.per / best
-    for _, t in ipairs(TIERS) do
-      if r.ratio <= t[1] then r.label, r.color = t[2], t[3] break end
+    if r.per - best <= EXTREME_MARGIN then
+      r.label, r.color = BEST[1], BEST[2]
+    elseif #rated > 1 and worst - r.per <= EXTREME_MARGIN then
+      r.label, r.color = WORST[1], WORST[2]
+    else
+      for _, t in ipairs(TIERS) do
+        if r.ratio <= t[1] then r.label, r.color = t[2], t[3] break end
+      end
     end
     out[r.name] = r
   end

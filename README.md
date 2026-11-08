@@ -11,18 +11,20 @@ Hover a Waylaid Crate:
 - each bundle gets its Auctionator price, with gold, silver and copper in their own columns
 - the cheapest bundle is listed first and highlighted in gold
 - a Merchant's Favor line shows what the crate pays (the same whichever bundle you use)
-- a **Rating** (Best, Good, Fair, Poor) against every other crate, under the crate's name, above the price column, with its rank and how it compares to the cheapest favor under the favor line
+- a **Rating** (Best, Great, Good, Fair, Poor, Worst) against every other crate, under the crate's name, above the price column, with its rank and how it compares to the cheapest favor under the favor line
 
 ### How the rating works
 
-Each crate's market cost per favor is `p = (crate AH price + cheapest bundle) / favor`. Crates without a known favor or any priced bundle aren't rated. Each rated crate is compared with the cheapest one (`ratio = p / cheapest p`) and gets one of four tiers:
+Each crate's market cost per favor is `p = (crate AH price + cheapest bundle) / favor`. Crates without a known favor or any priced bundle aren't rated. Each rated crate is compared with the cheapest one (`ratio = p / cheapest p`) and gets one of four tiers, with Best and Worst kept for the extremes:
 
 | Tier | Ratio to the cheapest favor | Colour |
 |---|---|---|
-| Best | up to 1.25x | blue |
+| **Best** | the cheapest crate, or within 10c per favor of it | purple |
+| Great | up to 1.25x | blue |
 | Good | up to 1.75x | yellow |
 | Fair | up to 3x | orange |
 | Poor | over 3x | red |
+| **Worst** | the dearest crate, or within 10c per favor of it | deep crimson |
 
 Tiers by ratio keep each one tight: one very expensive crate can't drag mid-priced crates into Best. A crate with no AH price of its own is rated on its bundle alone (the tooltip says so). The `/crates` Rating column sorts by the ratio itself.
 
@@ -40,7 +42,7 @@ Every Waylaid Crate, sorted by the cheapest Merchant's Favor:
 | Best bundle | material, amount, price per unit |
 | Bundle cost / Total cost | the materials, and crate + materials |
 | Favor / Per favor | favor per crate, and total cost per favor |
-| Rating | Best / Good / Fair / Poor against the other crates (see above) |
+| Rating | Best / Great / Good / Fair / Poor / Worst against the other crates (see above) |
 | Have | crates in your bags and bank |
 
 - Click a header to sort; click again to reverse.

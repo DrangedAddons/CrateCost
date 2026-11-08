@@ -29,8 +29,10 @@ local STAR_ATLAS, STAR_FILE = "PetJournal-FavoritesIcon", "Interface\\Common\\Fa
 local frame, rows, headers, all = nil, {}, {}, nil
 -- prof: nil = all, "mine" = this character's professions, else a profession name.
 -- stats: { key = true (any amount) | minimum }
+-- statSort: a stat key to order by (overrides the column sort until a header is clicked);
+-- statLow: lowest first instead of highest.
 local view = { sort = "prof", desc = false, search = "", prof = nil, hideKnown = false,
-  afford = false, favOnly = false, stats = {}, offset = 0 }
+  afford = false, favOnly = false, stats = {}, offset = 0, statSort = nil, statLow = false }
 
 -- Favorites are per character: what this character is saving favor for.
 local function Favorites()
@@ -111,7 +113,15 @@ end
 -- rebuild strings O(n log n) times
 local function Compare(a, b)
   local va, vb = a.sortValue, b.sortValue
-  if va ~= vb then
+  if view.statSort then
+    -- rows without the stat always go last, whichever direction
+    if va == nil and vb ~= nil then return false end
+    if vb == nil and va ~= nil then return true end
+    if va ~= vb then
+      if view.statLow then return va < vb end
+      return va > vb
+    end
+  elseif va ~= vb then
     if view.desc then return va > vb end
     return va < vb
   end
@@ -244,8 +254,17 @@ end
 local function UpdateHeaders()
   for _, h in ipairs(headers) do
     local t = h.col.title
-    if view.sort == h.col.key then t = t .. (view.desc and " v" or " ^") end
+    if view.statSort then
+      if h.col.key == "effect" then
+        t = t .. "  |cffffffff(" .. ns.StatLabel(view.statSort) .. (view.statLow and " ^" or " v") .. ")|r"
+      end
+    elseif view.sort == h.col.key then
+      t = t .. (view.desc and " v" or " ^")
+    end
     h.text:SetText(t)
+  end
+  if frame.statSortBtn then
+    frame.statSortBtn.text:SetText(view.statSort and ("Sort: " .. ns.StatLabel(view.statSort)) or "Sort by stat")
   end
 end
 
@@ -266,7 +285,12 @@ function Draw()
       c.skill:SetText(e.skill > 0 and e.skill or "")
       c.level:SetText(e.level > 0 and e.level or "")
       c.slot:SetText(e.slot)
-      c.effect:SetText("|cffc0c0c0" .. EffectShown(e) .. "|r")
+      -- sorting by a stat: its value leads the Effect cell
+      local lead = ""
+      if view.statSort and e.sortValue then
+        lead = "|cffffd100" .. e.sortValue .. " " .. ns.StatLabel(view.statSort) .. "|r  "
+      end
+      c.effect:SetText(lead .. "|cffc0c0c0" .. EffectShown(e) .. "|r")
       c.rep:SetText(REP_COLOR[e.rep] .. REP_NAME[e.rep] .. "|r")
       c.cost:SetText((have >= e.cost and "|cff40ff40" or "|cffffffff") .. e.cost .. "|r" .. ns.FavorIcon())
       c.known:SetText(e.known and "|cff40ff40yes|r" or "")
@@ -326,7 +350,11 @@ function ns.RefreshRecipes()
     if ok and not ns.EntryMatches(e, view.search) then ok = false end
     if ok then
       list[#list + 1] = e
-      e.sortValue = SortValue(e, view.sort, favs)
+      if view.statSort then
+        e.sortValue = ns.EntryStats(e)[view.statSort]
+      else
+        e.sortValue = SortValue(e, view.sort, favs)
+      end
     end
   end
   table.sort(list, Compare)
@@ -491,6 +519,109 @@ local function BuildStatsMenu(sb)
   return menu
 end
 
+-- Sort by stat: pick a stat (under CraftRoute's group headings, only stats some row has) and
+-- the list orders by its value. One Highest / Lowest first switch at the top. Rows without
+-- the stat go last. Clicking a column header goes back to column sorting.
+local function BuildStatSortMenu(btn)
+  local menu = Popup(btn)
+  local W = 170
+
+  local dir = CreateFrame("Button", nil, menu, "UIPanelButtonTemplate")
+  dir:SetSize(W - 12, 18)
+  dir:SetPoint("TOPLEFT", 6, -6)
+  local function DirText() dir:SetText(view.statLow and "Lowest first" or "Highest first") end
+  dir:SetScript("OnClick", function()
+    view.statLow = not view.statLow
+    DirText()
+    view.offset = 0
+    ns.RefreshRecipes()
+  end)
+
+  local function Pick(key)
+    view.statSort = key
+    view.offset = 0
+    menu:Hide()
+    ns.RefreshRecipes()
+  end
+  local function MenuItem(label)
+    local it = CreateFrame("Button", nil, menu)
+    it:SetSize(W - 4, 16)
+    it.text = it:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    it.text:SetPoint("LEFT", 14, 0)
+    it.text:SetText(label)
+    local hl = it:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints()
+    hl:SetColorTexture(1, 1, 1, 0.1)
+    return it
+  end
+
+  local none = MenuItem("None (column sort)")
+  none:SetScript("OnClick", function() Pick(nil) end)
+  local heads, items = {}, {}
+  for _, s in ipairs(ns.STATS) do
+    if not heads[s[3]] then
+      local h = menu:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+      h:SetText(s[3])
+      heads[s[3]] = h
+    end
+    local it = MenuItem(s[2])
+    it.key, it.group = s[1], s[3]
+    it:SetScript("OnClick", function(self) Pick(self.key) end)
+    items[#items + 1] = it
+  end
+
+  function menu:Layout()
+    DirText()
+    local present = {}
+    for _, e in ipairs(Entries()) do
+      for k in pairs(ns.EntryStats(e)) do present[k] = true end
+    end
+    local y = -28
+    none:ClearAllPoints()
+    none:SetPoint("TOPLEFT", 2, y)
+    none.text:SetTextColor(1, view.statSort and 1 or 0.82, view.statSort and 1 or 0)
+    y = y - 18
+    local lastGroup
+    for _, h in pairs(heads) do h:Hide() end
+    for _, it in ipairs(items) do
+      if present[it.key] then
+        if it.group ~= lastGroup then
+          lastGroup = it.group
+          local h = heads[it.group]
+          h:ClearAllPoints()
+          h:SetPoint("TOPLEFT", 8, y - 2)
+          h:Show()
+          y = y - 16
+        end
+        it:ClearAllPoints()
+        it:SetPoint("TOPLEFT", 2, y)
+        local on = view.statSort == it.key
+        it.text:SetTextColor(1, on and 0.82 or 1, on and 0 or 1)
+        it:Show()
+        y = y - 16
+      else
+        it:Hide()
+      end
+    end
+    self:SetSize(W, -y + 6)
+  end
+
+  btn:SetScript("OnClick", function()
+    if menu:IsShown() then menu:Hide() return end
+    menu:Layout()
+    menu:Show()
+  end)
+  btn:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:SetText("Sort by stat")
+    GameTooltip:AddLine("Order the list by a stat, highest (or lowest) first. Its value shows at the "
+      .. "start of the Effect column. Click a column header to go back.", 0.8, 0.8, 0.8, true)
+    GameTooltip:Show()
+  end)
+  btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  return menu
+end
+
 local function Build()
   frame = CreateFrame("Frame", "CrateCostRecipes", UIParent, "BackdropTemplate")
   frame:SetSize(WIDTH, TOP + VISIBLE * ROW_H + 28)
@@ -620,9 +751,13 @@ local function Build()
   local sb = DropButton(90, fb, 8)
   frame.statsBtn = sb
   local statsMenu = BuildStatsMenu(sb)
-  frame:HookScript("OnHide", function() menu:Hide() statsMenu:Hide() end)
 
-  local l1 = Check("Favorites only", "favOnly", sb, 12)
+  local ssb = DropButton(150, sb, 8)
+  frame.statSortBtn = ssb
+  local sortMenu = BuildStatSortMenu(ssb)
+  frame:HookScript("OnHide", function() menu:Hide() statsMenu:Hide() sortMenu:Hide() end)
+
+  local l1 = Check("Favorites only", "favOnly", ssb, 12)
   local l2 = Check("Hide learned", "hideKnown", l1, 8)
   Check("Affordable", "afford", l2, 8)
 
@@ -650,7 +785,11 @@ local function Build()
     hl:SetAllPoints()
     hl:SetColorTexture(1, 1, 1, 0.08)
     h:SetScript("OnClick", function()
-      if view.sort == col.key then
+      if view.statSort then
+        -- a header click goes back to column sorting
+        view.statSort = nil
+        view.sort, view.desc = col.key, col.desc or false
+      elseif view.sort == col.key then
         view.desc = not view.desc
       else
         view.sort, view.desc = col.key, col.desc or false

@@ -12,21 +12,32 @@ local ALIAS = {
   resist = "resistance", sp = "spell", mp5 = "mana", ap = "attack",
 }
 
--- Order here is the order in the Stats dropdown.
+-- { key, label, group }. Order here is the order in the Stats and Sort dropdowns; groups
+-- match CraftRoute's.
 ns.STATS = {
-  { "armor", "Armor" }, { "sta", "Stamina" }, { "str", "Strength" }, { "agi", "Agility" },
-  { "int", "Intellect" }, { "spi", "Spirit" },
-  { "heal", "Healing" }, { "spell", "Spell damage" }, { "fire", "Fire spell damage" },
-  { "frost", "Frost spell damage" }, { "shadow", "Shadow spell damage" }, { "nature", "Nature spell damage" },
-  { "arcane", "Arcane spell damage" }, { "holy", "Holy spell damage" },
-  { "mp5", "Mana per 5 sec" }, { "hp5", "Health per 5 sec" },
-  { "crit", "Crit %" }, { "hit", "Hit %" }, { "scrit", "Spell crit %" }, { "shit", "Spell hit %" },
-  { "ap", "Attack power" }, { "rap", "Ranged attack power" },
-  { "def", "Defense" }, { "dodge", "Dodge %" }, { "parry", "Parry %" }, { "block", "Block" },
-  { "rfire", "Fire resistance" }, { "rfrost", "Frost resistance" }, { "rnature", "Nature resistance" },
-  { "rshadow", "Shadow resistance" }, { "rarcane", "Arcane resistance" },
-  { "slots", "Bag slots" },
+  { "sta", "Stamina", "Attributes" }, { "str", "Strength", "Attributes" }, { "agi", "Agility", "Attributes" },
+  { "int", "Intellect", "Attributes" }, { "spi", "Spirit", "Attributes" },
+  { "heal", "Healing", "Spell" }, { "spell", "Spell damage", "Spell" },
+  { "fire", "Fire spell damage", "Spell" }, { "frost", "Frost spell damage", "Spell" },
+  { "shadow", "Shadow spell damage", "Spell" }, { "nature", "Nature spell damage", "Spell" },
+  { "arcane", "Arcane spell damage", "Spell" }, { "holy", "Holy spell damage", "Spell" },
+  { "scrit", "Spell crit %", "Spell" }, { "shit", "Spell hit %", "Spell" }, { "mp5", "Mana per 5 sec", "Spell" },
+  { "ap", "Attack power", "Physical" }, { "rap", "Ranged attack power", "Physical" },
+  { "crit", "Crit %", "Physical" }, { "hit", "Hit %", "Physical" },
+  { "armor", "Armor", "Defense" }, { "def", "Defense", "Defense" }, { "dodge", "Dodge %", "Defense" },
+  { "parry", "Parry %", "Defense" }, { "block", "Block", "Defense" }, { "hp5", "Health per 5 sec", "Defense" },
+  { "rfire", "Fire resistance", "Resistances" }, { "rfrost", "Frost resistance", "Resistances" },
+  { "rnature", "Nature resistance", "Resistances" }, { "rshadow", "Shadow resistance", "Resistances" },
+  { "rarcane", "Arcane resistance", "Resistances" },
+  { "slots", "Bag slots", "Bags" },
 }
+
+function ns.StatLabel(key)
+  for _, s in ipairs(ns.STATS) do
+    if s[1] == key then return s[2] end
+  end
+  return key
+end
 local PRIMARY = { stamina = "sta", strength = "str", agility = "agi", intellect = "int", spirit = "spi",
   defense = "def" }
 local SCHOOL = { fire = true, frost = true, shadow = true, nature = true, arcane = true, holy = true }

@@ -64,6 +64,7 @@ The **Merchant** button on `/crates`, `/crates merchant`, or shift-click (or mid
 - Effect is the item's stats or the potion / enchant effect, plus the crafted item's Equip / Use lines once the game has loaded the item.
 - Search matches name, profession, type, slot and effect, with short forms like CraftRoute's (int, agi, sp, mp5) and amounts ("+9 int").
 - **Stats** dropdown: tick stats to show only items that have all of them, and type a minimum to need at least that much.
+- **Sort by stat**: order the list by one stat (grouped like CraftRoute: Attributes, Spell, Physical, Defense, Resistances, Bags), highest or lowest first. The value leads the Effect column and rows without the stat go last. Click a column header to go back to column sorting.
 - Click the star to favorite a row (kept per character). **Favorites only** shows just those; the star header sorts favorites first.
 - Filter by profession or "My professions", hide recipes you've learned, or show only what your current favor can buy (affordable costs are green).
 - Hover a row for the crafted item's tooltip (the enchant's for enchants). Shift-click links it in chat.

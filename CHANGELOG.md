@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.16.0
+- Merchant list: **Sort by stat** dropdown, like CraftRoute's. Pick a stat (under Attributes, Spell, Physical, Defense, Resistances, Bags; only stats something in the list has) and switch between highest and lowest first. The stat's value leads each row's Effect cell, rows without it go last, and clicking a column header returns to column sorting.
+
 ## 0.15.0
 - **Best** and **Worst** are kept for the single cheapest and dearest crate per favor (and any within 10c per favor of them), in their own colours: purple and deep crimson.
 - The top ratio tier (up to 1.25x the cheapest) is now **Great**.

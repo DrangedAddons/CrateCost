@@ -43,10 +43,13 @@ Every Waylaid Crate, sorted by the cheapest Merchant's Favor:
 
 The **Merchant** button on `/crates`, `/crates merchant`, or shift-click (or middle-click) the minimap button: all 308 recipes the Durotar Supply / Azeroth Commerce vendors sell for Merchant's Favor, plus the mount, pet, tabard, title and profession certifications.
 
-- Columns: recipe, profession, type, skill, required level, effect or slot, reputation, favor cost, learned. Click a header to sort.
-- Search matches name, profession, type and the effect text (try "spirit" or "wrist").
+- Columns: favorite star, recipe, profession, type (armor type for gear), skill, required level, slot, effect, reputation, favor cost, learned. Click a header to sort.
+- Effect is the item's stats or the potion / enchant effect, plus the crafted item's Equip / Use lines once the game has loaded the item.
+- Search matches name, profession, type, slot and effect, with short forms like CraftRoute's (int, agi, sp, mp5) and amounts ("+9 int").
+- **Stats** dropdown: tick stats to show only items that have all of them, and type a minimum to need at least that much.
+- Click the star to favorite a row (kept per character). **Favorites only** shows just those; the star header sorts favorites first.
 - Filter by profession or "My professions", hide recipes you've learned, or show only what your current favor can buy (affordable costs are green).
-- Hover a row for the game's recipe tooltip. Shift-click links it in chat.
+- Hover a row for the crafted item's tooltip (the enchant's for enchants). Shift-click links it in chat.
 
 ## Settings
 
@@ -57,7 +60,6 @@ The **Merchant** button on `/crates`, `/crates merchant`, or shift-click (or mid
 
 ## Data
 
-- Recipes, costs and reputation come from wow-professions.com's Merchant's Favor guide.
-
+- Recipes, costs and reputation come from wow-professions.com's Merchant's Favor guide. Crafted item IDs and base stats come from CraftRoute's Forever recipe data (`tools/join.py` rebuilds Recipes.lua from both).
 - Favor per crate comes from wow-professions.com's beta tables: raw goods 5/10/15, crafted goods (Fabrics, Ingots, Parts) 10/20/30 for Apprentice/Journeyman/Expert. Artisan is unknown so far.
 - Crate item IDs are found by name at login. Material IDs and professions were checked against CraftRoute's Forever data.

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.0
+- Merchant list: separate Slot and Effect columns. Gear shows its stats (from CraftRoute's data) and its Equip / Use lines; Type shows the armor type.
+- Stats filter like CraftRoute's: tick stats, optionally with a minimum. Search understands short forms (int, sp, mp5) and amounts ("+9 int").
+- Favorites: click a row's star (per character), tick Favorites only, or sort favorites first.
+- Hovering a row shows the crafted item's tooltip.
+
 ## 0.11.4
 - The recipe list is now the **Merchant** list: Merchant button on `/crates` and in settings, `/crates merchant` (`/crates recipes` still works).
 

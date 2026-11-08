@@ -26,7 +26,7 @@ Each crate's market cost per favor is `p = (crate AH price + cheapest bundle) / 
 | Poor | over 3x | red |
 | **Worst** | the dearest crate, or within 10c per favor of it | deep crimson |
 
-Tiers by ratio keep each one tight: one very expensive crate can't drag mid-priced crates into Best. A crate with no AH price of its own is rated on its bundle alone (the tooltip says so). The `/crates` Rating column sorts by the ratio itself.
+Tiers by ratio keep each one tight: one very expensive crate can't drag mid-priced crates up a tier. A crate with no AH price of its own is rated on its bundle alone (the tooltip says so). The `/crates` Rating column sorts by the ratio itself.
 
 Hovering a crate also saves its real bundle amounts for the crate list. The beta guides don't always match the live game (Journeyman Textiles wants 20 Wool Cloth, not 40).
 

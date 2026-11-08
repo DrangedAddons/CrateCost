@@ -7,7 +7,7 @@ local _, ns = ...
 -- Rated by cost per reputation, with the same tiers as the crates. The Sealed envelopes (a
 -- random writ of a rank) are rated on their price plus the average cost to fill that rank.
 
-local ROW_H, VISIBLE, WIDTH, TOP = 18, 24, 1090, 84
+local ROW_H, VISIBLE, WIDTH, TOP = 18, 24, 1240, 84
 local SUB = 28
 local COLS = {
   { key = "name",   title = "Writ",        x = 10,  w = 175, justify = "LEFT"  },
@@ -20,9 +20,11 @@ local COLS = {
   { key = "craft",  title = "Craft item",  x = 614, w = 92,  justify = "RIGHT", desc = false, money = true },
   { key = "total",  title = "Total cost",  x = 711, w = 96,  justify = "RIGHT", desc = false, money = true },
   { key = "per",    title = "Per rep",     x = 812, w = 92,  justify = "RIGHT", desc = false, money = true },
-  { key = "rating", title = "Rating",      x = 909, w = 55,  justify = "RIGHT", desc = true  },
-  { key = "have",   title = "Have",        x = 969, w = 36,  justify = "RIGHT", desc = true  },
-  { key = "done",   title = "Today",       x = 1010, w = 52, justify = "CENTER", desc = true },
+  { key = "need",   title = "Writs",       x = 909, w = 40,  justify = "RIGHT", desc = false },
+  { key = "target", title = "To target",   x = 954, w = 100, justify = "RIGHT", desc = false, money = true },
+  { key = "rating", title = "Rating",      x = 1059, w = 55, justify = "RIGHT", desc = true  },
+  { key = "have",   title = "Have",        x = 1119, w = 36, justify = "RIGHT", desc = true  },
+  { key = "done",   title = "Today",       x = 1160, w = 52, justify = "CENTER", desc = true },
 }
 local RANKS = { "Journeyman", "Expert", "Artisan" }
 local RANK_ORDER = { Journeyman = 1, Expert = 2, Artisan = 3 }
@@ -31,6 +33,17 @@ local PROFS = { "Alchemy", "Blacksmithing", "Engineering", "Leatherworking", "Ta
 local GREY = "|cff808080"
 local CALC_TTL = 5      -- seconds before prices are worked out again
 local MAX_DEPTH = 4     -- how far down crafted reagents are followed
+
+-- Reputation with the trade camp (Azeroth Commerce Authority / Durotar Supply and Logistics).
+-- Standings by reaction, with where each starts on the game's absolute scale.
+local STANDINGS = {
+  { 1, "Hated",      -42000, "|cffcc2222" }, { 2, "Hostile",   -6000, "|cffff0000" },
+  { 3, "Unfriendly", -3000,  "|cffee6622" }, { 4, "Neutral",    0,    "|cffffff00" },
+  { 5, "Friendly",   3000,   "|cff00ff00" }, { 6, "Honored",    9000, "|cff00ff88" },
+  { 7, "Revered",    21000,  "|cff00ffcc" }, { 8, "Exalted",   42000, "|cff00ffff" },
+}
+local FACTION_IDS = { 2586, 2587 }   -- Season of Discovery's IDs for the two camps; checked by name
+local FACTION_NAMES = { ["Azeroth Commerce Authority"] = true, ["Durotar Supply and Logistics"] = true }
 
 local frame, rows, headers, all = nil, {}, {}, nil
 local list, sealed = {}, {}
@@ -169,6 +182,87 @@ end
 
 ---------------------------------------------------------------------------------------------
 
+---------------------------------------------------------------------------------------------
+-- Reputation
+
+local factionID   -- found once, by ID or by name
+local function FactionData(id)
+  if C_Reputation and C_Reputation.GetFactionDataByID then
+    local ok, d = pcall(C_Reputation.GetFactionDataByID, id)
+    if ok and type(d) == "table" and d.name then
+      return d.name, d.reaction, d.currentStanding
+    end
+  end
+  if GetFactionInfoByID then
+    local ok, name, _, reaction, _, _, value = pcall(GetFactionInfoByID, id)
+    if ok and name then return name, reaction, value end
+  end
+end
+
+local function FindFaction()
+  for _, id in ipairs(FACTION_IDS) do
+    local name = FactionData(id)
+    if name and FACTION_NAMES[name] then return id end
+  end
+  -- scan the reputation list by name
+  local n = C_Reputation and C_Reputation.GetNumFactions and C_Reputation.GetNumFactions() or 0
+  for i = 1, n do
+    local ok, d = pcall(C_Reputation.GetFactionDataByIndex, i)
+    if ok and type(d) == "table" and d.name and FACTION_NAMES[d.name] and d.factionID then
+      return d.factionID
+    end
+  end
+end
+
+-- { name, reaction, value (absolute), label, color, min, max, known } - Neutral 0 if the camp
+-- isn't in your reputation list yet.
+local function Standing()
+  factionID = factionID or FindFaction()
+  local name, reaction, value
+  if factionID then name, reaction, value = FactionData(factionID) end
+  local st = { name = name, reaction = reaction or 4, value = value or 0, known = name ~= nil }
+  local s = STANDINGS[st.reaction] or STANDINGS[4]
+  st.label, st.color, st.min = s[2], s[4], s[3]
+  st.max = STANDINGS[st.reaction + 1] and STANDINGS[st.reaction + 1][3] or nil
+  return st
+end
+
+-- The standing this character is working towards (per character): a reaction 5-8, or nil.
+local function Target()
+  local t = type(CrateCostCharDB) == "table" and CrateCostCharDB.writTarget
+  return STANDINGS[t] and t or nil
+end
+
+local function SetTarget(t)
+  if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
+  CrateCostCharDB.writTarget = t
+end
+
+local standing, needRep   -- refreshed with the list; needRep nil = no target, or reached
+
+local function UpdateNeed()
+  standing = Standing()
+  local t = Target()
+  needRep = nil
+  if t then
+    local left = STANDINGS[t][3] - standing.value
+    if left > 0 then needRep = left end
+  end
+end
+
+-- How many of this writ reach the target, and what that costs.
+local function ToTarget(e)
+  if not needRep then return nil end
+  local n = math.ceil(needRep / e.rep)
+  return n, e.total and e.total * n or nil
+end
+
+local function Num(n)
+  return BreakUpLargeNumbers and BreakUpLargeNumbers(n) or tostring(n)
+end
+
+---------------------------------------------------------------------------------------------
+
 local function MyProfessions()
   local set = {}
   if not GetProfessions then return set end
@@ -189,6 +283,8 @@ local function SortValue(e, key)
   if key == "rating" then return e.ratio and -e.ratio end
   if key == "have" then return e.haveWrit * 1000 + e.haveItem end
   if key == "done" then return e.done and 1 or 0 end
+  if key == "need" then return (ToTarget(e)) end
+  if key == "target" then return select(2, ToTarget(e)) end
   return e[key]   -- buy, craft, total, per (nil = no price)
 end
 
@@ -271,6 +367,14 @@ local function AddWritLines(tt, e, titled)
   AddFillLines(tt, e)
   tt:AddDoubleLine("Total", MoneyOr(e.total), 1, 0.82, 0, 1, 1, 1)
   AddRatingLine(tt, e)
+  UpdateNeed()
+  local n, cost = ToTarget(e)
+  if n then
+    local t = STANDINGS[Target()]
+    tt:AddDoubleLine("To " .. t[4] .. t[2] .. "|r: " .. Num(needRep) .. " rep",
+      n .. " of this writ" .. (cost and (", " .. ns.Money(cost)) or "") .. " (" .. n .. " days, it's a daily)",
+      1, 0.82, 0, 1, 1, 1)
+  end
   if DoneToday(e) then tt:AddLine("Done today.", 0.25, 1, 0.25) end
 end
 
@@ -286,6 +390,13 @@ local function AddSealedLines(tt, rank)
   if s.per then
     tt:AddDoubleLine("Expected per rep", ns.Money(math.floor(s.per + 0.5))
       .. string.format(", %.1fx the cheapest writ", s.ratio), 0.6, 0.6, 0.6, 0.6, 0.6, 0.6)
+  end
+  UpdateNeed()
+  if needRep and s.per then
+    local t = STANDINGS[Target()]
+    local n = math.ceil(needRep / s.rep)
+    tt:AddDoubleLine("To " .. t[4] .. t[2] .. "|r: " .. Num(needRep) .. " rep",
+      n .. " envelopes, about " .. ns.Money(math.floor(s.per * n * s.rep + 0.5)), 1, 0.82, 0, 1, 1, 1)
   end
 end
 
@@ -447,6 +558,10 @@ function Draw()
         ns.Crafts[e.item] and NONE or (GREY .. "-|r"))
       SetMoney(row, "total", e.total, e.writPrice and "" or GREY, NONE)
       SetMoney(row, "per", e.per, e.writPrice and "" or GREY, NONE)
+      local n, cost = ToTarget(e)
+      c.need:SetText(n and (n .. "x") or "")
+      SetMoney(row, "target", cost, e.writPrice and "" or GREY,
+        Target() and (needRep and NONE or "|cff40ff40reached|r") or (GREY .. "-|r"))
       c.rating:SetText(RatingText(e) and (RatingText(e) .. (e.writPrice and "" or GREY .. "*|r")) or "")
       local have = ""
       if e.haveWrit > 0 then have = "|cff40ff40W|r " end
@@ -488,7 +603,27 @@ local function UpdateHeaders()
     h.text:SetText((on and "|cffffffff" or "") .. h.col.title .. (on and (view.desc and " v" or " ^") or "")
       .. (on and "|r" or ""))
   end
+  for _, h in ipairs(headers) do
+    if h.col.key == "target" and Target() then
+      local on = view.sort == "target"
+      h.text:SetText((on and "|cffffffff" or "") .. "To " .. STANDINGS[Target()][2]
+        .. (on and ((view.desc and " v" or " ^") .. "|r") or ""))
+    end
+  end
   frame.profBtn.text:SetText(view.prof == "mine" and "My professions" or view.prof or "All professions")
+  local t = Target()
+  frame.targetBtn.text:SetText(t and (STANDINGS[t][4] .. STANDINGS[t][2] .. "|r") or "No target")
+  local st = standing
+  local txt = "Standing: " .. st.color .. st.label .. "|r"
+  if st.max then
+    txt = txt .. string.format("  %s / %s", Num(st.value - st.min), Num(st.max - st.min))
+  end
+  if not st.known then txt = txt .. GREY .. " (camp not met yet)|r" end
+  if t then
+    txt = txt .. "   " .. (needRep and (Num(needRep) .. " rep to " .. STANDINGS[t][2])
+      or ("|cff40ff40" .. STANDINGS[t][2] .. " reached|r"))
+  end
+  frame.standing:SetText(txt)
   frame.rankBtn.text:SetText(view.rank or "All ranks")
 end
 
@@ -496,6 +631,7 @@ function ns.RefreshWrits()
   if not (frame and frame:IsShown()) then return end
   Calc()
   Live()
+  UpdateNeed()
   local mine = view.prof == "mine" and MyProfessions() or nil
   wipe(list)
   local q = view.search
@@ -517,6 +653,26 @@ function ns.RefreshWrits()
   local done = 0
   for _, e in ipairs(Entries()) do if e.done then done = done + 1 end end
   frame.count:SetText(string.format("%d shown  |  %d done today", #list, done))
+  -- target line: the cheapest shown writ to repeat daily until the target
+  local plan = ""
+  local t = Target()
+  if needRep then
+    local best
+    for _, e in ipairs(list) do
+      local n, cost = ToTarget(e)
+      if cost and (not best or cost < best.cost) then best = { e = e, cost = cost, n = n } end
+    end
+    plan = STANDINGS[t][4] .. STANDINGS[t][2] .. "|r: " .. Num(needRep) .. " rep to go.  "
+    if best then
+      plan = plan .. string.format("Cheapest of the shown writs: %s, %dx %s (%d days, each writ is a daily).",
+        ns.Money(best.cost), best.n, best.e.name, best.n)
+    else
+      plan = plan .. GREY .. "No shown writ has a price yet.|r"
+    end
+  elseif t then
+    plan = "|cff40ff40" .. STANDINGS[t][2] .. " reached.|r"
+  end
+  frame.plan:SetText(plan)
   UpdateHeaders()
   Draw()
   DrawSealed()
@@ -595,7 +751,8 @@ local function Menu(btn, key, choices, w)
       hl:SetAllPoints()
       hl:SetColorTexture(1, 1, 1, 0.1)
       it:SetScript("OnClick", function()
-        view[key], view.offset = c[2], 0
+        if key == "target" then SetTarget(c[2]) else view[key] = c[2] end
+        view.offset = 0
         m:Hide()
         ns.RefreshWrits()
       end)
@@ -609,7 +766,7 @@ end
 
 local function Build()
   frame = CreateFrame("Frame", "CrateCostWrits", UIParent, "BackdropTemplate")
-  frame:SetSize(WIDTH, TOP + VISIBLE * ROW_H + 52)
+  frame:SetSize(WIDTH, TOP + VISIBLE * ROW_H + 70)
   frame:SetPoint("CENTER")
   frame:SetFrameStrata("HIGH")
   frame:SetToplevel(true)
@@ -637,7 +794,7 @@ local function Build()
   end)
   -- bag counts and done-today flags; prices are re-read on their own timer
   local pending = false
-  for _, ev in ipairs({ "BAG_UPDATE_DELAYED", "QUEST_TURNED_IN" }) do
+  for _, ev in ipairs({ "BAG_UPDATE_DELAYED", "QUEST_TURNED_IN", "UPDATE_FACTION" }) do
     if not (C_EventUtils and C_EventUtils.IsEventValid) or C_EventUtils.IsEventValid(ev) then
       pcall(frame.RegisterEvent, frame, ev)
     end
@@ -652,6 +809,15 @@ local function Build()
   local title = frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
   title:SetPoint("TOPLEFT", 12, -10)
   title:SetText("Craftsman's Writs - cheapest reputation")
+
+  -- reputation target (per character) and current standing
+  local tl = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+  tl:SetPoint("LEFT", title, "RIGHT", 24, 0)
+  tl:SetText("Target:")
+  local tb = DropButton(100, tl, 6)
+  frame.targetBtn = tb
+  frame.standing = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  frame.standing:SetPoint("LEFT", tb, "RIGHT", 10, 0)
 
   local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
   close:SetScript("OnClick", function() frame:Hide() end)
@@ -706,7 +872,10 @@ local function Build()
   local rankChoices = { { "All ranks", nil }, "-" }
   for _, r in ipairs(RANKS) do rankChoices[#rankChoices + 1] = { RANK_COLOR[r] .. r .. "|r", r } end
   local rm = Menu(rb, "rank", rankChoices, 100)
-  frame:HookScript("OnHide", function() pm:Hide() rm:Hide() end)
+  local targetChoices = { { "No target", nil }, "-" }
+  for i = 5, 8 do targetChoices[#targetChoices + 1] = { STANDINGS[i][4] .. STANDINGS[i][2] .. "|r", i } end
+  local tm = Menu(tb, "target", targetChoices, 100)
+  frame:HookScript("OnHide", function() pm:Hide() rm:Hide() tm:Hide() end)
 
   local l1 = Check("Writ on the AH", "priced", rb, 12,
     "Only writs with an Auctionator price. The rest are rated on the item alone (marked *).")
@@ -783,6 +952,10 @@ local function Build()
     end)
     frame.sealed[i] = box
   end
+
+  frame.plan = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  frame.plan:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -TOP - VISIBLE * ROW_H - 26)
+  frame.plan:SetJustifyH("LEFT")
 
   local footer = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
   footer:SetPoint("BOTTOMLEFT", 12, 8)

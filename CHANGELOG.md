@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.18.0
+- Writs window shows your standing with the trade camp (Azeroth Commerce Authority / Durotar Supply and Logistics), e.g. "Neutral 1,200 / 3,000". If the camp isn't in your reputation list yet it counts as Neutral 0.
+- **Target** dropdown (Friendly, Honored, Revered, Exalted; per character): shows the rep still needed, and each writ gets **Writs** (how many of it reach the target) and **To <target>** (what that many cost). Both sort.
+- A line under the list names the cheapest shown writ to repeat until the target, with its total and the days it takes (each writ is a daily).
+- Writ and Sealed writ tooltips show how many writs or envelopes reach the target and the cost.
+
 ## 0.17.1
 - `/writs` and `/writ` open the writ list.
 

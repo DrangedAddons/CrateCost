@@ -77,6 +77,7 @@ The **Writs** button on `/crates`, `/writs` (or `/writ`, `/crates writs`), or ct
 - **Total** = writ + the cheaper way to get the item. **Per rep** = total / the writ's reputation (75 Journeyman, 125 Expert, 200 Artisan).
 - **Rating**: the crate tiers on cost per rep. A writ with no AH price is rated on the item alone and marked *.
 - **Have**: W if you hold the writ, then how many of the item you have. **Today**: the writ's daily is done.
+- **Standing** with the trade camp is shown at the top. Pick a **Target** standing (per character) and each writ shows how many of it you'd need (**Writs**) and what they'd cost (**To <target>**). The line under the envelopes names the cheapest shown writ to repeat until you get there, and how many days that is.
 - Under the list, each Sealed envelope (a random writ of that rank): its price + the rank's average fill = the expected cost per rep.
 - Filter by profession, rank, writs on the AH, writs you have, or hide those done today. Hover a row for the reagent breakdown and the recipient. Shift-click searches Auctionator (the item columns search the item, the rest the writ).
 - Writ and Sealed writ tooltips in your bags show the same breakdown and rating.

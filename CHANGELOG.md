@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.13.2
+- The title-row rating is just the label (Best, Great, Good...) in a bigger outlined font. The score number is gone from it.
+
 ## 0.13.1
 - The rating sits on the crate tooltip's title row, right of the name ("8.2 Great"). The rank and per-favor line stays under the favor line.
 

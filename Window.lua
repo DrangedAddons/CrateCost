@@ -235,20 +235,43 @@ function ns.RatingText(r)
 end
 
 -- Two tooltip lines for crate `name`. Returns true if it had a rating.
--- The score for the tooltip's title row ("8.2 Great"), or nil if the crate isn't rated.
+-- The label for the tooltip's title row ("Great", coloured), or nil if the crate isn't rated.
 function ns.RatingTitle(name)
   local r = ns.CrateRatings()[name]
   if not r then return nil end
-  local color, score, label = ns.RatingText(r)
-  return color .. score .. " " .. label .. "|r"
+  local color, _, label = ns.RatingText(r)
+  return color .. label .. "|r"
 end
 
--- Puts the score on the right of the tooltip's first line, next to the crate's name.
+-- Puts the label on the right of the tooltip's first line, next to the crate's name, in a
+-- bigger outlined font. TextRight1 is shared by every tooltip the game shows, so its own
+-- font goes back when the tooltip is cleared or hidden.
+local TITLE_GROW = 8
+local saved = {}   -- tooltip -> { font, size, flags } while enlarged
+local function Restore(tooltip)
+  local s = saved[tooltip]
+  if not s then return end
+  saved[tooltip] = nil
+  s.fs:SetFont(s.font, s.size, s.flags)
+end
+
 function ns.SetTitleRating(tooltip, name)
   local tn = tooltip.GetName and tooltip:GetName()
   local right = tn and _G[tn .. "TextRight1"]
   local text = ns.RatingTitle(name)
   if not (right and text) then return false end
+  if not saved[tooltip] then
+    local font, size, flags = right:GetFont()
+    if font and size then
+      saved[tooltip] = { fs = right, font = font, size = size, flags = flags }
+      right:SetFont(font, size + TITLE_GROW, "OUTLINE")
+    end
+  end
+  if not tooltip.crateCostRestoreHooked then
+    tooltip.crateCostRestoreHooked = true
+    pcall(tooltip.HookScript, tooltip, "OnTooltipCleared", Restore)
+    pcall(tooltip.HookScript, tooltip, "OnHide", Restore)
+  end
   right:SetText(text)
   right:Show()
   return true
@@ -320,8 +343,8 @@ local function ShowRowTooltip(row)
   local c = row.crate
   if not c then return end
   GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-  GameTooltip:AddDoubleLine((RANK_COLOR[c.rank] or "") .. "Waylaid Crate: " .. c.name .. "|r",
-    ns.RatingTitle(c.name) or "")
+  GameTooltip:AddLine((RANK_COLOR[c.rank] or "") .. "Waylaid Crate: " .. c.name .. "|r")
+  ns.SetTitleRating(GameTooltip, c.name)
   GameTooltip:AddDoubleLine("Crate on the AH", c.crate and ns.Money(c.crate)
     or "|cff808080" .. (c.id and "no price" or "item not found yet") .. "|r", 0.4, 0.8, 1, 1, 1, 1)
   if Target() then

@@ -286,7 +286,9 @@ local function Process(tooltip, itemID)
     end
   end
   -- how this crate's favor price compares with every other crate's (Window.lua)
+  -- the score sits on the title row, right of the crate's name; the detail line goes below
   if On("rating") and ns.AddRatingLines then
+    ns.SetTitleRating(tooltip, crateName)
     if not On("favorLine") then tooltip:AddLine(" ") end
     ns.AddRatingLines(tooltip, crateName)
   end

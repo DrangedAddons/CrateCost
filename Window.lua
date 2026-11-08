@@ -235,14 +235,32 @@ function ns.RatingText(r)
 end
 
 -- Two tooltip lines for crate `name`. Returns true if it had a rating.
+-- The score for the tooltip's title row ("8.2 Great"), or nil if the crate isn't rated.
+function ns.RatingTitle(name)
+  local r = ns.CrateRatings()[name]
+  if not r then return nil end
+  local color, score, label = ns.RatingText(r)
+  return color .. score .. " " .. label .. "|r"
+end
+
+-- Puts the score on the right of the tooltip's first line, next to the crate's name.
+function ns.SetTitleRating(tooltip, name)
+  local tn = tooltip.GetName and tooltip:GetName()
+  local right = tn and _G[tn .. "TextRight1"]
+  local text = ns.RatingTitle(name)
+  if not (right and text) then return false end
+  right:SetText(text)
+  right:Show()
+  return true
+end
+
+-- The detail line under the favor line (the score itself is on the title row).
 function ns.AddRatingLines(tooltip, name)
   local r = ns.CrateRatings()[name]
   if not r then
     tooltip:AddDoubleLine("Rating", "not rated (no price or favor yet)", 0.4, 0.8, 1, 0.5, 0.5, 0.5)
     return false
   end
-  local color, score, label = ns.RatingText(r)
-  tooltip:AddDoubleLine("Rating", color .. score .. " / 10  " .. label .. "|r", 0.4, 0.8, 1, 1, 1, 1)
   local how = r.rank == 1 and "cheapest favor of all crates"
     or string.format("%.1fx the cheapest favor", r.ratio)
   tooltip:AddDoubleLine(string.format("#%d of %d crates", r.rank, r.total),
@@ -302,7 +320,8 @@ local function ShowRowTooltip(row)
   local c = row.crate
   if not c then return end
   GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-  GameTooltip:AddLine((RANK_COLOR[c.rank] or "") .. "Waylaid Crate: " .. c.name .. "|r")
+  GameTooltip:AddDoubleLine((RANK_COLOR[c.rank] or "") .. "Waylaid Crate: " .. c.name .. "|r",
+    ns.RatingTitle(c.name) or "")
   GameTooltip:AddDoubleLine("Crate on the AH", c.crate and ns.Money(c.crate)
     or "|cff808080" .. (c.id and "no price" or "item not found yet") .. "|r", 0.4, 0.8, 1, 1, 1, 1)
   if Target() then

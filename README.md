@@ -11,7 +11,7 @@ Hover a Waylaid Crate:
 - each bundle gets its Auctionator price, with gold, silver and copper in their own columns
 - the cheapest bundle is listed first and highlighted in gold
 - a Merchant's Favor line shows what the crate pays (the same whichever bundle you use)
-- a **Rating** from 0 to 10 against every other crate, with its rank and how it compares to the cheapest favor
+- a **Rating** from 0 to 10 against every other crate, next to the crate's name, with its rank and how it compares to the cheapest favor under the favor line
 
 ### How the rating works
 

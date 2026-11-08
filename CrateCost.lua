@@ -342,6 +342,8 @@ local function Process(tooltip, itemID)
       Put(m, m.g and (m.color .. m.g .. "|r"), -(cW + sW + SUBGAP * 2))
     end
   end
+  -- rating label: right-aligned with the price column, above it
+  if ns.AlignTitleRating then ns.AlignTitleRating(tooltip, placed[1] and placed[1].fs) end
 end
 
 local reported = false

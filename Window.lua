@@ -330,6 +330,22 @@ function ns.SetTitleRating(tooltip, name)
   return true
 end
 
+-- After the tooltip is shown (widths known): slide the label right so it ends where the
+-- bundle prices end, i.e. it sits in the gap under the name, above the price column.
+-- `edge` is the price column's anchor region (the bundle line); nil = the tooltip's text edge.
+local EDGE_PAD = 10
+function ns.AlignTitleRating(tooltip, edge)
+  local l = labels[tooltip]
+  if not (l and l:IsShown()) then return end
+  local tn = tooltip:GetName()
+  local left = tn and _G[tn .. "TextLeft1"]
+  local right = edge and edge:GetRight() or (tooltip:GetRight() and tooltip:GetRight() - EDGE_PAD)
+  local x0 = left and left:GetLeft()
+  if not (right and x0) then return end
+  l:ClearAllPoints()
+  l:SetPoint("BOTTOMRIGHT", left, "BOTTOMLEFT", right - x0, 1)
+end
+
 -- The detail line under the favor line (the score itself is on the title row).
 function ns.AddRatingLines(tooltip, name)
   local r = ns.CrateRatings()[name]
@@ -446,6 +462,7 @@ local function ShowRowTooltip(row)
   GameTooltip:AddLine("Shift-click: search in Auctionator (bundle columns = material, rest = crate)",
     0.6, 0.6, 0.6, true)
   GameTooltip:Show()
+  ns.AlignTitleRating(GameTooltip)   -- over the prices on the right
 end
 
 -- Shift-click sends a link through the game's insert-link path, the same as shift-clicking

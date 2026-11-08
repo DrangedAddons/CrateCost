@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.13.7
+- The rating label moves to the right, under the crate name's row and above the bundle prices, lined up with the price column.
+
 ## 0.13.6
 - Rating colours run red, orange, pale cream, then blue for the best, instead of ending in green (too close to the game's own green tooltip text).
 

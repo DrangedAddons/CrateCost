@@ -504,6 +504,8 @@ local function Build()
   title:SetText("Waylaid Crates - cheapest Merchant's Favor")
 
   local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+  -- hide directly: the template's HideUIPanel path doesn't close unmanaged frames on Forever
+  close:SetScript("OnClick", function() frame:Hide() end)
   close:SetPoint("TOPRIGHT", 2, 2)
 
   local refresh = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")

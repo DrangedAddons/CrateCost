@@ -119,6 +119,8 @@ local function Build()
   title:SetPoint("TOPLEFT", 14, -12)
   title:SetText("Crate shopping cart")
   local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+  -- hide directly: the template's HideUIPanel path doesn't close unmanaged frames on Forever
+  close:SetScript("OnClick", function() f:Hide() end)
   close:SetPoint("TOPRIGHT", 2, 2)
 
   f.empty = f:CreateFontString(nil, "OVERLAY", "GameFontDisable")

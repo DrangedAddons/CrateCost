@@ -90,6 +90,8 @@ local function Build()
   local version = Text(frame, "v" .. (getMeta and getMeta(ADDON, "Version") or "?"), "GameFontDisableSmall")
   version:SetPoint("TOPLEFT", 20, -20)
   local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+  -- hide directly: the template's HideUIPanel path doesn't close unmanaged frames on Forever
+  close:SetScript("OnClick", function() frame:Hide() end)
   close:SetPoint("TOPRIGHT", -6, -6)
 
   local L = 24

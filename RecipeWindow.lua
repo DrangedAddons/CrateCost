@@ -283,6 +283,8 @@ local function Build()
   title:SetText("Merchant's Favor recipes")
 
   local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+  -- hide directly: the template's HideUIPanel path doesn't close unmanaged frames on Forever
+  close:SetScript("OnClick", function() frame:Hide() end)
   close:SetPoint("TOPRIGHT", 2, 2)
 
   local crates = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")

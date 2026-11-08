@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.11.3
+- Fixed: the X buttons on the crate list, recipe list, cart and settings windows now close them.
+
 ## 0.11.2
 - Fixed: the recipe list opened as a blank window that wouldn't close. It registered an event this client doesn't have.
 

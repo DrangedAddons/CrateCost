@@ -251,12 +251,26 @@ function ns.CrateRatings()
   return out
 end
 
--- Colour from red (0) through yellow (5) to green (10).
+-- Colour from red (0) through orange and a pale cream (middle) to blue (10). Blue rather
+-- than green so the good end doesn't look like the game's own green tooltip text; the pale
+-- middle keeps the orange-to-blue blend from going muddy grey-green.
+local COLOR_STOPS = {
+  { 0,  1.00, 0.25, 0.25 },   -- red
+  { 4,  1.00, 0.62, 0.20 },   -- orange
+  { 6,  0.95, 0.90, 0.78 },   -- pale cream
+  { 10, 0.30, 0.62, 1.00 },   -- blue
+}
 local function ScoreColor(score)
-  local t = math.max(0, math.min(1, score / 10))
-  local r, g
-  if t < 0.5 then r, g = 1, 0.25 + t * 2 * 0.6 else r, g = 1 - (t - 0.5) * 2 * 0.75, 0.85 + (t - 0.5) * 2 * 0.15 end
-  return string.format("|cff%02x%02x%02x", r * 255, g * 255, 0.25 * 255)
+  local s = math.max(0, math.min(10, score))
+  local a, b = COLOR_STOPS[1], COLOR_STOPS[#COLOR_STOPS]
+  for i = 1, #COLOR_STOPS - 1 do
+    if s <= COLOR_STOPS[i + 1][1] then a, b = COLOR_STOPS[i], COLOR_STOPS[i + 1] break end
+  end
+  local t = (s - a[1]) / (b[1] - a[1])
+  local r = a[2] + (b[2] - a[2]) * t
+  local g = a[3] + (b[3] - a[3]) * t
+  local bl = a[4] + (b[4] - a[4]) * t
+  return string.format("|cff%02x%02x%02x", r * 255, g * 255, bl * 255)
 end
 
 function ns.RatingText(r)

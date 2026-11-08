@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.11.4
+- The recipe list is now the **Merchant** list: Merchant button on `/crates` and in settings, `/crates merchant` (`/crates recipes` still works).
+
 ## 0.11.3
 - Fixed: the X buttons on the crate list, recipe list, cart and settings windows now close them.
 

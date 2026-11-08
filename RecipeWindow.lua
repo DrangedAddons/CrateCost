@@ -280,7 +280,7 @@ local function Build()
 
   local title = frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
   title:SetPoint("TOPLEFT", 12, -10)
-  title:SetText("Merchant's Favor recipes")
+  title:SetText("Merchant - what Merchant's Favor buys")
 
   local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
   -- hide directly: the template's HideUIPanel path doesn't close unmanaged frames on Forever

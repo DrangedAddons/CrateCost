@@ -39,9 +39,9 @@ Every Waylaid Crate, sorted by the cheapest Merchant's Favor:
 
 **[+cart]** on a row adds the crate and its best bundle's materials. The cart lets you tick items, change amounts and remove them, then **Create Shopping List** makes an Auctionator shopping list. The cart is kept per character.
 
-## Merchant's Favor recipes
+## Merchant list
 
-The **Recipes** button on `/crates`, `/crates recipes`, or shift-click (or middle-click) the minimap button: all 308 recipes the Durotar Supply / Azeroth Commerce vendors sell for Merchant's Favor, plus the mount, pet, tabard, title and profession certifications.
+The **Merchant** button on `/crates`, `/crates merchant`, or shift-click (or middle-click) the minimap button: all 308 recipes the Durotar Supply / Azeroth Commerce vendors sell for Merchant's Favor, plus the mount, pet, tabard, title and profession certifications.
 
 - Columns: recipe, profession, type, skill, required level, effect or slot, reputation, favor cost, learned. Click a header to sort.
 - Search matches name, profession, type and the effect text (try "spirit" or "wrist").
@@ -53,7 +53,7 @@ The **Recipes** button on `/crates`, `/crates recipes`, or shift-click (or middl
 `/cratecost config`, right-click the minimap button, or Options > AddOns > CrateCost:
 
 - bundle prices on crate tooltips, cheapest first, gold highlight, the Merchant's Favor line
-- the minimap button (left-click: crate list, shift- or middle-click: recipes, right-click: settings)
+- the minimap button (left-click: crate list, shift- or middle-click: merchant list, right-click: settings)
 
 ## Data
 

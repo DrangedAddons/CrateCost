@@ -353,11 +353,11 @@ SlashCmdList.CRATECOST = function(msg)
     ns.ToggleConfig()
   elseif msg == "cart" then
     ns.ShowCart()
-  elseif msg == "recipes" or msg == "recipe" then
+  elseif msg == "merchant" or msg == "recipes" or msg == "recipe" then
     ns.ToggleRecipes()
   else
     Print("/crates - crate list sorted by cost per favor")
-    Print("/crates recipes - every Merchant's Favor recipe")
+    Print("/crates merchant - everything Merchant's Favor buys")
     Print("/cratecost config - settings")
     Print("/cratecost cart - the shopping cart")
     Print("/cratecost debug - print the next crate tooltip's raw lines")

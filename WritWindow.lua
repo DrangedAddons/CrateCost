@@ -407,8 +407,9 @@ local function AddWritLines(tt, e, titled)
   if DoneToday(e) then tt:AddLine("Done today.", 0.25, 1, 0.25) end
 end
 
--- "76% Best  9% Good  16% Fair", coloured; nil if no writ of the rank is priced yet.
-local function OddsText(s)
+-- "76% Best  9% Good  16% Fair", coloured, joined by `sep` (default two spaces); nil if no
+-- writ of the rank is priced yet.
+local function OddsText(s, sep)
   local priced = s.all - s.unpriced
   if priced <= 0 then return nil end
   local parts = {}
@@ -418,7 +419,7 @@ local function OddsText(s)
       parts[#parts + 1] = string.format("%s%d%% %s|r", s.colors[label], math.floor(n * 100 / priced + 0.5), label)
     end
   end
-  return table.concat(parts, "  ")
+  return table.concat(parts, sep or "  ")
 end
 
 local function AddSealedLines(tt, rank)
@@ -433,7 +434,7 @@ local function AddSealedLines(tt, rank)
     tt:AddDoubleLine("Average per rep", ns.Money(math.floor(s.per + 0.5)), 1, 0.82, 0, 1, 1, 1)
   end
   -- the odds go right under the name (the most useful part); the details stay down here
-  local odds = OddsText(s)
+  local odds = OddsText(s, "\n")   -- one tier per line under the name
   if odds then
     ns.SetTitleRating(tt, nil, odds, 2)
     local priced = s.all - s.unpriced

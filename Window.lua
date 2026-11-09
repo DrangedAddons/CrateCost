@@ -327,9 +327,12 @@ function ns.SetTitleRating(tooltip, name, text, grow)
   l.keepLeft = grow ~= nil
   grow = grow or TITLE_GROW
   l:SetFont(font, size + grow, "OUTLINE")
+  l:SetJustifyH("LEFT")
 
-  -- enough blank title rows for the bigger text (a row is about the font size plus spacing)
-  local rows = math.ceil((size + grow + 2) / (size + 2))
+  -- enough blank title rows for the bigger text, every line of it (a row is about the font
+  -- size plus spacing)
+  local lines = select(2, text:gsub("\n", "\n")) + 1
+  local rows = math.ceil(lines * (size + grow + 2) / (size + 2))
   left:SetText(title .. string.rep("\n ", rows))
   l:ClearAllPoints()
   l:SetPoint("BOTTOMLEFT", left, "BOTTOMLEFT", 0, 1)

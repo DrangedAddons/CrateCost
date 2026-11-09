@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.18.3
+- Sealed writ tooltips stack the tier odds one per line under the name.
+
 ## 0.18.2
 - Sealed writ tooltips put the tier odds right under the envelope's name ("76% Best  9% Good  16% Fair"), above the Use text, instead of in a list near the bottom. The details stay below with a one-line note on how they're worked out.
 

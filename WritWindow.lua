@@ -32,6 +32,10 @@ local RANK_COLOR = { Journeyman = "|cff1eff00", Expert = "|cff0070dd", Artisan =
 local PROFS = { "Alchemy", "Blacksmithing", "Engineering", "Leatherworking", "Tailoring" }
 local GREY = "|cff808080"
 local CALC_TTL = 5      -- seconds before prices are worked out again
+-- Sealed envelopes: tiers in order, for the odds of each. Best / Worst = within this many copper
+-- per rep of the cheapest / dearest writ (as the crate list does).
+local TIER_ORDER = { "Best", "Great", "Good", "Fair", "Poor", "Worst" }
+local EXTREME_MARGIN = 10
 local MAX_DEPTH = 4     -- how far down crafted reagents are followed
 
 -- Reputation with the trade camp (Azeroth Commerce Authority / Durotar Supply and Logistics).
@@ -151,11 +155,15 @@ local function Calc()
   for i, e in ipairs(rated) do proxies[i] = { per = e.per, e = e } end
   ns.RateList(proxies)
   local best = proxies[1] and proxies[1].per
+  local worst = proxies[#proxies] and proxies[#proxies].per
   for _, p in ipairs(proxies) do
     local e = p.e
     e.place, e.total_rated, e.ratio, e.label, e.color = p.rank, p.total, p.ratio, p.label, p.color
   end
-  -- sealed envelopes: a random writ of the rank, so its price + the rank's average fill
+  -- Sealed envelopes hold a random writ of the rank, so there's no single rating: each writ
+  -- of the rank is rated as if it came out of the envelope (envelope price + its fill, per rep,
+  -- on the same scale as the writ list), and the envelope shows the odds of each tier.
+  -- Assumes every writ of a rank is equally likely (no guide says otherwise).
   for _, rank in ipairs(RANKS) do
     local r = ns.WritRanks[rank]
     local s = sealed[rank] or {}
@@ -165,9 +173,30 @@ local function Calc()
     s.avgFill = fillN[rank] and fillSum[rank] / fillN[rank] or nil
     s.n = fillN[rank] or 0
     s.per = s.avgFill and (s.avgFill + (s.price or 0)) / r.rep or nil
-    s.ratio = s.per and best and best > 0 and s.per / best or nil
-    s.label, s.color = nil, nil
-    if s.ratio then s.label, s.color = ns.TierFor(s.ratio) end
+    s.odds = s.odds or {}
+    wipe(s.odds)
+    s.colors = s.colors or {}
+    s.all, s.unpriced = 0, 0
+    for _, e in ipairs(Entries()) do
+      if e.rank == rank then
+        s.all = s.all + 1
+        if e.fill and best and best > 0 then
+          local per = (e.fill + (s.price or 0)) / r.rep
+          local label, color
+          if per - best <= EXTREME_MARGIN then
+            label, color = "Best", "|cffc77dff"
+          elseif worst and per >= worst - EXTREME_MARGIN then
+            label, color = "Worst", "|cffb3122e"
+          else
+            label, color = ns.TierFor(per / best)
+          end
+          s.odds[label] = (s.odds[label] or 0) + 1
+          s.colors[label] = color
+        else
+          s.unpriced = s.unpriced + 1
+        end
+      end
+    end
   end
 end
 
@@ -382,14 +411,27 @@ local function AddSealedLines(tt, rank)
   Calc()
   local s = sealed[rank]
   if not s then return end
-  if s.label then ns.SetTitleRating(tt, nil, s.color .. s.label .. "|r") end
   tt:AddLine(" ")
   tt:AddDoubleLine("Random " .. RANK_COLOR[rank] .. rank .. "|r writ", s.rep .. " reputation", 1, 1, 1, 1, 1, 1)
   tt:AddDoubleLine("Envelope on the AH", MoneyOr(s.price), 0.4, 0.8, 1, 1, 1, 1)
   tt:AddDoubleLine("Average fill (" .. s.n .. " writs priced)", MoneyOr(s.avgFill), 1, 0.82, 0, 1, 1, 1)
   if s.per then
-    tt:AddDoubleLine("Expected per rep", ns.Money(math.floor(s.per + 0.5))
-      .. string.format(", %.1fx the cheapest writ", s.ratio), 0.6, 0.6, 0.6, 0.6, 0.6, 0.6)
+    tt:AddDoubleLine("Average per rep", ns.Money(math.floor(s.per + 0.5)), 1, 0.82, 0, 1, 1, 1)
+  end
+  local priced = s.all - s.unpriced
+  if priced > 0 then
+    tt:AddLine(" ")
+    tt:AddLine("Chance the writ inside rates as:", 1, 0.82, 0)
+    for _, label in ipairs(TIER_ORDER) do
+      local n = s.odds[label]
+      if n then
+        tt:AddDoubleLine("  " .. s.colors[label] .. label .. "|r",
+          string.format("%d%%  (%d of %d)", math.floor(n * 100 / priced + 0.5), n, priced), 1, 1, 1, 1, 1, 1)
+      end
+    end
+    tt:AddLine("Rated on the envelope's price + the writ's fill. Assumes each " .. rank
+      .. " writ is equally likely." .. (s.unpriced > 0 and (" " .. s.unpriced .. " writs have no price yet "
+      .. "and aren't counted.") or ""), 0.6, 0.6, 0.6, true)
   end
   UpdateNeed()
   if needRep and s.per then
@@ -586,10 +628,19 @@ local function DrawSealed()
   for _, box in ipairs(frame.sealed) do
     local s = sealed[box.rank]
     local text = RANK_COLOR[box.rank] .. "Sealed " .. box.rank .. "|r  "
-    if s and s.per then
+    local priced = s and (s.all - s.unpriced) or 0
+    if s and s.per and priced > 0 then
       text = text .. (s.price and ns.Money(s.price) or (GREY .. "no price|r")) .. " + avg fill "
-        .. ns.Money(s.avgFill) .. " = " .. ns.Money(math.floor(s.per + 0.5)) .. "/rep  "
-        .. (s.color .. s.label .. "|r") .. (s.price and "" or GREY .. "*|r")
+        .. ns.Money(s.avgFill) .. " = " .. ns.Money(math.floor(s.per + 0.5)) .. "/rep avg.   Odds:  "
+      local parts = {}
+      for _, label in ipairs(TIER_ORDER) do
+        local n = s.odds[label]
+        if n then
+          parts[#parts + 1] = string.format("%s%d%% %s|r", s.colors[label], math.floor(n * 100 / priced + 0.5), label)
+        end
+      end
+      text = text .. table.concat(parts, "  ")
+      if s.unpriced > 0 then text = text .. GREY .. "   (" .. s.unpriced .. " unpriced)|r" end
     else
       text = text .. GREY .. "no prices yet|r"
     end
@@ -766,7 +817,7 @@ end
 
 local function Build()
   frame = CreateFrame("Frame", "CrateCostWrits", UIParent, "BackdropTemplate")
-  frame:SetSize(WIDTH, TOP + VISIBLE * ROW_H + 70)
+  frame:SetSize(WIDTH, TOP + VISIBLE * ROW_H + 106)
   frame:SetPoint("CENTER")
   frame:SetFrameStrata("HIGH")
   frame:SetToplevel(true)
@@ -930,11 +981,11 @@ local function Build()
 
   -- the three sealed envelopes, under the list
   frame.sealed = {}
-  local boxW = (WIDTH - 24) / 3
+  local boxW = WIDTH - 24
   for i, rank in ipairs(RANKS) do
     local box = CreateFrame("Button", nil, frame)
-    box:SetSize(boxW - 6, 18)
-    box:SetPoint("TOPLEFT", frame, "TOPLEFT", 12 + (i - 1) * boxW, -TOP - VISIBLE * ROW_H - 6)
+    box:SetSize(boxW, 18)
+    box:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -TOP - VISIBLE * ROW_H - 6 - (i - 1) * 18)
     box.rank = rank
     box.text = box:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     box.text:SetAllPoints()
@@ -954,7 +1005,7 @@ local function Build()
   end
 
   frame.plan = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  frame.plan:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -TOP - VISIBLE * ROW_H - 26)
+  frame.plan:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -TOP - VISIBLE * ROW_H - 62)
   frame.plan:SetJustifyH("LEFT")
 
   local footer = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")

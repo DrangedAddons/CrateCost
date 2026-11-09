@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.18.1
+- Sealed writ envelopes no longer get one rating (the writ inside is random). Each shows the odds of each tier instead, e.g. "10% Great  30% Good  60% Poor": every writ of that rank rated as if it came out of the envelope (envelope price + its fill, per rep). Writs with no price yet are counted separately.
+- The envelope lines are stacked one per rank, full width.
+
 ## 0.18.0
 - Writs window shows your standing with the trade camp (Azeroth Commerce Authority / Durotar Supply and Logistics), e.g. "Neutral 1,200 / 3,000". If the camp isn't in your reputation list yet it counts as Neutral 0.
 - **Target** dropdown (Friendly, Honored, Revered, Exalted; per character): shows the rep still needed, and each writ gets **Writs** (how many of it reach the target) and **To <target>** (what that many cost). Both sort.

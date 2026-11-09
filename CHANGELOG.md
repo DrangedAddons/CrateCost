@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.18.2
+- Sealed writ tooltips put the tier odds right under the envelope's name ("76% Best  9% Good  16% Fair"), above the Use text, instead of in a list near the bottom. The details stay below with a one-line note on how they're worked out.
+
 ## 0.18.1
 - Sealed writ envelopes no longer get one rating (the writ inside is random). Each shows the odds of each tier instead, e.g. "10% Great  30% Good  60% Poor": every writ of that rank rated as if it came out of the envelope (envelope price + its fill, per rep). Writs with no price yet are counted separately.
 - The envelope lines are stacked one per rank, full width.

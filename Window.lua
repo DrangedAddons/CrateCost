@@ -304,8 +304,10 @@ local function Restore(tooltip)
   if l then l:Hide() end
 end
 
--- `text` (already coloured) is used instead of crate `name`'s rating when given.
-function ns.SetTitleRating(tooltip, name, text)
+-- `text` (already coloured) is used instead of crate `name`'s rating when given. `grow` (font
+-- size over the title's) is for longer text such as the writ odds, which also stays left-aligned
+-- under the name instead of moving over the prices.
+function ns.SetTitleRating(tooltip, name, text, grow)
   local tn = tooltip.GetName and tooltip:GetName()
   local left = tn and _G[tn .. "TextLeft1"]
   text = text or (name and ns.RatingTitle(name))
@@ -322,10 +324,12 @@ function ns.SetTitleRating(tooltip, name, text)
     pcall(tooltip.HookScript, tooltip, "OnHide", Restore)
   end
   if l:IsShown() then return true end   -- already placed on this tooltip
-  l:SetFont(font, size + TITLE_GROW, "OUTLINE")
+  l.keepLeft = grow ~= nil
+  grow = grow or TITLE_GROW
+  l:SetFont(font, size + grow, "OUTLINE")
 
   -- enough blank title rows for the bigger text (a row is about the font size plus spacing)
-  local rows = math.ceil((size + TITLE_GROW + 2) / (size + 2))
+  local rows = math.ceil((size + grow + 2) / (size + 2))
   left:SetText(title .. string.rep("\n ", rows))
   l:ClearAllPoints()
   l:SetPoint("BOTTOMLEFT", left, "BOTTOMLEFT", 0, 1)
@@ -340,7 +344,7 @@ end
 local EDGE_PAD = 10
 function ns.AlignTitleRating(tooltip, edge)
   local l = labels[tooltip]
-  if not (l and l:IsShown()) then return end
+  if not (l and l:IsShown()) or l.keepLeft then return end
   local tn = tooltip:GetName()
   local left = tn and _G[tn .. "TextLeft1"]
   local right = edge and edge:GetRight() or (tooltip:GetRight() and tooltip:GetRight() - EDGE_PAD)

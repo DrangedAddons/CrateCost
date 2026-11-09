@@ -407,6 +407,20 @@ local function AddWritLines(tt, e, titled)
   if DoneToday(e) then tt:AddLine("Done today.", 0.25, 1, 0.25) end
 end
 
+-- "76% Best  9% Good  16% Fair", coloured; nil if no writ of the rank is priced yet.
+local function OddsText(s)
+  local priced = s.all - s.unpriced
+  if priced <= 0 then return nil end
+  local parts = {}
+  for _, label in ipairs(TIER_ORDER) do
+    local n = s.odds[label]
+    if n then
+      parts[#parts + 1] = string.format("%s%d%% %s|r", s.colors[label], math.floor(n * 100 / priced + 0.5), label)
+    end
+  end
+  return table.concat(parts, "  ")
+end
+
 local function AddSealedLines(tt, rank)
   Calc()
   local s = sealed[rank]
@@ -418,20 +432,14 @@ local function AddSealedLines(tt, rank)
   if s.per then
     tt:AddDoubleLine("Average per rep", ns.Money(math.floor(s.per + 0.5)), 1, 0.82, 0, 1, 1, 1)
   end
-  local priced = s.all - s.unpriced
-  if priced > 0 then
-    tt:AddLine(" ")
-    tt:AddLine("Chance the writ inside rates as:", 1, 0.82, 0)
-    for _, label in ipairs(TIER_ORDER) do
-      local n = s.odds[label]
-      if n then
-        tt:AddDoubleLine("  " .. s.colors[label] .. label .. "|r",
-          string.format("%d%%  (%d of %d)", math.floor(n * 100 / priced + 0.5), n, priced), 1, 1, 1, 1, 1, 1)
-      end
-    end
-    tt:AddLine("Rated on the envelope's price + the writ's fill. Assumes each " .. rank
-      .. " writ is equally likely." .. (s.unpriced > 0 and (" " .. s.unpriced .. " writs have no price yet "
-      .. "and aren't counted.") or ""), 0.6, 0.6, 0.6, true)
+  -- the odds go right under the name (the most useful part); the details stay down here
+  local odds = OddsText(s)
+  if odds then
+    ns.SetTitleRating(tt, nil, odds, 2)
+    local priced = s.all - s.unpriced
+    tt:AddLine("Odds above: the writ inside, rated on the envelope's price + its fill, from "
+      .. priced .. " of " .. s.all .. " writs priced. Assumes each " .. rank .. " writ is equally likely.",
+      0.6, 0.6, 0.6, true)
   end
   UpdateNeed()
   if needRep and s.per then
@@ -628,18 +636,10 @@ local function DrawSealed()
   for _, box in ipairs(frame.sealed) do
     local s = sealed[box.rank]
     local text = RANK_COLOR[box.rank] .. "Sealed " .. box.rank .. "|r  "
-    local priced = s and (s.all - s.unpriced) or 0
-    if s and s.per and priced > 0 then
+    local odds = s and OddsText(s)
+    if s and s.per and odds then
       text = text .. (s.price and ns.Money(s.price) or (GREY .. "no price|r")) .. " + avg fill "
-        .. ns.Money(s.avgFill) .. " = " .. ns.Money(math.floor(s.per + 0.5)) .. "/rep avg.   Odds:  "
-      local parts = {}
-      for _, label in ipairs(TIER_ORDER) do
-        local n = s.odds[label]
-        if n then
-          parts[#parts + 1] = string.format("%s%d%% %s|r", s.colors[label], math.floor(n * 100 / priced + 0.5), label)
-        end
-      end
-      text = text .. table.concat(parts, "  ")
+        .. ns.Money(s.avgFill) .. " = " .. ns.Money(math.floor(s.per + 0.5)) .. "/rep avg.   Odds:  " .. odds
       if s.unpriced > 0 then text = text .. GREY .. "   (" .. s.unpriced .. " unpriced)|r" end
     else
       text = text .. GREY .. "no prices yet|r"

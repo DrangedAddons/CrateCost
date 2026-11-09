@@ -299,9 +299,12 @@ end
 -- tooltip is cleared or hidden (the game resets the title text itself).
 local TITLE_GROW = 8
 local labels = {}   -- tooltip -> its rating font string
+local valueCols = {} -- tooltip -> the second column (ns.SetTitleColumns)
 local function Restore(tooltip)
   local l = labels[tooltip]
   if l then l:Hide() end
+  local v = valueCols[tooltip]
+  if v then v:Hide() end
 end
 
 -- `text` (already coloured) is used instead of crate `name`'s rating when given. `grow` (font
@@ -325,6 +328,7 @@ function ns.SetTitleRating(tooltip, name, text, grow)
   end
   if l:IsShown() then return true end   -- already placed on this tooltip
   l.keepLeft = grow ~= nil
+  l.columns = nil
   grow = grow or TITLE_GROW
   l:SetFont(font, size + grow, "OUTLINE")
   l:SetJustifyH("LEFT")
@@ -341,18 +345,53 @@ function ns.SetTitleRating(tooltip, name, text, grow)
   return true
 end
 
+-- Two columns in the same gap under the name, one line per row: `names` right-justified, then
+-- `values` left-justified in a column as wide as `widest`, so the values line up. The pair sits
+-- at the tooltip's right edge (ns.AlignTitleRating places it once widths are known).
+local COL_GAP = 6
+function ns.SetTitleColumns(tooltip, names, values, grow, widest)
+  if not ns.SetTitleRating(tooltip, nil, names, grow) then return false end
+  local l = labels[tooltip]
+  if l.columns then return true end   -- already placed on this tooltip
+  l:SetJustifyH("RIGHT")
+  local v = valueCols[tooltip]
+  if not v then
+    v = tooltip:CreateFontString(nil, "OVERLAY")
+    valueCols[tooltip] = v
+  end
+  v:SetFont(l:GetFont())
+  v:SetJustifyH("LEFT")
+  v:SetText(widest or values)
+  v:SetWidth(v:GetStringWidth() + 2)
+  v:SetText(values)
+  v:ClearAllPoints()
+  v:SetPoint("BOTTOMLEFT", l, "BOTTOMRIGHT", COL_GAP, 0)
+  v:Show()
+  l.columns = v
+  return true
+end
+
 -- After the tooltip is shown (widths known): slide the label right so it ends where the
 -- bundle prices end, i.e. it sits in the gap under the name, above the price column.
 -- `edge` is the price column's anchor region (the bundle line); nil = the tooltip's text edge.
 local EDGE_PAD = 10
 function ns.AlignTitleRating(tooltip, edge)
   local l = labels[tooltip]
-  if not (l and l:IsShown()) or l.keepLeft then return end
+  if not (l and l:IsShown()) or (l.keepLeft and not l.columns) then return end
   local tn = tooltip:GetName()
   local left = tn and _G[tn .. "TextLeft1"]
   local right = edge and edge:GetRight() or (tooltip:GetRight() and tooltip:GetRight() - EDGE_PAD)
   local x0 = left and left:GetLeft()
   if not (right and x0) then return end
+  if l.columns then
+    -- values column against the edge, names column ending just left of it
+    local v = l.columns
+    v:ClearAllPoints()
+    v:SetPoint("BOTTOMRIGHT", left, "BOTTOMLEFT", right - x0, 1)
+    l:ClearAllPoints()
+    l:SetPoint("BOTTOMRIGHT", v, "BOTTOMLEFT", -COL_GAP, 0)
+    return
+  end
   l:ClearAllPoints()
   l:SetPoint("BOTTOMRIGHT", left, "BOTTOMLEFT", right - x0, 1)
 end

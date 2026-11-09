@@ -407,19 +407,23 @@ local function AddWritLines(tt, e, titled)
   if DoneToday(e) then tt:AddLine("Done today.", 0.25, 1, 0.25) end
 end
 
--- "76% Best  9% Good  16% Fair", coloured, joined by `sep` (default two spaces); nil if no
--- writ of the rank is priced yet.
-local function OddsText(s, sep)
+-- The odds for envelope `s`, coloured: "Best 76%  Good 9%  Fair 16%" on one line, plus the
+-- tier names and percents as separate one-per-line columns for the tooltip. nil if no writ of
+-- the rank is priced yet.
+local function OddsText(s)
   local priced = s.all - s.unpriced
   if priced <= 0 then return nil end
-  local parts = {}
+  local parts, names, pcts = {}, {}, {}
   for _, label in ipairs(TIER_ORDER) do
     local n = s.odds[label]
     if n then
-      parts[#parts + 1] = string.format("%s%d%% %s|r", s.colors[label], math.floor(n * 100 / priced + 0.5), label)
+      local c, pct = s.colors[label], math.floor(n * 100 / priced + 0.5) .. "%"
+      parts[#parts + 1] = c .. label .. " " .. pct .. "|r"
+      names[#names + 1] = c .. label .. "|r"
+      pcts[#pcts + 1] = c .. pct .. "|r"
     end
   end
-  return table.concat(parts, sep or "  ")
+  return table.concat(parts, "  "), table.concat(names, "\n"), table.concat(pcts, "\n")
 end
 
 local function AddSealedLines(tt, rank)
@@ -434,9 +438,10 @@ local function AddSealedLines(tt, rank)
     tt:AddDoubleLine("Average per rep", ns.Money(math.floor(s.per + 0.5)), 1, 0.82, 0, 1, 1, 1)
   end
   -- the odds go right under the name (the most useful part); the details stay down here
-  local odds = OddsText(s, "\n")   -- one tier per line under the name
+  local odds, names, pcts = OddsText(s)
   if odds then
-    ns.SetTitleRating(tt, nil, odds, 2)
+    -- one tier per line: names right-justified, percents lined up in the next column
+    ns.SetTitleColumns(tt, names, pcts, 2, "100%")
     local priced = s.all - s.unpriced
     tt:AddLine("Odds above: the writ inside, rated on the envelope's price + its fill, from "
       .. priced .. " of " .. s.all .. " writs priced. Assumes each " .. rank .. " writ is equally likely.",

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.18.4
+- Sealed writ tooltip odds sit at the right, as two columns: the rating (right-justified) then its percent (left-justified, lined up).
+- The odds read rating first everywhere ("Best 76%"), including the Writs window's envelope lines.
+
 ## 0.18.3
 - Sealed writ tooltips stack the tier odds one per line under the name.
 

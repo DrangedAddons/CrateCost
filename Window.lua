@@ -299,12 +299,26 @@ end
 -- tooltip is cleared or hidden (the game resets the title text itself).
 local TITLE_GROW = 8
 local labels = {}   -- tooltip -> its rating font string
-local valueCols = {} -- tooltip -> the second column (ns.SetTitleColumns)
+local odds = {}     -- tooltip -> the odds rows (ns.SetTitleOdds)
 local function Restore(tooltip)
   local l = labels[tooltip]
   if l then l:Hide() end
-  local v = valueCols[tooltip]
-  if v then v:Hide() end
+  local o = odds[tooltip]
+  if o then
+    o.shown = false
+    for i = 1, #o.names do
+      o.names[i]:Hide()
+      o.values[i]:Hide()
+    end
+  end
+end
+
+local hooked = {}
+local function HookRestore(tooltip)
+  if hooked[tooltip] then return end
+  hooked[tooltip] = true
+  pcall(tooltip.HookScript, tooltip, "OnTooltipCleared", Restore)
+  pcall(tooltip.HookScript, tooltip, "OnHide", Restore)
 end
 
 -- `text` (already coloured) is used instead of crate `name`'s rating when given. `grow` (font
@@ -323,13 +337,10 @@ function ns.SetTitleRating(tooltip, name, text, grow)
   if not l then
     l = tooltip:CreateFontString(nil, "OVERLAY")
     labels[tooltip] = l
-    pcall(tooltip.HookScript, tooltip, "OnTooltipCleared", Restore)
-    pcall(tooltip.HookScript, tooltip, "OnHide", Restore)
+    HookRestore(tooltip)
   end
   if l:IsShown() then return true end   -- already placed on this tooltip
   l.keepLeft = grow ~= nil
-  l.columns = nil
-  l:SetWidth(0)   -- back to its natural width (the writ odds set a fixed one)
   grow = grow or TITLE_GROW
   l:SetFont(font, size + grow, "OUTLINE")
   l:SetJustifyH("LEFT")
@@ -346,21 +357,7 @@ function ns.SetTitleRating(tooltip, name, text, grow)
   return true
 end
 
--- Two columns in the same gap under the name, one line per row: `names` right-justified, then
--- `values` left-justified in a column as wide as `widest`, so the values line up. The pair sits
--- at the tooltip's right edge (ns.AlignTitleRating places it once widths are known).
 local COL_GAP = 6
-
--- Widest line of `text` in font string `fs`'s font. Measured on our own UIParent font string:
--- a tooltip's font strings report secret widths on Forever, and arithmetic on those throws.
-local function TextWidth(fs, text)
-  local w = 0
-  for line in (text .. "\n"):gmatch("(.-)\n") do
-    local lw = ns.MeasureWidth(fs, line)
-    if lw > w then w = lw end
-  end
-  return w
-end
 
 -- A tooltip position we can do arithmetic on, or nil if the client hands back a secret value.
 local function Plain(v)
@@ -368,25 +365,81 @@ local function Plain(v)
   return v
 end
 
-function ns.SetTitleColumns(tooltip, names, values, grow, widest)
-  if not ns.SetTitleRating(tooltip, nil, names, grow) then return false end
-  local l = labels[tooltip]
-  if l.columns then return true end   -- already placed on this tooltip
-  l:SetJustifyH("RIGHT")
-  l:SetWidth(TextWidth(l, names) + 2)   -- right-justified needs a fixed width to line up in
-  local v = valueCols[tooltip]
-  if not v then
-    v = tooltip:CreateFontString(nil, "OVERLAY")
-    valueCols[tooltip] = v
+-- Anchors the odds rows `dx` right of the title's left edge: names end at one x, values
+-- start COL_GAP after it, each row on its own baseline.
+local function PlaceOdds(o, left, dx)
+  for i = 1, o.n do
+    local nf, vf = o.names[i], o.values[i]
+    nf:ClearAllPoints()
+    nf:SetPoint("BOTTOMRIGHT", left, "BOTTOMLEFT", dx + o.nameW, o.y[i])
+    vf:ClearAllPoints()
+    vf:SetPoint("BOTTOMLEFT", left, "BOTTOMLEFT", dx + o.nameW + COL_GAP, o.y[i])
   end
-  v:SetFont(l:GetFont())
-  v:SetJustifyH("LEFT")
-  v:SetWidth(TextWidth(v, widest or values) + 2)
-  v:SetText(values)
-  v:ClearAllPoints()
-  v:SetPoint("BOTTOMLEFT", l, "BOTTOMRIGHT", COL_GAP, 0)
-  v:Show()
-  l.columns = v
+end
+
+-- The odds in the gap under the name, one row per tier in the given order: the name
+-- right-justified, the value left-justified in the next column. Rows with the highest `pct`
+-- are drawn bigger than the title, the rest smaller, so the likeliest tier is what you see.
+-- `rows` = { {name = coloured, value = coloured, pct = number}, ... }. `widest` is the widest
+-- value text ("100%"), so the column has the same width on every tooltip.
+local ODDS_BIG, ODDS_SMALL = 4, -2   -- font size over the title's
+function ns.SetTitleOdds(tooltip, rows, widest)
+  local tn = tooltip.GetName and tooltip:GetName()
+  local left = tn and _G[tn .. "TextLeft1"]
+  local title = left and left:GetText()
+  if not (#rows > 0 and type(title) == "string") then return false end
+  local font, size = left:GetFont()
+  if not (font and size) then return false end
+
+  local o = odds[tooltip]
+  if not o then
+    o = { names = {}, values = {}, y = {} }
+    odds[tooltip] = o
+    HookRestore(tooltip)
+  end
+  if o.shown then return true end   -- already placed on this tooltip
+
+  local top = 0
+  for _, r in ipairs(rows) do
+    if r.pct > top then top = r.pct end
+  end
+  local nameW, valueW, sizes, height = 0, 0, {}, 0
+  for i, r in ipairs(rows) do
+    local nf, vf = o.names[i], o.values[i]
+    if not nf then
+      nf = tooltip:CreateFontString(nil, "OVERLAY")
+      vf = tooltip:CreateFontString(nil, "OVERLAY")
+      o.names[i], o.values[i] = nf, vf
+    end
+    local sz = size + (r.pct == top and ODDS_BIG or ODDS_SMALL)
+    sizes[i] = sz
+    height = height + sz + 2
+    nf:SetFont(font, sz, "OUTLINE")
+    vf:SetFont(font, sz, "OUTLINE")
+    nf:SetJustifyH("RIGHT")
+    vf:SetJustifyH("LEFT")
+    -- widths from our own UIParent font string: a tooltip's report secret values on Forever
+    nameW = math.max(nameW, ns.MeasureWidth(nf, r.name))
+    valueW = math.max(valueW, ns.MeasureWidth(vf, widest or r.value), ns.MeasureWidth(vf, r.value))
+    nf:SetText(r.name)
+    vf:SetText(r.value)
+    nf:Show()
+    vf:Show()
+  end
+  for i = #rows + 1, #o.names do
+    o.names[i]:Hide()
+    o.values[i]:Hide()
+  end
+  -- baselines from the bottom row up
+  local y = 1
+  for i = #rows, 1, -1 do
+    o.y[i] = y
+    y = y + sizes[i] + 2
+  end
+  o.n, o.nameW, o.valueW, o.shown = #rows, nameW, valueW, true
+
+  left:SetText(title .. string.rep("\n ", math.ceil(height / (size + 2))))
+  PlaceOdds(o, left, 0)   -- left under the name until AlignTitleRating knows the edge
   return true
 end
 
@@ -395,8 +448,9 @@ end
 -- `edge` is the price column's anchor region (the bundle line); nil = the tooltip's text edge.
 local EDGE_PAD = 10
 function ns.AlignTitleRating(tooltip, edge)
-  local l = labels[tooltip]
-  if not (l and l:IsShown()) or (l.keepLeft and not l.columns) then return end
+  local l, o = labels[tooltip], odds[tooltip]
+  local oddsShown = o and o.shown
+  if not (oddsShown or (l and l:IsShown() and not l.keepLeft)) then return end
   local tn = tooltip:GetName()
   local left = tn and _G[tn .. "TextLeft1"]
   -- positions can be secret on Forever: then the label stays where SetTitleRating put it
@@ -407,13 +461,9 @@ function ns.AlignTitleRating(tooltip, edge)
   end
   local x0 = left and Plain(left:GetLeft())
   if not (right and x0) then return end
-  if l.columns then
-    -- values column against the edge, names column ending just left of it
-    local v = l.columns
-    v:ClearAllPoints()
-    v:SetPoint("BOTTOMRIGHT", left, "BOTTOMLEFT", right - x0, 1)
-    l:ClearAllPoints()
-    l:SetPoint("BOTTOMRIGHT", v, "BOTTOMLEFT", -COL_GAP, 0)
+  if oddsShown then
+    -- values column against the edge, names ending just left of it
+    PlaceOdds(o, left, right - x0 - o.nameW - COL_GAP - o.valueW)
     return
   end
   l:ClearAllPoints()

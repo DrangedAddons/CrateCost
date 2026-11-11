@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.18.6
+- Sealed writ tooltip odds: the likeliest tier is drawn bigger than the title and the others smaller, so the most probable outcome stands out. Tiers stay in quality order and the columns still line up. A tie draws all tied tiers big.
+
 ## 0.18.5
 - Fixed "writ tooltip error: attempt to perform arithmetic on a secret number value" on Sealed writ tooltips. The odds columns are measured on CrateCost's own font string (a tooltip's report secret widths on Forever), and if the tooltip's position comes back secret the odds stay under the name instead of erroring.
 

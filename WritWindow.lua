@@ -407,23 +407,21 @@ local function AddWritLines(tt, e, titled)
   if DoneToday(e) then tt:AddLine("Done today.", 0.25, 1, 0.25) end
 end
 
--- The odds for envelope `s`, coloured: "Best 76%  Good 9%  Fair 16%" on one line, plus the
--- tier names and percents as separate one-per-line columns for the tooltip. nil if no writ of
--- the rank is priced yet.
+-- The odds for envelope `s`, coloured: "Best 76%  Good 9%  Fair 16%" on one line, plus one
+-- row per tier for the tooltip ({name, value, pct}). nil if no writ of the rank is priced yet.
 local function OddsText(s)
   local priced = s.all - s.unpriced
   if priced <= 0 then return nil end
-  local parts, names, pcts = {}, {}, {}
+  local parts, rows = {}, {}
   for _, label in ipairs(TIER_ORDER) do
     local n = s.odds[label]
     if n then
-      local c, pct = s.colors[label], math.floor(n * 100 / priced + 0.5) .. "%"
-      parts[#parts + 1] = c .. label .. " " .. pct .. "|r"
-      names[#names + 1] = c .. label .. "|r"
-      pcts[#pcts + 1] = c .. pct .. "|r"
+      local c, p = s.colors[label], math.floor(n * 100 / priced + 0.5)
+      parts[#parts + 1] = c .. label .. " " .. p .. "%|r"
+      rows[#rows + 1] = { name = c .. label .. "|r", value = c .. p .. "%|r", pct = n }
     end
   end
-  return table.concat(parts, "  "), table.concat(names, "\n"), table.concat(pcts, "\n")
+  return table.concat(parts, "  "), rows
 end
 
 local function AddSealedLines(tt, rank)
@@ -438,10 +436,10 @@ local function AddSealedLines(tt, rank)
     tt:AddDoubleLine("Average per rep", ns.Money(math.floor(s.per + 0.5)), 1, 0.82, 0, 1, 1, 1)
   end
   -- the odds go right under the name (the most useful part); the details stay down here
-  local odds, names, pcts = OddsText(s)
+  local odds, rows = OddsText(s)
   if odds then
-    -- one tier per line: names right-justified, percents lined up in the next column
-    ns.SetTitleColumns(tt, names, pcts, 2, "100%")
+    -- one tier per line in quality order, the likeliest drawn bigger than the rest
+    ns.SetTitleOdds(tt, rows, "100%")
     local priced = s.all - s.unpriced
     tt:AddLine("Odds above: the writ inside, rated on the envelope's price + its fill, from "
       .. priced .. " of " .. s.all .. " writs priced. Assumes each " .. rank .. " writ is equally likely.",

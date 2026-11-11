@@ -143,9 +143,10 @@ local function CrateList()
   local function add(name, bundles, live)
     local rank, kind = ns.ParseCrate("Waylaid Crate: " .. name)
     local s = db.crates[name]
+    local favor, est = ns.FavorFor(rank, kind)
     list[#list + 1] = { name = name, rank = rank, kind = kind, bundles = bundles, live = live,
                         id = (s and s.id) or db.ids[name] or ns.CrateIDs[name],
-                        favor = ns.FavorFor(rank, kind),
+                        favor = favor, favorEst = est,
                         prices = {}, owned = {}, allowed = {}, req = {}, units = {} }
     seen[name] = true
   end
@@ -545,6 +546,9 @@ local function ShowRowTooltip(row)
       or string.format("%d crate%s for %d favor (target %d)", c.n, c.n == 1 and "" or "s",
         c.n * c.favor, Target()), 1, 0.82, 0)
   end
+  if c.favorEst then
+    GameTooltip:AddLine("Favor ~" .. c.favor .. " is an estimate (Artisan isn't published yet).", 0.6, 0.6, 0.6)
+  end
   if c.have and c.have > 0 and Mode() == "mine" then
     GameTooltip:AddLine("You own " .. c.have .. ": " .. (c.ownCrate and "no crates to buy."
       or ("buy " .. c.crateNeed .. ".")), 0.25, 1, 0.25)
@@ -783,7 +787,7 @@ function ns.RefreshWindow()
       SetMoney(row, "crate", c.crateCost, nil, "|cff808080?|r")
     end
     cl.n:SetText(c.nUnknown and "|cff808080?|r" or ((c.n > 1 and "|cffffffff" or "|cff808080") .. c.n .. "|r"))
-    cl.favor:SetText(c.favor and (c.favor .. icon) or "|cff808080?|r")
+    cl.favor:SetText(c.favor and ((c.favorEst and "~" or "") .. c.favor .. icon) or "|cff808080?|r")
     SetMoney(row, "per", c.per, ns.BEST, "")
     if c.rating then
       local color, label = ns.RatingText(c.rating)

@@ -53,10 +53,15 @@ ns.ItemIDs = {
 -- Merchant's Favor per crate, from the wow-professions.com / forevermastery beta tables.
 -- It depends only on the crate (rank + kind), not the bundle you fill it with.
 -- Raw goods pay 5/10/15, crafted goods (Fabrics, Ingots, Parts) 10/20/30.
--- Artisan isn't published yet: nil shows as "unknown".
 ns.Favor = {
   raw     = { Apprentice = 5,  Journeyman = 10, Expert = 15 },
   crafted = { Apprentice = 10, Journeyman = 20, Expert = 30 },
+}
+-- Artisan isn't published yet. These continue the pattern above and show marked "~" as an
+-- estimate; move them into ns.Favor once the real numbers are known.
+ns.FavorEstimate = {
+  raw     = { Artisan = 20 },
+  crafted = { Artisan = 40 },
 }
 ns.CraftedKinds = { Fabrics = true, Ingots = true, Parts = true }
 -- Crate item IDs from the wow-professions.com tables, so the list knows them without

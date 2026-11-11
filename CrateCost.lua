@@ -106,10 +106,13 @@ local function ParseCrate(title)
   return rank, rest:match("(%S+)%s*$"), rest
 end
 
+-- Favor for one crate, and true when it's an estimate (ns.FavorEstimate).
 local function FavorFor(rank, kind)
   if not rank or not kind then return nil end
-  local t = ns.CraftedKinds[kind] and ns.Favor.crafted or ns.Favor.raw
-  return t[rank]
+  local key = ns.CraftedKinds[kind] and "crafted" or "raw"
+  if ns.Favor[key][rank] then return ns.Favor[key][rank], false end
+  local est = ns.FavorEstimate and ns.FavorEstimate[key][rank]
+  if est then return est, true end
 end
 
 local function LeftLines(tooltip)
@@ -322,11 +325,13 @@ local function Process(tooltip, itemID)
   end
 
   -- Favor is the same whichever bundle you use.
-  local favor = FavorFor(rank, kind)
+  local favor, est = FavorFor(rank, kind)
   local icon = FavorIcon()
   if On("favorLine") then
     tooltip:AddLine(" ")
-    if favor then
+    if favor and est then
+      tooltip:AddDoubleLine("Merchant's Favor (estimate)", "~" .. favor .. icon, 0.4, 0.8, 1, 1, 1, 1)
+    elseif favor then
       tooltip:AddDoubleLine("Merchant's Favor", favor .. icon, 0.4, 0.8, 1, 1, 1, 1)
     else
       tooltip:AddDoubleLine("Merchant's Favor", "unknown yet", 0.4, 0.8, 1, 0.5, 0.5, 0.5)

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.18.7
+- Artisan crates get an estimated Merchant's Favor (20 raw, 40 crafted: the 5/10/15 and 10/20/30 pattern continued), so they're priced per favor and rated instead of "unknown yet". The estimate shows as "~20" in the tooltip ("Merchant's Favor (estimate)") and the /crates list. Swap in the real numbers in Data.lua once they're published.
+
 ## 0.18.6
 - Sealed writ tooltip odds: the likeliest tier is drawn bigger than the title and the others smaller, so the most probable outcome stands out. Tiers stay in quality order and the columns still line up. A tie draws all tied tiers big.
 

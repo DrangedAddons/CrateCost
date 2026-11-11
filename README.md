@@ -94,5 +94,5 @@ The **Writs** button on `/crates`, `/writs` (or `/writ`, `/crates writs`), or ct
 
 - Recipes, costs and reputation come from wow-professions.com's Merchant's Favor guide. Crafted item IDs and base stats come from CraftRoute's Forever recipe data (`tools/join.py` rebuilds Recipes.lua from both).
 - Writs (writ and quest IDs, required item, skill, rank, reputation, recipient) come from wow.gg's Merchant's Favor guide. What each item is made from comes from endgametools.com's Forever profession pages (`tools/writs.py` rebuilds Writs.lua from both).
-- Favor per crate comes from wow-professions.com's beta tables: raw goods 5/10/15, crafted goods (Fabrics, Ingots, Parts) 10/20/30 for Apprentice/Journeyman/Expert. Artisan is unknown so far.
+- Favor per crate comes from wow-professions.com's beta tables: raw goods 5/10/15, crafted goods (Fabrics, Ingots, Parts) 10/20/30 for Apprentice/Journeyman/Expert. Artisan isn't published yet, so CrateCost uses an estimate of 20 raw / 40 crafted, shown as "~20" and labelled as an estimate.
 - Crate item IDs are found by name at login. Material IDs and professions were checked against CraftRoute's Forever data.

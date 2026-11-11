@@ -450,4 +450,5 @@ SlashCmdList.CRATECOSTWRITS = function() ns.ToggleWrits() end
 
 -- shared with Window.lua
 ns.Price, ns.Money, ns.FavorFor, ns.FavorIcon, ns.ParseCrate = Price, Money, FavorFor, FavorIcon, ParseCrate
+ns.MeasureWidth = MeasureWidth
 ns.BEST, ns.Print, ns.VendorPrice = BEST, Print, VendorPrice

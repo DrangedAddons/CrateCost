@@ -329,6 +329,7 @@ function ns.SetTitleRating(tooltip, name, text, grow)
   if l:IsShown() then return true end   -- already placed on this tooltip
   l.keepLeft = grow ~= nil
   l.columns = nil
+  l:SetWidth(0)   -- back to its natural width (the writ odds set a fixed one)
   grow = grow or TITLE_GROW
   l:SetFont(font, size + grow, "OUTLINE")
   l:SetJustifyH("LEFT")
@@ -349,11 +350,30 @@ end
 -- `values` left-justified in a column as wide as `widest`, so the values line up. The pair sits
 -- at the tooltip's right edge (ns.AlignTitleRating places it once widths are known).
 local COL_GAP = 6
+
+-- Widest line of `text` in font string `fs`'s font. Measured on our own UIParent font string:
+-- a tooltip's font strings report secret widths on Forever, and arithmetic on those throws.
+local function TextWidth(fs, text)
+  local w = 0
+  for line in (text .. "\n"):gmatch("(.-)\n") do
+    local lw = ns.MeasureWidth(fs, line)
+    if lw > w then w = lw end
+  end
+  return w
+end
+
+-- A tooltip position we can do arithmetic on, or nil if the client hands back a secret value.
+local function Plain(v)
+  if v == nil or (issecretvalue and issecretvalue(v)) then return nil end
+  return v
+end
+
 function ns.SetTitleColumns(tooltip, names, values, grow, widest)
   if not ns.SetTitleRating(tooltip, nil, names, grow) then return false end
   local l = labels[tooltip]
   if l.columns then return true end   -- already placed on this tooltip
   l:SetJustifyH("RIGHT")
+  l:SetWidth(TextWidth(l, names) + 2)   -- right-justified needs a fixed width to line up in
   local v = valueCols[tooltip]
   if not v then
     v = tooltip:CreateFontString(nil, "OVERLAY")
@@ -361,8 +381,7 @@ function ns.SetTitleColumns(tooltip, names, values, grow, widest)
   end
   v:SetFont(l:GetFont())
   v:SetJustifyH("LEFT")
-  v:SetText(widest or values)
-  v:SetWidth(v:GetStringWidth() + 2)
+  v:SetWidth(TextWidth(v, widest or values) + 2)
   v:SetText(values)
   v:ClearAllPoints()
   v:SetPoint("BOTTOMLEFT", l, "BOTTOMRIGHT", COL_GAP, 0)
@@ -380,8 +399,13 @@ function ns.AlignTitleRating(tooltip, edge)
   if not (l and l:IsShown()) or (l.keepLeft and not l.columns) then return end
   local tn = tooltip:GetName()
   local left = tn and _G[tn .. "TextLeft1"]
-  local right = edge and edge:GetRight() or (tooltip:GetRight() and tooltip:GetRight() - EDGE_PAD)
-  local x0 = left and left:GetLeft()
+  -- positions can be secret on Forever: then the label stays where SetTitleRating put it
+  local right = edge and Plain(edge:GetRight())
+  if not right then
+    local r = Plain(tooltip:GetRight())
+    right = r and r - EDGE_PAD
+  end
+  local x0 = left and Plain(left:GetLeft())
   if not (right and x0) then return end
   if l.columns then
     -- values column against the edge, names column ending just left of it

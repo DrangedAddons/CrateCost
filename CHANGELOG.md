@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.18.5
+- Fixed "writ tooltip error: attempt to perform arithmetic on a secret number value" on Sealed writ tooltips. The odds columns are measured on CrateCost's own font string (a tooltip's report secret widths on Forever), and if the tooltip's position comes back secret the odds stay under the name instead of erroring.
+
 ## 0.18.4
 - Sealed writ tooltip odds sit at the right, as two columns: the rating (right-justified) then its percent (left-justified, lined up).
 - The odds read rating first everywhere ("Best 76%"), including the Writs window's envelope lines.

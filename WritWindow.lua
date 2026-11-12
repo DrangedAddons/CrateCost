@@ -841,7 +841,17 @@ local function Build()
       CrateCostDB.writsPos = { x = self:GetLeft(), y = self:GetTop() }
     end
   end)
-  frame:SetScript("OnShow", function() ns.RefreshWrits() end)
+  frame:SetScript("OnShow", function()
+    -- every writ, filling item and envelope, so shift-click links them straight away
+    local ids = {}
+    for _, w in ipairs(ns.Writs) do
+      ids[#ids + 1] = w[1]
+      ids[#ids + 1] = w[8]
+    end
+    for _, r in pairs(ns.WritRanks) do ids[#ids + 1] = r.sealed end
+    ns.PreloadItems(ids)
+    ns.RefreshWrits()
+  end)
   frame:EnableMouseWheel(true)
   frame:SetScript("OnMouseWheel", function(_, delta)
     view.offset = view.offset - delta * 3

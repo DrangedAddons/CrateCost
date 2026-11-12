@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.18.9
+- Shift-click links are reliable: the crate and writ windows ask the server for all their items when they open, so links are ready before you click. A click on an item that still isn't loaded waits up to 5 seconds (and polls, in case the load callback never fires) instead of 1.
+- Chat no longer gets the bare name in place of a link. If an item really won't load, CrateCost says so and you shift-click again. Search boxes still get the name.
+
 ## 0.18.8
 - Shift-click works like the game's own item shift-click everywhere (crate list, writ list, sealed envelope lines, recipe list): it puts a real item link in an open chat box, and the AH / Auctionator search take it as a name. Any other focused edit box gets the plain name typed in.
 - Items the client hadn't cached yet (crates, writs or mats only seen on the AH) used to go in as plain text. They're loaded first now, so they link too.

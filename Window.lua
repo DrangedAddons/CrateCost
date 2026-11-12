@@ -623,30 +623,73 @@ function ns.InsertLink(link, name)
   end
 end
 
--- Shift-click on an item row: loads the item first when the client hasn't cached it yet, so a
--- crate / writ / mat seen only on the AH still goes in as a real link, not just its name.
+-- Asks the server for item data the client hasn't cached, so shift-click has a link ready.
+-- Called when a list opens; each ID is asked for once per session.
+local requested = {}
+function ns.PreloadItems(ids)
+  if not (C_Item and C_Item.RequestLoadItemDataByID) then return end
+  for _, id in pairs(ids) do
+    if type(id) == "number" and not requested[id] then
+      requested[id] = true
+      if not (C_Item.IsItemDataCachedByID and C_Item.IsItemDataCachedByID(id)) then
+        C_Item.RequestLoadItemDataByID(id)
+      end
+    end
+  end
+end
+
+local function LinkFor(itemID)
+  local item = Item and Item.CreateFromItemID and Item:CreateFromItemID(itemID)
+  local link = item and not item:IsItemEmpty() and item:IsItemDataCached() and item:GetItemLink()
+  if not link and C_Item and C_Item.GetItemInfo then link = select(2, C_Item.GetItemInfo(itemID)) end
+  return link, item
+end
+
+-- Shift-click on an item row. An item the client hasn't cached is loaded first (up to
+-- LINK_WAIT seconds), so it still goes into chat as a real link. Chat never gets the bare
+-- name in place of a link: if the item doesn't load, it says so and you click again.
+local LINK_WAIT = 5
 local function SearchAuctionator(itemID, name)
-  local item = itemID and Item and Item.CreateFromItemID and Item:CreateFromItemID(itemID)
-  if not (item and not item:IsItemEmpty()) then
-    ns.InsertLink(nil, name)
+  if not itemID then
+    ns.InsertLink(nil, name)   -- no item ID known: the name is all there is
     return
   end
-  if item:IsItemDataCached() then
-    ns.InsertLink(item:GetItemLink(), name)
+  local link, item = LinkFor(itemID)
+  if link then
+    ns.InsertLink(link, name)
     return
   end
   local done = false
-  item:ContinueOnItemLoad(function()
+  local function Finish()
     if done then return end
+    local l = LinkFor(itemID)
+    if not l then return end
     done = true
-    ns.InsertLink(item:GetItemLink(), name)
-  end)
-  -- an ID the server doesn't know never loads: fall back to the name
-  C_Timer.After(1, function()
+    ns.InsertLink(l, name)
+  end
+  if item and not item:IsItemEmpty() then item:ContinueOnItemLoad(Finish) end
+  if C_Item and C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(itemID) end
+  -- poll as well: on Forever the load callback has been seen not to fire for some items
+  local tries = 0
+  local function Poll()
     if done then return end
+    tries = tries + 1
+    Finish()
+    if done then return end
+    if tries < LINK_WAIT * 4 then
+      C_Timer.After(0.25, Poll)
+      return
+    end
     done = true
-    ns.InsertLink(nil, name)
-  end)
+    local focus = GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus()
+    local chat = ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow()
+    if focus and focus ~= chat then
+      ns.InsertLink(nil, name)   -- a search box only needs the name
+    else
+      ns.Print((name or "That item") .. " hasn't loaded from the server yet, shift-click it again in a moment.")
+    end
+  end
+  C_Timer.After(0.25, Poll)
 end
 
 ns.SearchAuctionator = SearchAuctionator
@@ -857,7 +900,14 @@ local function Build()
   frame:RegisterForDrag("LeftButton")
   frame:SetScript("OnDragStart", frame.StartMoving)
   frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-  frame:SetScript("OnShow", ns.RefreshWindow)
+  frame:SetScript("OnShow", function()
+    -- every crate and bundle item, so shift-click links them straight away
+    local ids = {}
+    for _, c in ipairs(CrateList()) do ids[#ids + 1] = c.id end
+    for _, id in pairs(ns.ItemIDs) do ids[#ids + 1] = id end
+    ns.PreloadItems(ids)
+    ns.RefreshWindow()
+  end)
   tinsert(UISpecialFrames, "CrateCostFrame")
 
   local title = frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")

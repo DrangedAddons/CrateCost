@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.18.8
+- Shift-click works like the game's own item shift-click everywhere (crate list, writ list, sealed envelope lines, recipe list): it puts a real item link in an open chat box, and the AH / Auctionator search take it as a name. Any other focused edit box gets the plain name typed in.
+- Items the client hadn't cached yet (crates, writs or mats only seen on the AH) used to go in as plain text. They're loaded first now, so they link too.
+
 ## 0.18.7
 - Artisan crates get an estimated Merchant's Favor (20 raw, 40 crafted: the 5/10/15 and 10/20/30 pattern continued), so they're priced per favor and rated instead of "unknown yet". The estimate shows as "~20" in the tooltip ("Merchant's Favor (estimate)") and the /crates list. Swap in the real numbers in Data.lua once they're published.
 

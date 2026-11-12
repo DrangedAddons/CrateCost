@@ -606,18 +606,47 @@ local function ColumnAtCursor(row)
   end
 end
 
+-- Shift-click, the way the game's own item shift-click works: the link goes into an open chat
+-- box (or the AH / Auctionator search, which take it as a name). Any other focused edit box
+-- gets the plain name typed in. `name` is used when there's no link.
+function ns.InsertLink(link, name)
+  if C_ChatInfo and C_ChatInfo.InChatMessagingLockdown and C_ChatInfo.InChatMessagingLockdown() then return end
+  name = name or (link and link:match("%[(.-)%]"))
+  local insert = (ChatFrameUtil and ChatFrameUtil.InsertLink) or ChatEdit_InsertLink
+  if link and insert and insert(link) then return end
+  local focus = GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus()
+  local chat = ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow()
+  if not focus then
+    ns.Print("open a chat box or a search box (AH, Auctionator), then shift-click again.")
+  elseif focus ~= chat or not link then
+    if focus.Insert and name then focus:Insert(name) end
+  end
+end
+
+-- Shift-click on an item row: loads the item first when the client hasn't cached it yet, so a
+-- crate / writ / mat seen only on the AH still goes in as a real link, not just its name.
 local function SearchAuctionator(itemID, name)
-  local link = itemID and C_Item and C_Item.GetItemInfo and select(2, C_Item.GetItemInfo(itemID))
-  local text = link or name
-  local shop = AuctionatorShoppingFrame and AuctionatorShoppingFrame:IsVisible()
-  if Auctionator and Auctionator.Utilities and Auctionator.Utilities.InsertLink then
-    Auctionator.Utilities.InsertLink(text)
-  elseif ChatFrameUtil and ChatFrameUtil.InsertLink then
-    ChatFrameUtil.InsertLink(text)
+  local item = itemID and Item and Item.CreateFromItemID and Item:CreateFromItemID(itemID)
+  if not (item and not item:IsItemEmpty()) then
+    ns.InsertLink(nil, name)
+    return
   end
-  if not shop and not GetCurrentKeyBoardFocus() then
-    ns.Print("open the Auctionator Shopping tab at the AH, then shift-click again.")
+  if item:IsItemDataCached() then
+    ns.InsertLink(item:GetItemLink(), name)
+    return
   end
+  local done = false
+  item:ContinueOnItemLoad(function()
+    if done then return end
+    done = true
+    ns.InsertLink(item:GetItemLink(), name)
+  end)
+  -- an ID the server doesn't know never loads: fall back to the name
+  C_Timer.After(1, function()
+    if done then return end
+    done = true
+    ns.InsertLink(nil, name)
+  end)
 end
 
 ns.SearchAuctionator = SearchAuctionator

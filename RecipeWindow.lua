@@ -231,13 +231,15 @@ local function MakeRow(i)
   row:SetScript("OnEnter", ShowRowTooltip)
   row:SetScript("OnLeave", function() GameTooltip:Hide() end)
   row:SetScript("OnClick", function(self)
-    -- shift-click links the item (or the enchant's spell) in chat
+    -- shift-click links the item (or the enchant's spell) in chat, or types its name into a
+    -- focused search box
     local e = self.entry
     if not (e and IsModifiedClick("CHATLINK")) then return end
     local link
     local item = e.craft or e.item
     if item then
-      link = select(2, C_Item.GetItemInfo(item))
+      ns.SearchAuctionator(item, e.name)   -- loads the item first if it isn't cached
+      return
     elseif e.spell then
       local ok, l = pcall(function()
         return (C_Spell and C_Spell.GetSpellLink and C_Spell.GetSpellLink(e.spell))
@@ -245,7 +247,7 @@ local function MakeRow(i)
       end)
       link = ok and l
     end
-    if link then ChatEdit_InsertLink(link) end
+    ns.InsertLink(link, e.name)
   end)
   rows[i] = row
   return row

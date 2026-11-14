@@ -144,7 +144,7 @@ local function Calc()
     e.total = e.fill and (e.fill + (e.writPrice or 0)) or nil
     e.per = e.total and e.total / e.rep or nil
     e.label, e.color, e.ratio, e.place = nil, nil, nil, nil
-    e.fillRating = nil
+    e.fillRating, e.craftRating = nil, nil
     if e.per then rated[#rated + 1] = e end
     if e.fill then
       fillSum[e.rank] = (fillSum[e.rank] or 0) + e.fill
@@ -167,6 +167,8 @@ local function Calc()
   local bestBuy = ns.CheapestBuy(proxies, function(p) return p.e.writPrice ~= nil end)
   for _, e in ipairs(Entries()) do
     if e.fill then e.fillRating = ns.RateFill(e.fill / e.rep, bestBuy) end
+    -- "to Craft": the same, with the item crafted instead of bought (needs the profession)
+    if e.craft then e.craftRating = ns.RateFill(e.craft * e.qty / e.rep, bestBuy) end
   end
   -- Sealed envelopes hold a random writ of the rank, so there's no single rating: each writ
   -- of the rank is rated as if it came out of the envelope (envelope price + its fill, per rep,
@@ -380,24 +382,28 @@ end
 
 -- Cost per rep both ways: buying the writ and filling it, or filling one you have. The line
 -- that applies to you is white, the other grey.
--- Crafting the item instead of buying it, when that's cheaper (or the item isn't on the AH):
--- per rep and what it saves. White if this character has the profession, grey if not.
+-- The third cost line: a writ you have, filled by crafting the item. White if this character
+-- has the profession, grey if not. Nothing for an item with no recipe data.
 local function AddCraftLine(tt, e)
   local r = ns.Crafts[e.item]
-  if not (r and e.craft) or (e.buy and e.craft >= e.buy) then return end
-  local mine = MyProfessions()[r[2]]
-  local c = mine and 1 or 0.6
-  local cost = e.craft * e.qty
-  local tail = e.buy and (", saves " .. ns.Money(math.floor((e.buy - e.craft) * e.qty + 0.5)) .. " a writ")
-    or " (item not on the AH)"
-  tt:AddDoubleLine("Craft it (" .. r[2] .. ")",
-    ns.Money(math.floor(cost / e.rep + 0.5)) .. " per rep" .. tail, c, c, c, c, c, c)
+  if not r then return end
+  local c = MyProfessions()[r[2]] and 1 or 0.6
+  local x = e.craftRating
+  if not x then
+    tt:AddDoubleLine("If you craft it (" .. r[2] .. ")", "reagents not priced", c, c, c, 0.5, 0.5, 0.5)
+    return
+  end
+  local how = x.ratio < 0.995 and string.format("%.1fx the cheapest buy", x.ratio)
+    or x.ratio <= 1.005 and "the cheapest buy" or string.format("%.1fx the cheapest buy", x.ratio)
+  tt:AddDoubleLine("If you craft it (" .. r[2] .. ")",
+    ns.Money(math.floor(x.per + 0.5)) .. " per rep, " .. how, c, c, c, c, c, c)
 end
 
 local function AddRatingLine(tt, e)
   local f = e.fillRating
   if not f then
-    tt:AddDoubleLine("Rating", "not rated (the item isn't priced on the AH)", 0.4, 0.8, 1, 0.5, 0.5, 0.5)
+    tt:AddDoubleLine("Rating", "to Buy / to Fill not rated (the item isn't priced on the AH)",
+      0.4, 0.8, 1, 0.5, 0.5, 0.5)
     AddCraftLine(tt, e)
     return
   end
@@ -419,7 +425,8 @@ local function AddWritLines(tt, e, titled)
   Calc()
   -- "X to Buy" / "Y to Fill"; no buy rating while the writ itself has no AH price
   if not titled then
-    ns.SetBuyFillTitle(tt, e.writPrice and e.label and e or nil, e.fillRating, true)
+    ns.SetBuyFillTitle(tt, e.writPrice and e.label and e or nil, e.fillRating, true,
+      ns.Crafts[e.item] ~= nil, e.craftRating)
   end
   tt:AddLine(" ")
   tt:AddDoubleLine(RANK_COLOR[e.rank] .. e.rank .. "|r writ", e.rep .. " reputation", 1, 1, 1, 1, 1, 1)

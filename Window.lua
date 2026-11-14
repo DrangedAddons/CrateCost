@@ -320,22 +320,22 @@ function ns.RatingText(r)
   return r.color, r.label
 end
 
--- Two rows under an item's name, same size: "Poor to Buy" / "Great to Fill". `buy` and
--- `fill` are ratings (.label, .color); a nil one (no AH price for it) shows a grey "?".
--- Without a fill rating nothing is shown unless `always`. Used by crates and writs.
+-- Rows under an item's name, same size: "Poor to Buy" / "Great to Fill", and for writs
+-- "Best to Craft" when `withCraft`. Each is a rating (.label, .color); a nil one (no price for
+-- it) shows a grey "?". Without a fill rating nothing is shown unless `always`.
 local TITLE_PAIR_GROW = 4   -- font size over the title's
-function ns.SetBuyFillTitle(tooltip, buy, fill, always)
+function ns.SetBuyFillTitle(tooltip, buy, fill, always, withCraft, craft)
   if not fill and not always then return false end
-  local function Part(x)
-    if x then return x.color, x.label end
-    return "|cff808080", "?"
+  local rows = {}
+  local function Add(x, what)
+    local c, l = "|cff808080", "?"
+    if x then c, l = x.color, x.label end
+    rows[#rows + 1] = { name = c .. l .. "|r", value = c .. what .. "|r", pct = 0 }
   end
-  local bc, bl = Part(buy)
-  local fc, fl = Part(fill)
-  return ns.SetTitleOdds(tooltip, {
-    { name = bc .. bl .. "|r", value = bc .. "to Buy|r", pct = 0 },
-    { name = fc .. fl .. "|r", value = fc .. "to Fill|r", pct = 0 },
-  }, nil, TITLE_PAIR_GROW, TITLE_PAIR_GROW)
+  Add(buy, "to Buy")
+  Add(fill, "to Fill")
+  if withCraft then Add(craft, "to Craft") end
+  return ns.SetTitleOdds(tooltip, rows, nil, TITLE_PAIR_GROW, TITLE_PAIR_GROW)
 end
 
 function ns.SetCrateTitle(tooltip, name)

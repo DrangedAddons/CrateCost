@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.23.0
+- Writ tooltips have three ratings under the name: **to Buy**, **to Fill** and **to Craft**. to Craft = a writ you have, filled by crafting the item, against the same cheapest-buy baseline as the other two. Shown for every writ with recipe data ("?" while a reagent has no price).
+- The "Craft it" line becomes the third cost line, "If you craft it (profession)": cost per rep and how it compares with the cheapest buy. White if this character has the profession.
+
 ## 0.22.0
 - Writ ratings, totals, per rep, the to-target costs and the Sealed odds use the item's AH price only. They used the cheaper of buying or crafting, which assumed everyone has the profession and recipe.
 - Writ tooltips add a **Craft it (profession)** line when crafting is cheaper than buying: cost per rep and how much it saves a writ. White if this character has the profession, grey if not. The Buy / Craft columns in the list still show both.

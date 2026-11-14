@@ -768,17 +768,9 @@ end
 
 local function UpdateHeaders()
   for _, h in ipairs(headers) do
-    local on = h.col.key == view.sort
     local title = (Crafting() and h.col.craftTitle) or h.col.title
-    h.text:SetText((on and "|cffffffff" or "") .. title .. (on and (view.desc and " v" or " ^") or "")
-      .. (on and "|r" or ""))
-  end
-  for _, h in ipairs(headers) do
-    if h.col.key == "target" and Target() then
-      local on = view.sort == "target"
-      h.text:SetText((on and "|cffffffff" or "") .. "To " .. STANDINGS[Target()][2]
-        .. (on and ((view.desc and " v" or " ^") .. "|r") or ""))
-    end
+    if h.col.key == "target" and Target() then title = "To " .. STANDINGS[Target()][2] end
+    ns.UI.HeaderText(h, title, h.col.key == view.sort, view.desc)
   end
   frame.profBtn.text:SetText(view.prof == "mine" and "My professions" or view.prof or "All professions")
   local t = Target()
@@ -795,13 +787,7 @@ local function UpdateHeaders()
   end
   frame.standing:SetText(txt)
   frame.rankBtn.text:SetText(view.rank or "All ranks")
-  local craft = Crafting()
-  for _, b in ipairs(frame.routeBtns) do
-    local on = (b.route == "craft") == craft
-    b:SetBackdropColor(on and 0.25 or 0.12, on and 0.22 or 0.12, on and 0.1 or 0.15, 1)
-    b:SetBackdropBorderColor(on and 1 or 0.35, on and 0.82 or 0.35, on and 0 or 0.4, 1)
-    b.text:SetTextColor(on and 1 or 0.6, on and 1 or 0.6, on and 1 or 0.6)
-  end
+  frame.routeToggle:Refresh()
 end
 
 function ns.RefreshWrits()
@@ -858,111 +844,10 @@ end
 ---------------------------------------------------------------------------------------------
 -- Window
 
-local function Check(label, key, anchor, x, tip)
-  local cb = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-  cb:SetSize(22, 22)
-  cb:SetPoint("LEFT", anchor, "RIGHT", x, 0)
-  local fs = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  fs:SetPoint("LEFT", cb, "RIGHT", 1, 0)
-  fs:SetText(label)
-  cb:SetChecked(view[key])
-  cb:SetScript("OnClick", function(self)
-    view[key] = self:GetChecked() and true or false
-    view.offset = 0
-    ns.RefreshWrits()
-  end)
-  if tip then
-    cb:SetScript("OnEnter", function(self)
-      GameTooltip:SetOwner(self, "ANCHOR_TOP")
-      GameTooltip:AddLine(label, 1, 1, 1)
-      GameTooltip:AddLine(tip, 0.8, 0.8, 0.8, true)
-      GameTooltip:Show()
-    end)
-    cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
-  end
-  return fs
-end
-
-local function DropButton(w, anchor, x)
-  local b = CreateFrame("Button", nil, frame, "BackdropTemplate")
-  b:SetSize(w, 20)
-  b:SetPoint("LEFT", anchor, "RIGHT", x, 0)
-  b:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-  b:SetBackdropColor(0.12, 0.12, 0.15, 1)
-  b:SetBackdropBorderColor(0.35, 0.35, 0.4, 1)
-  b.text = b:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  b.text:SetPoint("LEFT", 6, 0)
-  b.text:SetPoint("RIGHT", -18, 0)
-  b.text:SetJustifyH("LEFT")
-  local arrow = b:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-  arrow:SetPoint("RIGHT", -6, 0)
-  arrow:SetText("v")
-  local hl = b:CreateTexture(nil, "HIGHLIGHT")
-  hl:SetAllPoints()
-  hl:SetColorTexture(1, 1, 1, 0.06)
-  return b
-end
-
--- A dropdown menu of { label, value } choices that sets view[key].
-local function Menu(btn, key, choices, w)
-  local m = CreateFrame("Frame", nil, btn, "BackdropTemplate")
-  m:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -2)
-  m:SetFrameStrata("DIALOG")
-  m:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-  m:SetBackdropColor(0.08, 0.08, 0.1, 0.98)
-  m:SetBackdropBorderColor(0.35, 0.35, 0.4, 1)
-  m:EnableMouse(true)
-  m:Hide()
-  local y = -4
-  for _, c in ipairs(choices) do
-    if c == "-" then
-      y = y - 4
-    else
-      local it = CreateFrame("Button", nil, m)
-      it:SetSize(w - 4, 16)
-      it:SetPoint("TOPLEFT", 2, y)
-      local t = it:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-      t:SetPoint("LEFT", 8, 0)
-      t:SetText(c[1])
-      local hl = it:CreateTexture(nil, "HIGHLIGHT")
-      hl:SetAllPoints()
-      hl:SetColorTexture(1, 1, 1, 0.1)
-      it:SetScript("OnClick", function()
-        if key == "target" then SetTarget(c[2]) else view[key] = c[2] end
-        view.offset = 0
-        m:Hide()
-        ns.RefreshWrits()
-      end)
-      y = y - 16
-    end
-  end
-  m:SetSize(w, -y + 4)
-  btn:SetScript("OnClick", function() m:SetShown(not m:IsShown()) end)
-  return m
-end
-
 local function Build()
-  frame = CreateFrame("Frame", "CrateCostWrits", UIParent, "BackdropTemplate")
-  frame:SetSize(WIDTH, TOP + VISIBLE * ROW_H + 106)
-  frame:SetPoint("CENTER")
-  frame:SetFrameStrata("HIGH")
-  frame:SetToplevel(true)
-  frame:SetBackdrop({
-    bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1,
-  })
-  frame:SetBackdropColor(0.05, 0.05, 0.07, 0.95)
-  frame:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-  frame:SetMovable(true)
-  frame:SetClampedToScreen(true)
-  frame:EnableMouse(true)
-  frame:RegisterForDrag("LeftButton")
-  frame:SetScript("OnDragStart", frame.StartMoving)
-  frame:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
-    if type(CrateCostDB) == "table" and self:GetLeft() then
-      CrateCostDB.writsPos = { x = self:GetLeft(), y = self:GetTop() }
-    end
-  end)
+  local UI = ns.UI
+  frame = UI.Window("CrateCostWrits", "Craftsman's Writs - cheapest reputation", WIDTH,
+    TOP + VISIBLE * ROW_H + 106, "writsPos")
   frame:SetScript("OnShow", function()
     -- every writ, filling item and envelope, so shift-click links them straight away
     local ids = {}
@@ -991,137 +876,69 @@ local function Build()
     pending = true
     C_Timer.After(0.2, function() pending = false ns.RefreshWrits() end)
   end)
-  tinsert(UISpecialFrames, "CrateCostWrits")
 
-  local title = frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-  title:SetPoint("TOPLEFT", 12, -10)
-  title:SetText("Craftsman's Writs - cheapest reputation")
+  local function Reset() view.offset = 0 ns.RefreshWrits() end
 
-  -- reputation target (per character) and current standing
+  -- title row: reputation target (per character) and current standing, then the nav bar
   local tl = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-  tl:SetPoint("LEFT", title, "RIGHT", 24, 0)
+  tl:SetPoint("LEFT", frame.title, "RIGHT", 24, 0)
   tl:SetText("Target:")
-  local tb = DropButton(100, tl, 6)
+  local tb = UI.DropButton(frame, 100, tl, 10)
   frame.targetBtn = tb
+  local targetChoices = { { "No target", nil }, "-" }
+  for i = 5, 8 do targetChoices[#targetChoices + 1] = { STANDINGS[i][4] .. STANDINGS[i][2] .. "|r", i } end
+  UI.Menu(frame, tb, targetChoices, 100, function(v) SetTarget(v) Reset() end)
   frame.standing = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  frame.standing:SetPoint("LEFT", tb, "RIGHT", 10, 0)
+  frame.standing:SetPoint("LEFT", tb, "RIGHT", 12, 0)
 
-  local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-  close:SetScript("OnClick", function() frame:Hide() end)
-  close:SetPoint("TOPRIGHT", 2, 2)
+  UI.NavBar(frame, "writs", function() ns.InvalidateWrits() ns.RefreshWrits() end)
 
-  local crates = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-  crates:SetSize(70, 20)
-  crates:SetPoint("TOPRIGHT", -30, -6)
-  crates:SetText("Crates")
-  crates:SetScript("OnClick", function() ns.ToggleWindow() end)
-
-  local refresh = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-  refresh:SetSize(70, 20)
-  refresh:SetPoint("RIGHT", crates, "LEFT", -4, 0)
-  refresh:SetText("Refresh")
-  refresh:SetScript("OnClick", function() ns.InvalidateWrits() ns.RefreshWrits() end)
-
-  frame.count = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  frame.count:SetPoint("RIGHT", refresh, "LEFT", -12, 0)
-
-  local search = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
-  search:SetSize(170, 20)
-  search:SetPoint("TOPLEFT", 18, -34)
-  search:SetAutoFocus(false)
-  search:SetMaxLetters(40)
-  local hint = search:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-  hint:SetPoint("LEFT", 2, 0)
-  hint:SetText("Search writ or recipient")
-  local function OnSearch(self)
-    local t = self:GetText() or ""
-    hint:SetShown(t == "" and not self:HasFocus())
-    t = t:lower():match("^%s*(.-)%s*$")
-    if t ~= view.search then
-      view.search, view.offset = t, 0
-      ns.RefreshWrits()
-    end
-  end
-  search:SetScript("OnTextChanged", OnSearch)
-  search:SetScript("OnEditFocusGained", function() hint:Hide() end)
-  search:SetScript("OnEditFocusLost", OnSearch)
-  search:SetScript("OnEscapePressed", search.ClearFocus)
-  search:SetScript("OnEnterPressed", search.ClearFocus)
-
-  local pb = DropButton(140, search, 12)
+  -- filter row: search, profession, rank, checks, then the Buy | Craft toggle on the right
+  local search = UI.Search(frame, "Search writ or recipient", 170, function(t)
+    view.search = t
+    Reset()
+  end)
+  local pb = UI.DropButton(frame, 140, search, 12)
   frame.profBtn = pb
   local profChoices = { { "All professions", nil }, { "My professions", "mine" }, "-" }
   for _, p in ipairs(PROFS) do profChoices[#profChoices + 1] = { p, p } end
-  local pm = Menu(pb, "prof", profChoices, 140)
+  UI.Menu(frame, pb, profChoices, 140, function(v) view.prof = v Reset() end)
 
-  local rb = DropButton(100, pb, 8)
+  local rb = UI.DropButton(frame, 100, pb, 8)
   frame.rankBtn = rb
   local rankChoices = { { "All ranks", nil }, "-" }
   for _, r in ipairs(RANKS) do rankChoices[#rankChoices + 1] = { RANK_COLOR[r] .. r .. "|r", r } end
-  local rm = Menu(rb, "rank", rankChoices, 100)
-  local targetChoices = { { "No target", nil }, "-" }
-  for i = 5, 8 do targetChoices[#targetChoices + 1] = { STANDINGS[i][4] .. STANDINGS[i][2] .. "|r", i } end
-  local tm = Menu(tb, "target", targetChoices, 100)
-  frame:HookScript("OnHide", function() pm:Hide() rm:Hide() tm:Hide() end)
+  UI.Menu(frame, rb, rankChoices, 100, function(v) view.rank = v Reset() end)
 
-  local l1 = Check("Writ on the AH", "priced", rb, 12,
-    "Only writs with an Auctionator price. The rest are rated on the item alone (marked *).")
-  local l2 = Check("Writs I have", "owned", l1, 8, "Only writs in your bags or bank.")
-  local l3 = Check("Hide done today", "hideDone", l2, 8, "Each writ is a daily quest.")
+  local function Flag(key) return function() return view[key] end, function(v) view[key] = v Reset() end end
+  local g1, s1 = Flag("priced")
+  local l1 = UI.Check(frame, "Writ on the AH", rb, 12,
+    "Only writs with an Auctionator price. The rest are rated on the item alone (marked *).", g1, s1)
+  local g2, s2 = Flag("owned")
+  local l2 = UI.Check(frame, "Writs I have", l1, 8, "Only writs in your bags or bank.", g2, s2)
+  local g3, s3 = Flag("hideDone")
+  UI.Check(frame, "Hide done today", l2, 8, "Each writ is a daily quest.", g3, s3)
 
   -- Buy | Craft: which way the list gets the item (per character)
-  frame.routeBtns = {}
-  local prev = l3
-  for i, route in ipairs({ { "buy", "Buy items" }, { "craft", "Craft items" } }) do
-    local b = CreateFrame("Button", nil, frame, "BackdropTemplate")
-    b:SetSize(74, 20)
-    b:SetPoint("LEFT", prev, "RIGHT", i == 1 and 16 or -1, 0)
-    b:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-    b.text = b:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    b.text:SetPoint("CENTER")
-    b.text:SetText(route[2])
-    b.route = route[1]
-    b:SetScript("OnClick", function(self)
-      if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
-      CrateCostCharDB.writCraft = self.route == "craft"
-      view.offset = 0
-      ns.RefreshWrits()
-    end)
-    b:SetScript("OnEnter", function(self)
-      GameTooltip:SetOwner(self, "ANCHOR_TOP")
-      GameTooltip:AddLine(route[2], 1, 1, 1)
-      GameTooltip:AddLine(self.route == "craft"
-        and "Item, total, per rep, rating and target use the item crafted from its reagents (needs the profession)."
-        or "Item, total, per rep, rating and target use the item bought on the AH.", 0.8, 0.8, 0.8, true)
-      GameTooltip:Show()
-    end)
-    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    frame.routeBtns[i] = b
-    prev = b
-  end
+  frame.routeToggle = UI.Toggle(frame, {
+    { false, "Buy items", "Item, total, per rep, rating and target use the item bought on the AH." },
+    { true, "Craft items", "Item, total, per rep, rating and target use the item crafted from its "
+      .. "reagents (needs the profession)." },
+  }, 80, Crafting, function(v)
+    if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
+    CrateCostCharDB.writCraft = v
+    Reset()
+  end)
+  UI.PlaceToggles(frame, { frame.routeToggle })
 
-  for _, col in ipairs(COLS) do
-    local h = CreateFrame("Button", nil, frame)
-    h:SetSize(col.w, 16)
-    h:SetPoint("TOPLEFT", frame, "TOPLEFT", col.x, -64)
-    h.col = col
-    h.text = h:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    h.text:SetAllPoints()
-    h.text:SetJustifyH(col.justify)
-    local hl = h:CreateTexture(nil, "HIGHLIGHT")
-    hl:SetAllPoints()
-    hl:SetColorTexture(1, 1, 1, 0.08)
-    h:SetScript("OnClick", function()
-      if view.sort == col.key then
-        view.desc = not view.desc
-      else
-        view.sort, view.desc = col.key, col.desc or false
-      end
-      view.offset = 0
-      ns.RefreshWrits()
-    end)
-    headers[#headers + 1] = h
-  end
+  for _, h in ipairs(UI.Headers(frame, COLS, 0, function(col)
+    if view.sort == col.key then
+      view.desc = not view.desc
+    else
+      view.sort, view.desc = col.key, col.desc or false
+    end
+    Reset()
+  end)) do headers[#headers + 1] = h end
 
   local s = CreateFrame("Slider", nil, frame, "BackdropTemplate")
   s:SetOrientation("VERTICAL")
@@ -1175,26 +992,10 @@ local function Build()
   frame.plan:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -TOP - VISIBLE * ROW_H - 62)
   frame.plan:SetJustifyH("LEFT")
 
-  local footer = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  footer:SetPoint("BOTTOMLEFT", 12, 8)
-  footer:SetText(GREY .. "Total = writ + the cheaper of buying or crafting the item (|r" .. ns.BEST .. "gold|r"
-    .. GREY .. "). * = writ not priced, rated on the item alone. Have: W = you hold the writ, then the item count. "
-    .. "Data: wow.gg, CraftRoute.|r")
-end
-
-local function Place()
-  frame:ClearAllPoints()
-  local pos = type(CrateCostDB) == "table" and CrateCostDB.writsPos
-  if pos and pos.x and pos.y then
-    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", pos.x, pos.y)
-    return
-  end
-  local crates = _G.CrateCostFrame
-  if crates and crates:IsShown() and crates:GetLeft() then
-    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", crates:GetLeft() + 120, crates:GetTop() - 160)
-  else
-    frame:SetPoint("CENTER")
-  end
+  local footer = ns.UI.Footer(frame)
+  footer:SetText(GREY .. "Buy items: writ + the item on the AH. Craft items: writ + the item made from its "
+    .. "reagents. * = writ not priced, rated on the item alone. Have: W = you hold the writ, then the item "
+    .. "count. Data: wow.gg, endgametools.com.|r")
 end
 
 function ns.ToggleWrits()
@@ -1211,7 +1012,7 @@ function ns.ToggleWrits()
     frame:Hide()
   end
   if frame:IsShown() then frame:Hide() return end
-  Place()
+  ns.UI.Place(frame, "writsPos")
   frame:Show()
   frame:Raise()
 end

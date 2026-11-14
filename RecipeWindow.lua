@@ -681,14 +681,8 @@ local function Build()
   close:SetScript("OnClick", function() frame:Hide() end)
   close:SetPoint("TOPRIGHT", 2, 2)
 
-  local crates = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-  crates:SetSize(80, 20)
-  crates:SetPoint("TOPRIGHT", -30, -6)
-  crates:SetText("Crates")
-  crates:SetScript("OnClick", function() ns.ToggleWindow() end)
-
-  frame.count = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  frame.count:SetPoint("RIGHT", crates, "LEFT", -12, 0)
+  -- the same nav bar as the Crates and Writs windows (it also makes frame.count)
+  ns.UI.NavBar(frame, "merchant", function() knownDirty = true ns.RefreshRecipes() end)
 
   local search = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
   search:SetSize(170, 20)

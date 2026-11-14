@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.29.0
+- The Crates, Writs and Merchant windows now share one layout (new UI.lua): the same window shell, a title row with the target and status on the left and the same nav bar on the right (Crates, Writs, Merchant, Cart (n), Refresh; the current window greyed out), and a filter row with search and filters on the left and gold two-part toggles on the right.
+- Crates: the Target favor box moves to the title row, next to how much favor you have, and the window shows how many crates match. View and Bundles become toggles (Market | My cost, Buy bundles | Craft bundles). Same width as the Writs window, columns grouped the same way.
+- Crates window position is remembered, like the others.
+- Writs footer brought up to date (AH vs crafted item, data from wow.gg and endgametools.com).
+
 ## 0.28.0
 - /crates: **Bundles: Buy / Craft** toggle (per character), next to View. Craft prices the Fabrics, Ingots and Parts bundles from their reagents; the bundle columns read "Cheapest to craft" / "Craft cost" and total, per favor and rating follow. Raw crates don't change.
 - A crafted crate whose bundles aren't on the AH (often engineering parts) still gets its craft ratings in the tooltip grid.

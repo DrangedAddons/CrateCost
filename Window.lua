@@ -5,21 +5,21 @@ local _, ns = ...
 -- search crate or material names, filter by crate type or by the profession the material
 -- comes from (then only that profession's bundles count). Hover a row for every bundle.
 
-local ROW_H, WIDTH, TOP = 18, 1070, 84
+local ROW_H, WIDTH, TOP = 18, 1194, 84   -- same width as the Writs window (ns.UI.WIDTH)
 -- money columns show gold / silver / copper in fixed right-aligned slots so units line up
 local SUB = 28
 local CART_ATLAS, CART_FILE = "Perks-ShoppingCart", "Interface\\AddOns\\CrateCost\\cart"
 local COLS = {
-  { key = "name",   title = "Crate",       x = 10,  w = 165, justify = "LEFT"  },
-  { key = "n",      title = "Crates",      x = 175, w = 40,  justify = "RIGHT", desc = false },
-  { key = "crate",  title = "Crate cost",  x = 220, w = 92,  justify = "RIGHT", desc = false, money = true },
-  { key = "best",   title = "Best bundle", craftTitle = "Cheapest to craft", x = 327, w = 240, justify = "LEFT"  },
-  { key = "bundle", title = "Bundle cost", craftTitle = "Craft cost", x = 572, w = 92, justify = "RIGHT", desc = false, money = true },
-  { key = "cost",   title = "Total cost",  x = 669, w = 96,  justify = "RIGHT", desc = false, money = true },
-  { key = "favor",  title = "Favor",       x = 770, w = 50,  justify = "RIGHT", desc = true  },
-  { key = "per",    title = "Per favor",   x = 825, w = 92,  justify = "RIGHT", desc = false, money = true },
-  { key = "rating", title = "Rating",      x = 922, w = 55,  justify = "RIGHT", desc = true  },
-  { key = "have",   title = "Have",        x = 982, w = 35,  justify = "RIGHT", desc = true  },
+  { key = "name",   title = "Crate",       x = 10,  w = 175, justify = "LEFT"  },
+  { key = "n",      title = "Crates",      x = 190, w = 40,  justify = "RIGHT", desc = false },
+  { key = "crate",  title = "Crate cost",  x = 235, w = 92,  justify = "RIGHT", desc = false, money = true },
+  { key = "best",   title = "Best bundle", craftTitle = "Cheapest to craft", x = 345, w = 240, justify = "LEFT"  },
+  { key = "bundle", title = "Bundle cost", craftTitle = "Craft cost", x = 590, w = 92, justify = "RIGHT", desc = false, money = true },
+  { key = "cost",   title = "Total cost",  x = 687, w = 96,  justify = "RIGHT", desc = false, money = true },
+  { key = "favor",  title = "Favor",       x = 801, w = 50,  justify = "RIGHT", desc = true  },
+  { key = "per",    title = "Per favor",   x = 856, w = 92,  justify = "RIGHT", desc = false, money = true },
+  { key = "rating", title = "Rating",      x = 953, w = 55,  justify = "RIGHT", desc = true  },
+  { key = "have",   title = "Have",        x = 1026, w = 36,  justify = "RIGHT", desc = true  },
 }
 local TYPES = { "Textiles", "Ore", "Herbs", "Curiosities", "Fabrics", "Ingots", "Parts" }
 local RANK_ORDER = { Apprentice = 1, Journeyman = 2, Expert = 3, Artisan = 4 }
@@ -1063,11 +1063,8 @@ end
 
 local function UpdateHeaders()
   for _, h in ipairs(headers) do
-    local arrow = ""
-    if h.col.key == view.sort then arrow = view.desc and " v" or " ^" end
     local title = (CraftBundles() and h.col.craftTitle) or h.col.title
-    h.text:SetText((h.col.key == view.sort and "|cffffffff" or "") .. title .. arrow
-      .. (h.col.key == view.sort and "|r" or ""))
+    ns.UI.HeaderText(h, title, h.col.key == view.sort, view.desc)
   end
   if frame.filterBtn then
     local f = view.filter
@@ -1143,8 +1140,11 @@ function ns.RefreshWindow()
 
   frame:SetHeight(TOP + math.max(#all, 1) * ROW_H + 30)
   frame.empty:SetShown(#list == 0)
-  frame.mode:SetText(mine and "View: My cost" or "View: Market")
-  frame.craftBtn:SetText(CraftBundles() and "Bundles: Craft" or "Bundles: Buy")
+  frame.viewToggle:Refresh()
+  frame.bundleToggle:Refresh()
+  frame.count:SetText(string.format("%d of %d crates", #list, #all))
+  local fi = C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo and C_CurrencyInfo.GetCurrencyInfo(3402)
+  frame.status:SetText(fi and fi.quantity and ("You have " .. fi.quantity .. ns.FavorIcon()) or "")
   frame.footer:SetText("|cff808080" .. (mine
       and "My cost: owned crates are free, materials you have (bags + bank) are subtracted."
       or "Market: crate + cheapest bundle at full Auctionator prices.")
@@ -1154,22 +1154,8 @@ function ns.RefreshWindow()
 end
 
 local function Build()
-  frame = CreateFrame("Frame", "CrateCostFrame", UIParent, "BackdropTemplate")
-  frame:SetSize(WIDTH, 400)
-  frame:SetPoint("CENTER")
-  frame:SetFrameStrata("HIGH")
-  frame:SetToplevel(true)   -- clicking it brings it in front of the Merchant list
-  frame:SetBackdrop({
-    bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1,
-  })
-  frame:SetBackdropColor(0.05, 0.05, 0.07, 0.95)
-  frame:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-  frame:SetMovable(true)
-  frame:SetClampedToScreen(true)
-  frame:EnableMouse(true)
-  frame:RegisterForDrag("LeftButton")
-  frame:SetScript("OnDragStart", frame.StartMoving)
-  frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+  local UI = ns.UI
+  frame = UI.Window("CrateCostFrame", "Waylaid Crates - cheapest Merchant's Favor", WIDTH, 400, "cratesPos")
   frame:SetScript("OnShow", function()
     -- every crate and bundle item, so shift-click links them straight away
     local ids = {}
@@ -1178,182 +1164,14 @@ local function Build()
     ns.PreloadItems(ids)
     ns.RefreshWindow()
   end)
-  tinsert(UISpecialFrames, "CrateCostFrame")
 
-  local title = frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-  title:SetPoint("TOPLEFT", 12, -10)
-  title:SetText("Waylaid Crates - cheapest Merchant's Favor")
-
-  local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-  -- hide directly: the template's HideUIPanel path doesn't close unmanaged frames on Forever
-  close:SetScript("OnClick", function() frame:Hide() end)
-  close:SetPoint("TOPRIGHT", 2, 2)
-
-  local refresh = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-  refresh:SetSize(70, 20)
-  refresh:SetPoint("TOPRIGHT", -30, -6)
-  refresh:SetText("Refresh")
-  refresh:SetScript("OnClick", function() ns.InvalidateCrates() ScanIDs(true) ns.RefreshWindow() end)
-
-  local mode = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-  mode:SetSize(110, 20)
-  mode:SetPoint("RIGHT", refresh, "LEFT", -4, 0)
-  mode:SetScript("OnClick", function()
-    Mode()
-    CrateCostCharDB.mode = Mode() == "mine" and "market" or "mine"
-    ns.RefreshWindow()
-  end)
-  mode:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_TOP")
-    GameTooltip:AddLine("Market: objective best at full AH prices.", 1, 1, 1)
-    GameTooltip:AddLine("My cost: owned crates are free; materials you already have are subtracted.", 1, 1, 1, true)
-    GameTooltip:Show()
-  end)
-  mode:SetScript("OnLeave", function() GameTooltip:Hide() end)
-  frame.mode = mode
-
-  local craftBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-  craftBtn:SetSize(110, 20)
-  craftBtn:SetPoint("RIGHT", mode, "LEFT", -4, 0)
-  craftBtn:SetScript("OnClick", function()
-    if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
-    CrateCostCharDB.crateCraft = not CraftBundles()
-    ns.RefreshWindow()
-  end)
-  craftBtn:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_TOP")
-    GameTooltip:AddLine("Buy: bundles at their AH price.", 1, 1, 1)
-    GameTooltip:AddLine("Craft: Fabrics, Ingots and Parts bundles made from their reagents (needs the profession). Other crates are the same either way.", 1, 1, 1, true)
-    GameTooltip:Show()
-  end)
-  craftBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-  frame.craftBtn = craftBtn
-
-  local cartBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-  cartBtn:SetSize(80, 20)
-  cartBtn:SetPoint("RIGHT", craftBtn, "LEFT", -4, 0)
-  cartBtn:SetScript("OnClick", function() ns.ShowCart() end)
-  frame.cartBtn = cartBtn
-  ns.OnCartChanged()
-
-  local recipes = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-  recipes:SetSize(80, 20)
-  recipes:SetPoint("RIGHT", cartBtn, "LEFT", -4, 0)
-  recipes:SetText("Merchant")
-  recipes:SetScript("OnClick", function() ns.ToggleRecipes() end)
-  recipes:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_TOP")
-    GameTooltip:AddLine("Every recipe sold for Merchant's Favor", 1, 1, 1)
-    GameTooltip:Show()
-  end)
-  recipes:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
-  local writs = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-  writs:SetSize(70, 20)
-  writs:SetPoint("RIGHT", recipes, "LEFT", -4, 0)
-  writs:SetText("Writs")
-  writs:SetScript("OnClick", function() ns.ToggleWrits() end)
-  writs:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_TOP")
-    GameTooltip:AddLine("Craftsman's Writs by cost per reputation", 1, 1, 1)
-    GameTooltip:Show()
-  end)
-  writs:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
-  -- search box
-  local search = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
-  search:SetSize(150, 20)
-  search:SetPoint("TOPLEFT", 18, -34)
-  search:SetAutoFocus(false)
-  search:SetMaxLetters(40)
-  local hint = search:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-  hint:SetPoint("LEFT", 2, 0)
-  hint:SetText("Search crate or material")
-  local function OnSearch(self)
-    local t = self:GetText() or ""
-    hint:SetShown(t == "" and not self:HasFocus())
-    t = t:lower():match("^%s*(.-)%s*$")
-    if t ~= view.search then
-      view.search = t
-      ns.RefreshWindow()
-    end
-  end
-  search:SetScript("OnTextChanged", OnSearch)
-  search:SetScript("OnEditFocusGained", function() hint:Hide() end)
-  search:SetScript("OnEditFocusLost", OnSearch)
-  search:SetScript("OnEscapePressed", search.ClearFocus)
-  search:SetScript("OnEnterPressed", search.ClearFocus)
-
-  -- filter dropdown: crate type, or the profession a material comes from. Own widget
-  -- because UIDropDownMenu isn't reliable on Forever.
-  local fb = CreateFrame("Button", nil, frame, "BackdropTemplate")
-  fb:SetSize(170, 20)
-  fb:SetPoint("LEFT", search, "RIGHT", 14, 0)
-  fb:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-  fb:SetBackdropColor(0.12, 0.12, 0.15, 1)
-  fb:SetBackdropBorderColor(0.35, 0.35, 0.4, 1)
-  fb.text = fb:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  fb.text:SetPoint("LEFT", 6, 0)
-  fb.text:SetPoint("RIGHT", -18, 0)
-  fb.text:SetJustifyH("LEFT")
-  local arrow = fb:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-  arrow:SetPoint("RIGHT", -6, 0)
-  arrow:SetText("v")
-  local fhl = fb:CreateTexture(nil, "HIGHLIGHT")
-  fhl:SetAllPoints()
-  fhl:SetColorTexture(1, 1, 1, 0.06)
-  frame.filterBtn = fb
-
-  local menu = CreateFrame("Frame", nil, fb, "BackdropTemplate")
-  menu:SetPoint("TOPLEFT", fb, "BOTTOMLEFT", 0, -2)
-  menu:SetFrameStrata("DIALOG")
-  menu:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-  menu:SetBackdropColor(0.08, 0.08, 0.1, 0.98)
-  menu:SetBackdropBorderColor(0.35, 0.35, 0.4, 1)
-  menu:EnableMouse(true)
-  menu:Hide()
-  local my = -4
-  local function Heading(text)
-    local h = menu:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    h:SetPoint("TOPLEFT", 8, my)
-    h:SetText(text)
-    my = my - 16
-  end
-  local function Item(label, filter)
-    local it = CreateFrame("Button", nil, menu)
-    it:SetSize(166, 16)
-    it:SetPoint("TOPLEFT", 2, my)
-    local t = it:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    t:SetPoint("LEFT", 14, 0)
-    t:SetText(label)
-    local hl = it:CreateTexture(nil, "HIGHLIGHT")
-    hl:SetAllPoints()
-    hl:SetColorTexture(1, 1, 1, 0.1)
-    it:SetScript("OnClick", function()
-      view.filter = filter
-      menu:Hide()
-      ns.RefreshWindow()
-    end)
-    my = my - 16
-  end
-  Item("All crates", nil)
-  my = my - 4
-  Heading("Crate type")
-  for _, t in ipairs(TYPES) do Item(t, { group = "type", value = t }) end
-  my = my - 4
-  Heading("Material from")
-  for _, p in ipairs(ns.Professions) do Item(p, { group = "prof", value = p }) end
-  menu:SetSize(170, -my + 4)
-  fb:SetScript("OnClick", function() menu:SetShown(not menu:IsShown()) end)
-  frame:HookScript("OnHide", function() menu:Hide() end)
-
-  -- target favor: costs and the cart scale to the crates needed to reach it
+  -- title row: target favor and what you have, then the nav bar
   local tl = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-  tl:SetPoint("LEFT", fb, "RIGHT", 16, 0)
-  tl:SetText("Target favor:")
+  tl:SetPoint("LEFT", frame.title, "RIGHT", 24, 0)
+  tl:SetText("Target:")
   local tb = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
   tb:SetSize(50, 20)
-  tb:SetPoint("LEFT", tl, "RIGHT", 8, 0)
+  tb:SetPoint("LEFT", tl, "RIGHT", 10, 0)
   tb:SetAutoFocus(false)
   tb:SetNumeric(true)
   tb:SetMaxLetters(5)
@@ -1362,6 +1180,8 @@ local function Build()
   local tickIcon = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
   tickIcon:SetPoint("LEFT", tb, "RIGHT", 4, 0)
   tickIcon:SetText(ns.FavorIcon())
+  frame.status = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  frame.status:SetPoint("LEFT", tickIcon, "RIGHT", 12, 0)
   local function OnTarget(self)
     local t = tonumber(self:GetText())
     if t == 0 then t = nil end
@@ -1376,48 +1196,62 @@ local function Build()
   tb:SetScript("OnEditFocusLost", OnTarget)
   tb:SetScript("OnEnterPressed", function(self) OnTarget(self) self:ClearFocus() end)
   tb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-  tb:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_TOP")
-    GameTooltip:AddLine("Target Merchant's Favor", 1, 1, 1)
-    GameTooltip:AddLine("Costs and the cart cover the crates needed to reach it. Empty = one crate each.",
-      0.8, 0.8, 0.8, true)
-    GameTooltip:Show()
+  UI.Tip(tb, "Target Merchant's Favor",
+    "Costs and the cart cover the crates needed to reach it. Empty = one crate each.")
+
+  UI.NavBar(frame, "crates", function() ns.InvalidateCrates() ScanIDs(true) ns.RefreshWindow() end)
+
+  -- filter row: search, crate type / material profession, then the toggles on the right
+  local search = UI.Search(frame, "Search crate or material", 170, function(t)
+    view.search = t
+    ns.RefreshWindow()
   end)
-  tb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  local fb = UI.DropButton(frame, 170, search, 12)
+  frame.filterBtn = fb
+  local choices = { { "All crates", nil }, "-", { heading = "Crate type" } }
+  for _, t in ipairs(TYPES) do choices[#choices + 1] = { t, { group = "type", value = t } } end
+  choices[#choices + 1] = "-"
+  choices[#choices + 1] = { heading = "Material from" }
+  for _, p in ipairs(ns.Professions) do choices[#choices + 1] = { p, { group = "prof", value = p } } end
+  UI.Menu(frame, fb, choices, 170, function(v)
+    view.filter = v
+    ns.RefreshWindow()
+  end)
+
+  local function CharDB()
+    if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
+    return CrateCostCharDB
+  end
+  frame.bundleToggle = UI.Toggle(frame, {
+    { false, "Buy bundles", "Bundles at their AH price." },
+    { true, "Craft bundles", "Fabrics, Ingots and Parts bundles made from their reagents (needs the "
+      .. "profession). Other crates are the same either way." },
+  }, 90, CraftBundles, function(v) CharDB().crateCraft = v ns.RefreshWindow() end)
+  frame.viewToggle = UI.Toggle(frame, {
+    { "market", "Market", "The objective best at full AH prices." },
+    { "mine", "My cost", "Crates you own are free; materials you have (bags + bank) are subtracted." },
+  }, 70, Mode, function(v) CharDB().mode = v ns.RefreshWindow() end)
+  UI.PlaceToggles(frame, { frame.bundleToggle, frame.viewToggle })
 
   -- sortable headers
-  for _, col in ipairs(COLS) do
-    local h = CreateFrame("Button", nil, frame)
-    h:SetSize(col.w, 16)
-    h:SetPoint("TOPLEFT", frame, "TOPLEFT", col.x + 10 - 10, -64)
-    h.col = col
-    h.text = h:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    h.text:SetAllPoints()
-    h.text:SetJustifyH(col.justify)
-    local hl = h:CreateTexture(nil, "HIGHLIGHT")
-    hl:SetAllPoints()
-    hl:SetColorTexture(1, 1, 1, 0.08)
-    h:SetScript("OnClick", function()
-      if view.sort == col.key then
-        view.desc = not view.desc
-      else
-        view.sort, view.desc = col.key, col.desc or false
-      end
-      ns.RefreshWindow()
-    end)
-    headers[#headers + 1] = h
-  end
+  for _, h in ipairs(UI.Headers(frame, COLS, 0, function(col)
+    if view.sort == col.key then
+      view.desc = not view.desc
+    else
+      view.sort, view.desc = col.key, col.desc or false
+    end
+    ns.RefreshWindow()
+  end)) do headers[#headers + 1] = h end
 
   frame.empty = frame:CreateFontString(nil, "ARTWORK", "GameFontDisable")
   frame.empty:SetPoint("TOP", 0, -TOP - 10)
   frame.empty:SetText("No crates match.")
 
-  frame.footer = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  frame.footer:SetPoint("BOTTOMLEFT", 12, 10)
+  frame.footer = UI.Footer(frame)
 end
 
 function ns.OnCartChanged()
-  if frame and frame.cartBtn then frame.cartBtn:SetText("Cart (" .. ns.CartCount() .. ")") end
+  if ns.UI then ns.UI.UpdateCartButtons() end
   if ns.RefreshCart then ns.RefreshCart() end
 end
 
@@ -1449,5 +1283,8 @@ end
 
 function ns.ToggleWindow()
   if not frame then Build() frame:Hide() end
-  frame:SetShown(not frame:IsShown())
+  if frame:IsShown() then frame:Hide() return end
+  ns.UI.Place(frame, "cratesPos")
+  frame:Show()
+  frame:Raise()
 end

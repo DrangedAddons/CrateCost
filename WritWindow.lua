@@ -138,9 +138,9 @@ local function Calc()
     e.writPrice = ns.Price(e.writ)
     e.buy = ns.Price(e.item)
     e.craft = CraftCost(e.item, 0)
-    local unit = e.buy
-    if e.craft and (not unit or e.craft < unit) then unit = e.craft end
-    e.fill = unit and unit * e.qty or nil
+    -- the fill is the item bought on the AH: anyone can do that. Crafting needs the
+    -- profession and the recipe, so it's shown on its own line instead of in the ratings.
+    e.fill = e.buy and e.buy * e.qty or nil
     e.total = e.fill and (e.fill + (e.writPrice or 0)) or nil
     e.per = e.total and e.total / e.rep or nil
     e.label, e.color, e.ratio, e.place = nil, nil, nil, nil
@@ -380,10 +380,25 @@ end
 
 -- Cost per rep both ways: buying the writ and filling it, or filling one you have. The line
 -- that applies to you is white, the other grey.
+-- Crafting the item instead of buying it, when that's cheaper (or the item isn't on the AH):
+-- per rep and what it saves. White if this character has the profession, grey if not.
+local function AddCraftLine(tt, e)
+  local r = ns.Crafts[e.item]
+  if not (r and e.craft) or (e.buy and e.craft >= e.buy) then return end
+  local mine = MyProfessions()[r[2]]
+  local c = mine and 1 or 0.6
+  local cost = e.craft * e.qty
+  local tail = e.buy and (", saves " .. ns.Money(math.floor((e.buy - e.craft) * e.qty + 0.5)) .. " a writ")
+    or " (item not on the AH)"
+  tt:AddDoubleLine("Craft it (" .. r[2] .. ")",
+    ns.Money(math.floor(cost / e.rep + 0.5)) .. " per rep" .. tail, c, c, c, c, c, c)
+end
+
 local function AddRatingLine(tt, e)
   local f = e.fillRating
   if not f then
-    tt:AddDoubleLine("Rating", "not rated (the item has no price yet)", 0.4, 0.8, 1, 0.5, 0.5, 0.5)
+    tt:AddDoubleLine("Rating", "not rated (the item isn't priced on the AH)", 0.4, 0.8, 1, 0.5, 0.5, 0.5)
+    AddCraftLine(tt, e)
     return
   end
   local owned = Count(e.writ)
@@ -392,6 +407,7 @@ local function AddRatingLine(tt, e)
   else
     ns.AddBuyFillLines(tt, "rep", owned > 0 and owned or nil, nil, nil, nil, nil, "writ not priced", f)
   end
+  AddCraftLine(tt, e)
 end
 
 local function RatingText(e)
@@ -402,7 +418,9 @@ end
 local function AddWritLines(tt, e, titled)
   Calc()
   -- "X to Buy" / "Y to Fill"; no buy rating while the writ itself has no AH price
-  if not titled then ns.SetBuyFillTitle(tt, e.writPrice and e.label and e or nil, e.fillRating) end
+  if not titled then
+    ns.SetBuyFillTitle(tt, e.writPrice and e.label and e or nil, e.fillRating, true)
+  end
   tt:AddLine(" ")
   tt:AddDoubleLine(RANK_COLOR[e.rank] .. e.rank .. "|r writ", e.rep .. " reputation", 1, 1, 1, 1, 1, 1)
   if e.recipient ~= "" then tt:AddDoubleLine("Deliver to", e.recipient, 1, 0.82, 0, 1, 1, 1) end

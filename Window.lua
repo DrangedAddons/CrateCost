@@ -321,16 +321,20 @@ function ns.RatingText(r)
 end
 
 -- Two rows under an item's name, same size: "Poor to Buy" / "Great to Fill". `buy` and
--- `fill` are ratings (.label, .color); a nil `buy` (the item itself has no AH price) shows
--- a grey "?". Used by crates and writs.
+-- `fill` are ratings (.label, .color); a nil one (no AH price for it) shows a grey "?".
+-- Without a fill rating nothing is shown unless `always`. Used by crates and writs.
 local TITLE_PAIR_GROW = 4   -- font size over the title's
-function ns.SetBuyFillTitle(tooltip, buy, fill)
-  if not fill then return false end
-  local bc, bl = "|cff808080", "?"
-  if buy then bc, bl = buy.color, buy.label end
+function ns.SetBuyFillTitle(tooltip, buy, fill, always)
+  if not fill and not always then return false end
+  local function Part(x)
+    if x then return x.color, x.label end
+    return "|cff808080", "?"
+  end
+  local bc, bl = Part(buy)
+  local fc, fl = Part(fill)
   return ns.SetTitleOdds(tooltip, {
     { name = bc .. bl .. "|r", value = bc .. "to Buy|r", pct = 0 },
-    { name = fill.color .. fill.label .. "|r", value = fill.color .. "to Fill|r", pct = 0 },
+    { name = fc .. fl .. "|r", value = fc .. "to Fill|r", pct = 0 },
   }, nil, TITLE_PAIR_GROW, TITLE_PAIR_GROW)
 end
 

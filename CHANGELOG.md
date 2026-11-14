@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.28.0
+- /crates: **Bundles: Buy / Craft** toggle (per character), next to View. Craft prices the Fabrics, Ingots and Parts bundles from their reagents; the bundle columns read "Cheapest to craft" / "Craft cost" and total, per favor and rating follow. Raw crates don't change.
+- A crafted crate whose bundles aren't on the AH (often engineering parts) still gets its craft ratings in the tooltip grid.
+
 ## 0.27.0
 - Crafted crates (Fabrics, Ingots, Parts) get the writ treatment: a 2x2 rating grid under the name, Buy crate / Have crate by Buy bundle / Craft bundle, and four cost lines. Crafting uses whichever bundle is cheapest to make, named under the lines. Raw crates keep "to Buy / to Fill".
 - Recipe data now covers the crafted crates' bundle items (bolts, cured hides, engineering parts, and bars: classic smelting added by hand, the source has none). Writ craft costs can use smelting too, when ore is cheaper than the bar.

@@ -13,8 +13,8 @@ local COLS = {
   { key = "name",   title = "Crate",       x = 10,  w = 165, justify = "LEFT"  },
   { key = "n",      title = "Crates",      x = 175, w = 40,  justify = "RIGHT", desc = false },
   { key = "crate",  title = "Crate cost",  x = 220, w = 92,  justify = "RIGHT", desc = false, money = true },
-  { key = "best",   title = "Best bundle", x = 327, w = 240, justify = "LEFT"  },
-  { key = "bundle", title = "Bundle cost", x = 572, w = 92,  justify = "RIGHT", desc = false, money = true },
+  { key = "best",   title = "Best bundle", craftTitle = "Cheapest to craft", x = 327, w = 240, justify = "LEFT"  },
+  { key = "bundle", title = "Bundle cost", craftTitle = "Craft cost", x = 572, w = 92, justify = "RIGHT", desc = false, money = true },
   { key = "cost",   title = "Total cost",  x = 669, w = 96,  justify = "RIGHT", desc = false, money = true },
   { key = "favor",  title = "Favor",       x = 770, w = 50,  justify = "RIGHT", desc = true  },
   { key = "per",    title = "Per favor",   x = 825, w = 92,  justify = "RIGHT", desc = false, money = true },
@@ -37,6 +37,12 @@ local view = { sort = "per", desc = false, search = "", filter = nil }
 local function Mode()
   if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
   return CrateCostCharDB.mode == "mine" and "mine" or "market"
+end
+
+-- Craft bundles (per character, like the Writs window's toggle): the crafted crates' bundles
+-- (Fabrics, Ingots, Parts) are priced as made from their reagents instead of bought.
+local function CraftBundles()
+  return type(CrateCostCharDB) == "table" and CrateCostCharDB.crateCraft == true
 end
 
 -- Target Merchant's Favor (nil = off: one crate each). Per character.
@@ -163,6 +169,7 @@ end
 
 local function Evaluate(c, mine)
   c.have = c.id and Owned(c.id) or nil
+  c.crafting = CraftBundles() and ns.CraftedKinds[c.kind] and ns.ItemCraftCost ~= nil
   -- crates needed to reach the target (one without a target, or when favor is unknown)
   local target = Target()
   c.n = (target and c.favor) and math.ceil(target / c.favor) or 1
@@ -173,7 +180,8 @@ local function Evaluate(c, mine)
   for i, b in ipairs(c.bundles) do
     c.allowed[i] = not prof or ns.MatProf[b[1]] == prof
     local id = ns.ItemIDs[b[1]]
-    local unit = id and ns.Price(id)
+    local unit
+    if c.crafting then unit = id and ns.ItemCraftCost(id) else unit = id and ns.Price(id) end
     c.req[i] = b[2] * c.n
     local need = c.req[i]
     if mine then
@@ -246,25 +254,25 @@ function ns.CrateRatings()
       local unit = id and ns.Price(id)
       if unit and (not bundle or unit * b[2] < bundle) then bundle = unit * b[2] end
     end
+    local crate = c.id and ns.Price(c.id)
     if favor and bundle then
-      local crate = c.id and ns.Price(c.id)
       rated[#rated + 1] = { name = c.name, per = (bundle + (crate or 0)) / favor, noCrate = crate == nil }
       fills[#fills + 1] = { name = c.name, per = bundle / favor }
-      -- crafted crates (Fabrics, Ingots, Parts): the bundle that's cheapest to make
-      if ns.CraftedKinds[c.kind] then
-        local cr = { crate = crate }
-        for _, b in ipairs(c.bundles) do
-          local id = ns.ItemIDs[b[1]]
-          local unit = id and ns.ItemCraftCost and ns.ItemCraftCost(id)
-          if unit and (not cr.cost or unit * b[2] < cr.cost) then
-            cr.cost, cr.bundle = unit * b[2], b[2] .. " " .. b[1]
-            cr.prof = ns.Crafts[id] and ns.Crafts[id][2]
-          end
-          if not cr.prof and id and ns.Crafts and ns.Crafts[id] then cr.prof = ns.Crafts[id][2] end
+    end
+    -- crafted crates (Fabrics, Ingots, Parts): the bundle that's cheapest to make. Also for a
+    -- crate whose bundles aren't on the AH (engineering parts often aren't).
+    if favor and ns.CraftedKinds[c.kind] then
+      local cr = { crate = crate, favor = favor }
+      for _, b in ipairs(c.bundles) do
+        local id = ns.ItemIDs[b[1]]
+        local unit = id and ns.ItemCraftCost and ns.ItemCraftCost(id)
+        if unit and (not cr.cost or unit * b[2] < cr.cost) then
+          cr.cost, cr.bundle = unit * b[2], b[2] .. " " .. b[1]
+          cr.prof = ns.Crafts[id] and ns.Crafts[id][2]
         end
-        crafts[c.name] = cr
-        cr.favor = favor
+        if not cr.prof and id and ns.Crafts and ns.Crafts[id] then cr.prof = ns.Crafts[id][2] end
       end
+      crafts[c.name] = cr
     end
   end
   local out = {}
@@ -276,6 +284,11 @@ function ns.CrateRatings()
   -- the craft column: have the crate + craft the bundle, buy the crate + craft the bundle
   for name, cr in pairs(crafts) do
     local r = out[name]
+    if not r and cr.cost then
+      -- no bundle on the AH: no buy-bundle ratings, only the craft column
+      r = { name = name, unrated = true, noCrate = cr.crate == nil }
+      out[name] = r
+    end
     if r then
       r.crafted = cr
       if cr.cost then
@@ -371,8 +384,9 @@ end
 
 function ns.SetCrateTitle(tooltip, name)
   local r = ns.CrateRatings()[name]
-  if not (r and r.fill) then return false end
-  local buy = not r.noCrate and r or nil   -- no AH price for the crate: don't rate buying it
+  if not (r and (r.fill or r.crafted)) then return false end
+  -- no AH price for the crate (or the bundle): don't rate buying it
+  local buy = not r.noCrate and not r.unrated and r or nil
   local cr = r.crafted
   if not cr then return ns.SetBuyFillTitle(tooltip, buy, r.fill) end
   -- crafted crates: crate (buy / have) x bundle (buy / craft)
@@ -385,7 +399,7 @@ end
 -- The label for the tooltip's title row ("Great", coloured), or nil if the crate isn't rated.
 function ns.RatingTitle(name)
   local r = ns.CrateRatings()[name]
-  if not r then return nil end
+  if not (r and r.label) then return nil end
   local color, label = ns.RatingText(r)
   return color .. label .. "|r"
 end
@@ -669,7 +683,7 @@ end
 -- line that applies to you (`owned` = how many you have) is white, the other grey.
 function ns.AddRatingLines(tooltip, name, owned)
   local r = ns.CrateRatings()[name]
-  if not (r and r.fill) then
+  if not (r and (r.fill or r.crafted)) then
     tooltip:AddDoubleLine("Rating", "not rated (no price or favor yet)", 0.4, 0.8, 1, 0.5, 0.5, 0.5)
     return false
   end
@@ -700,8 +714,9 @@ function ns.AddRatingLines(tooltip, name, owned)
   local prof = cr.prof and (" (" .. cr.prof .. ")") or ""
   local haveLabel = own and ("Have crate (" .. owned .. ")") or "Have crate"
   local noCraft = cr.prof and "reagents not priced" or "no recipe data"
-  Line("Buy crate + buy bundle" .. (r.noCrate and "" or string.format("  #%d of %d", r.rank, r.total)),
-    not r.noCrate and r or nil, "crate not on the AH", false, false)
+  local buyBuy = not r.noCrate and not r.unrated and r or nil
+  Line("Buy crate + buy bundle" .. (buyBuy and string.format("  #%d of %d", r.rank, r.total) or ""),
+    buyBuy, r.noCrate and "crate not on the AH" or "bundle not on the AH", false, false)
   Line("Buy crate + craft bundle" .. prof, cr.buy, r.noCrate and "crate not on the AH" or noCraft, false, true)
   Line(haveLabel .. " + buy bundle", r.fill, "bundle not on the AH", true, false)
   Line(haveLabel .. " + craft bundle" .. prof, cr.have, noCraft, true, true)
@@ -784,6 +799,7 @@ local function ShowRowTooltip(row)
   if not c then return end
   GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
   GameTooltip:AddLine((RANK_COLOR[c.rank] or "") .. "Waylaid Crate: " .. c.name .. "|r")
+  if c.crafting then GameTooltip:AddLine("Bundle costs: crafted from reagents.", 0.6, 0.6, 0.6) end
   ns.SetCrateTitle(GameTooltip, c.name)
   GameTooltip:AddDoubleLine("Crate on the AH", c.crate and ns.Money(c.crate)
     or "|cff808080" .. (c.id and "no price" or "item not found yet") .. "|r", 0.4, 0.8, 1, 1, 1, 1)
@@ -1049,7 +1065,8 @@ local function UpdateHeaders()
   for _, h in ipairs(headers) do
     local arrow = ""
     if h.col.key == view.sort then arrow = view.desc and " v" or " ^" end
-    h.text:SetText((h.col.key == view.sort and "|cffffffff" or "") .. h.col.title .. arrow
+    local title = (CraftBundles() and h.col.craftTitle) or h.col.title
+    h.text:SetText((h.col.key == view.sort and "|cffffffff" or "") .. title .. arrow
       .. (h.col.key == view.sort and "|r" or ""))
   end
   if frame.filterBtn then
@@ -1066,6 +1083,12 @@ function ns.RefreshWindow()
   for _, c in ipairs(all) do
     Evaluate(c, mine)
     c.rating = ratings[c.name]
+    -- craft mode: a crafted crate's rating is "buy crate + craft bundle"
+    if c.crafting then
+      c.rating = c.rating and c.rating.crafted and c.rating.crafted.buy
+    elseif c.rating and c.rating.unrated then
+      c.rating = nil
+    end
     if Matches(c) then list[#list + 1] = c end
   end
   table.sort(list, Compare)
@@ -1121,6 +1144,7 @@ function ns.RefreshWindow()
   frame:SetHeight(TOP + math.max(#all, 1) * ROW_H + 30)
   frame.empty:SetShown(#list == 0)
   frame.mode:SetText(mine and "View: My cost" or "View: Market")
+  frame.craftBtn:SetText(CraftBundles() and "Bundles: Craft" or "Bundles: Buy")
   frame.footer:SetText("|cff808080" .. (mine
       and "My cost: owned crates are free, materials you have (bags + bank) are subtracted."
       or "Market: crate + cheapest bundle at full Auctionator prices.")
@@ -1188,9 +1212,26 @@ local function Build()
   mode:SetScript("OnLeave", function() GameTooltip:Hide() end)
   frame.mode = mode
 
+  local craftBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+  craftBtn:SetSize(110, 20)
+  craftBtn:SetPoint("RIGHT", mode, "LEFT", -4, 0)
+  craftBtn:SetScript("OnClick", function()
+    if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
+    CrateCostCharDB.crateCraft = not CraftBundles()
+    ns.RefreshWindow()
+  end)
+  craftBtn:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine("Buy: bundles at their AH price.", 1, 1, 1)
+    GameTooltip:AddLine("Craft: Fabrics, Ingots and Parts bundles made from their reagents (needs the profession). Other crates are the same either way.", 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  craftBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  frame.craftBtn = craftBtn
+
   local cartBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
   cartBtn:SetSize(80, 20)
-  cartBtn:SetPoint("RIGHT", mode, "LEFT", -4, 0)
+  cartBtn:SetPoint("RIGHT", craftBtn, "LEFT", -4, 0)
   cartBtn:SetScript("OnClick", function() ns.ShowCart() end)
   frame.cartBtn = cartBtn
   ns.OnCartChanged()

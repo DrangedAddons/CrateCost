@@ -54,6 +54,7 @@ Every Waylaid Crate, sorted by the cheapest Merchant's Favor:
 - The dropdown filters by crate type, or by the profession a material comes from (then only that profession's bundles count).
 - **Target favor**: type how much you want (say 60) and every cost, and the cart, covers the crates needed to reach it.
 - **View: Market / My cost**. Market is the objective best at full AH prices. My cost counts crates you own as free and subtracts the materials you have.
+- **Bundles: Buy / Craft** (per character). Craft prices the Fabrics, Ingots and Parts bundles as made from their reagents: the bundle column becomes **Cheapest to craft / Craft cost**, and total, per favor and rating follow (the rating is buy crate + craft bundle). Other crates are the same either way. The cart still adds the bundle items.
 - Hover a row for every bundle's price. Shift-click a row to search Auctionator: the bundle columns search the material, the rest the crate.
 
 ## Shopping cart

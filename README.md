@@ -75,6 +75,7 @@ The **Merchant** button on `/crates`, `/crates merchant`, or shift-click (or mid
 
 The **Writs** button on `/crates`, `/writs` (or `/writ`, `/crates writs`), or ctrl-click the minimap button: all 150 Craftsman's Writs (Alchemy, Blacksmithing, Engineering, Leatherworking, Tailoring), sorted by the cheapest reputation.
 
+- Columns are grouped by route: the writ, then **buying the item** (Buy item, Total (buy), Per rep (buy), Rating), then **crafting it** (Craft item, Total (craft), Per rep (craft)), then the rep target and what you have.
 - **Writ cost**: the writ on the AH. **Buy item**: the required item on the AH. **Craft item**: its reagents, each at the vendor price (from Auctionator's vendor cache), the AH price, or crafted when that's cheaper. The cheaper of buy and craft is gold.
 - **Total** = writ + the item bought on the AH. Ratings and totals don't assume you can craft: crafting needs the profession and recipe. Writ tooltips add a third rating, **to Craft** (a writ you have, filled by crafting the item), against the same cheapest-buy baseline, with its own cost line (white if you have the profession). A writ whose item has no AH price isn't rated. **Per rep** = total / the writ's reputation (75 Journeyman, 125 Expert, 200 Artisan).
 - **Rating**: the crate tiers on cost per rep. A writ with no AH price is rated on the item alone and marked *.

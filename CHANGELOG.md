@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.24.0
+- Writs window: new **Total (craft)** and **Per rep (craft)** columns (writ + the crafted item), sortable like the rest.
+- Columns are grouped by route with a gap between groups: the writ | Buy item, Total (buy), Per rep (buy), Rating | Craft item, Total (craft), Per rep (craft) | Writs, To target | Have, Today. The window is wider to fit them.
+
 ## 0.23.0
 - Writ tooltips have three ratings under the name: **to Buy**, **to Fill** and **to Craft**. to Craft = a writ you have, filled by crafting the item, against the same cheapest-buy baseline as the other two. Shown for every writ with recipe data ("?" while a reagent has no price).
 - The "Craft it" line becomes the third cost line, "If you craft it (profession)": cost per rep and how it compares with the cheapest buy. White if this character has the profession.

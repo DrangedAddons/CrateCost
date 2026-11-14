@@ -7,24 +7,28 @@ local _, ns = ...
 -- Rated by cost per reputation, with the same tiers as the crates. The Sealed envelopes (a
 -- random writ of a rank) are rated on their price plus the average cost to fill that rank.
 
-local ROW_H, VISIBLE, WIDTH, TOP = 18, 24, 1240, 84
+local ROW_H, VISIBLE, WIDTH, TOP = 18, 24, 1469, 84
 local SUB = 28
+-- grouped by route: the writ | buying the item (its total, per rep and the to-Buy rating)
+-- | crafting the item | the rep target | what you have
 local COLS = {
-  { key = "name",   title = "Writ",        x = 10,  w = 175, justify = "LEFT"  },
-  { key = "prof",   title = "Profession",  x = 190, w = 84,  justify = "LEFT"  },
-  { key = "rank",   title = "Rank",        x = 278, w = 66,  justify = "LEFT",  desc = false },
-  { key = "skill",  title = "Skill",       x = 348, w = 30,  justify = "RIGHT", desc = false },
-  { key = "rep",    title = "Rep",         x = 382, w = 30,  justify = "RIGHT", desc = true  },
-  { key = "writ",   title = "Writ cost",   x = 420, w = 92,  justify = "RIGHT", desc = false, money = true },
-  { key = "buy",    title = "Buy item",    x = 517, w = 92,  justify = "RIGHT", desc = false, money = true },
-  { key = "craft",  title = "Craft item",  x = 614, w = 92,  justify = "RIGHT", desc = false, money = true },
-  { key = "total",  title = "Total cost",  x = 711, w = 96,  justify = "RIGHT", desc = false, money = true },
-  { key = "per",    title = "Per rep",     x = 812, w = 92,  justify = "RIGHT", desc = false, money = true },
-  { key = "need",   title = "Writs",       x = 909, w = 40,  justify = "RIGHT", desc = false },
-  { key = "target", title = "To target",   x = 954, w = 100, justify = "RIGHT", desc = false, money = true },
-  { key = "rating", title = "Rating",      x = 1059, w = 55, justify = "RIGHT", desc = true  },
-  { key = "have",   title = "Have",        x = 1119, w = 36, justify = "RIGHT", desc = true  },
-  { key = "done",   title = "Today",       x = 1160, w = 52, justify = "CENTER", desc = true },
+  { key = "name", title = "Writ", x = 10, w = 175, justify = "LEFT" },
+  { key = "prof", title = "Profession", x = 190, w = 84, justify = "LEFT" },
+  { key = "rank", title = "Rank", x = 279, w = 66, justify = "LEFT", desc = false },
+  { key = "skill", title = "Skill", x = 350, w = 30, justify = "RIGHT", desc = false },
+  { key = "rep", title = "Rep", x = 385, w = 30, justify = "RIGHT", desc = true },
+  { key = "writ", title = "Writ cost", x = 420, w = 88, justify = "RIGHT", desc = false, money = true },
+  { key = "buy", title = "Buy item", x = 526, w = 88, justify = "RIGHT", desc = false, money = true },
+  { key = "total", title = "Total (buy)", x = 619, w = 92, justify = "RIGHT", desc = false, money = true },
+  { key = "per", title = "Per rep (buy)", x = 716, w = 88, justify = "RIGHT", desc = false, money = true },
+  { key = "rating", title = "Rating", x = 809, w = 50, justify = "RIGHT", desc = true },
+  { key = "craft", title = "Craft item", x = 877, w = 88, justify = "RIGHT", desc = false, money = true },
+  { key = "totalCraft", title = "Total (craft)", x = 970, w = 92, justify = "RIGHT", desc = false, money = true },
+  { key = "perCraft", title = "Per rep (craft)", x = 1067, w = 92, justify = "RIGHT", desc = false, money = true },
+  { key = "need", title = "Writs", x = 1177, w = 40, justify = "RIGHT", desc = false },
+  { key = "target", title = "To target", x = 1222, w = 96, justify = "RIGHT", desc = false, money = true },
+  { key = "have", title = "Have", x = 1336, w = 36, justify = "RIGHT", desc = true },
+  { key = "done", title = "Today", x = 1377, w = 52, justify = "CENTER", desc = true },
 }
 local RANKS = { "Journeyman", "Expert", "Artisan" }
 local RANK_ORDER = { Journeyman = 1, Expert = 2, Artisan = 3 }
@@ -142,6 +146,9 @@ local function Calc()
     -- profession and the recipe, so it's shown on its own line instead of in the ratings.
     e.fill = e.buy and e.buy * e.qty or nil
     e.total = e.fill and (e.fill + (e.writPrice or 0)) or nil
+    -- the same with the item crafted (needs the profession): its own column, not in the ratings
+    e.totalCraft = e.craft and (e.craft * e.qty + (e.writPrice or 0)) or nil
+    e.perCraft = e.totalCraft and e.totalCraft / e.rep or nil
     e.per = e.total and e.total / e.rep or nil
     e.label, e.color, e.ratio, e.place = nil, nil, nil, nil
     e.fillRating, e.craftRating = nil, nil
@@ -650,7 +657,11 @@ function Draw()
       SetMoney(row, "craft", e.craft and e.craft * e.qty, (e.craft and not buyBest) and ns.BEST,
         ns.Crafts[e.item] and NONE or (GREY .. "-|r"))
       SetMoney(row, "total", e.total, e.writPrice and "" or GREY, NONE)
+      SetMoney(row, "totalCraft", e.totalCraft, e.writPrice and "" or GREY,
+        ns.Crafts[e.item] and NONE or (GREY .. "-|r"))
       SetMoney(row, "per", e.per, e.writPrice and "" or GREY, NONE)
+      SetMoney(row, "perCraft", e.perCraft, e.writPrice and "" or GREY,
+        ns.Crafts[e.item] and NONE or (GREY .. "-|r"))
       local n, cost = ToTarget(e)
       c.need:SetText(n and (n .. "x") or "")
       SetMoney(row, "target", cost, e.writPrice and "" or GREY,

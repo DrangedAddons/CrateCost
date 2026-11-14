@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.25.0
+- Writs window: a **Buy items | Craft items** toggle (per character) replaces the separate craft columns. One set of columns (item, total, per rep, rating, target) follows the toggle; craft mode rates writ + crafted item per rep against every writ's crafted cost. The window is back to its narrower width.
+- Columns are grouped: the writ | the route | the rep target | what you have.
+
 ## 0.24.0
 - Writs window: new **Total (craft)** and **Per rep (craft)** columns (writ + the crafted item), sortable like the rest.
 - Columns are grouped by route with a gap between groups: the writ | Buy item, Total (buy), Per rep (buy), Rating | Craft item, Total (craft), Per rep (craft) | Writs, To target | Have, Today. The window is wider to fit them.

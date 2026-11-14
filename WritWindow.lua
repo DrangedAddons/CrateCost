@@ -7,28 +7,25 @@ local _, ns = ...
 -- Rated by cost per reputation, with the same tiers as the crates. The Sealed envelopes (a
 -- random writ of a rank) are rated on their price plus the average cost to fill that rank.
 
-local ROW_H, VISIBLE, WIDTH, TOP = 18, 24, 1469, 84
+local ROW_H, VISIBLE, WIDTH, TOP = 18, 24, 1194, 84
 local SUB = 28
--- grouped by route: the writ | buying the item (its total, per rep and the to-Buy rating)
--- | crafting the item | the rep target | what you have
+-- grouped: the writ | the route (Buy / Craft toggle: the item, total, per rep, rating)
+-- | the rep target | what you have
 local COLS = {
   { key = "name", title = "Writ", x = 10, w = 175, justify = "LEFT" },
   { key = "prof", title = "Profession", x = 190, w = 84, justify = "LEFT" },
   { key = "rank", title = "Rank", x = 279, w = 66, justify = "LEFT", desc = false },
   { key = "skill", title = "Skill", x = 350, w = 30, justify = "RIGHT", desc = false },
   { key = "rep", title = "Rep", x = 385, w = 30, justify = "RIGHT", desc = true },
-  { key = "writ", title = "Writ cost", x = 420, w = 88, justify = "RIGHT", desc = false, money = true },
-  { key = "buy", title = "Buy item", x = 526, w = 88, justify = "RIGHT", desc = false, money = true },
-  { key = "total", title = "Total (buy)", x = 619, w = 92, justify = "RIGHT", desc = false, money = true },
-  { key = "per", title = "Per rep (buy)", x = 716, w = 88, justify = "RIGHT", desc = false, money = true },
-  { key = "rating", title = "Rating", x = 809, w = 50, justify = "RIGHT", desc = true },
-  { key = "craft", title = "Craft item", x = 877, w = 88, justify = "RIGHT", desc = false, money = true },
-  { key = "totalCraft", title = "Total (craft)", x = 970, w = 92, justify = "RIGHT", desc = false, money = true },
-  { key = "perCraft", title = "Per rep (craft)", x = 1067, w = 92, justify = "RIGHT", desc = false, money = true },
-  { key = "need", title = "Writs", x = 1177, w = 40, justify = "RIGHT", desc = false },
-  { key = "target", title = "To target", x = 1222, w = 96, justify = "RIGHT", desc = false, money = true },
-  { key = "have", title = "Have", x = 1336, w = 36, justify = "RIGHT", desc = true },
-  { key = "done", title = "Today", x = 1377, w = 52, justify = "CENTER", desc = true },
+  { key = "writ", title = "Writ cost", x = 420, w = 92, justify = "RIGHT", desc = false, money = true },
+  { key = "item", title = "Buy item", craftTitle = "Craft item", x = 530, w = 92, justify = "RIGHT", desc = false, money = true },
+  { key = "total", title = "Total cost", x = 627, w = 96, justify = "RIGHT", desc = false, money = true },
+  { key = "per", title = "Per rep", x = 728, w = 92, justify = "RIGHT", desc = false, money = true },
+  { key = "rating", title = "Rating", x = 825, w = 55, justify = "RIGHT", desc = true },
+  { key = "need", title = "Writs", x = 898, w = 40, justify = "RIGHT", desc = false },
+  { key = "target", title = "To target", x = 943, w = 100, justify = "RIGHT", desc = false, money = true },
+  { key = "have", title = "Have", x = 1061, w = 36, justify = "RIGHT", desc = true },
+  { key = "done", title = "Today", x = 1102, w = 52, justify = "CENTER", desc = true },
 }
 local RANKS = { "Journeyman", "Expert", "Artisan" }
 local RANK_ORDER = { Journeyman = 1, Expert = 2, Artisan = 3 }
@@ -151,7 +148,7 @@ local function Calc()
     e.perCraft = e.totalCraft and e.totalCraft / e.rep or nil
     e.per = e.total and e.total / e.rep or nil
     e.label, e.color, e.ratio, e.place = nil, nil, nil, nil
-    e.fillRating, e.craftRating = nil, nil
+    e.fillRating, e.craftRating, e.craftList = nil, nil, nil
     if e.per then rated[#rated + 1] = e end
     if e.fill then
       fillSum[e.rank] = (fillSum[e.rank] or 0) + e.fill
@@ -167,6 +164,15 @@ local function Calc()
   for _, p in ipairs(proxies) do
     local e = p.e
     e.place, e.total_rated, e.ratio, e.label, e.color = p.rank, p.total, p.ratio, p.label, p.color
+  end
+  -- Craft mode's list rating: writ + crafted item per rep, against the same on every writ
+  local crafted = {}
+  for _, e in ipairs(Entries()) do
+    if e.perCraft then crafted[#crafted + 1] = { per = e.perCraft, e = e } end
+  end
+  ns.RateList(crafted)
+  for _, p in ipairs(crafted) do
+    p.e.craftList = { ratio = p.ratio, label = p.label, color = p.color }
   end
   -- "to Fill": the fill alone per rep, for a writ you already have, against the cheapest rep
   -- you can buy outright (a writ priced on the AH + its fill): is filling it cheaper than
@@ -284,6 +290,21 @@ local function SetTarget(t)
   CrateCostCharDB.writTarget = t
 end
 
+-- Craft mode (per character: it's about this character's professions): the list's item,
+-- total, per rep, rating and target columns use the crafted item instead of the AH one.
+local function Crafting()
+  return type(CrateCostCharDB) == "table" and CrateCostCharDB.writCraft == true
+end
+
+-- The route's numbers for writ `e`: item cost, writ + item, per rep, list rating.
+local function Route(e)
+  if Crafting() then
+    local r = e.craftList
+    return e.craft and e.craft * e.qty, e.totalCraft, e.perCraft, r and r.label, r and r.color, r and r.ratio
+  end
+  return e.buy and e.buy * e.qty, e.total, e.per, e.label, e.color, e.ratio
+end
+
 local standing, needRep   -- refreshed with the list; needRep nil = no target, or reached
 
 local function UpdateNeed()
@@ -300,7 +321,8 @@ end
 local function ToTarget(e)
   if not needRep then return nil end
   local n = math.ceil(needRep / e.rep)
-  return n, e.total and e.total * n or nil
+  local total = select(2, Route(e))
+  return n, total and total * n or nil
 end
 
 local function Num(n)
@@ -326,12 +348,18 @@ local function SortValue(e, key)
   if key == "rank" then return RANK_ORDER[e.rank] * 1000 + e.skill end
   if key == "skill" or key == "rep" then return e[key] end
   if key == "writ" then return e.writPrice end
-  if key == "rating" then return e.ratio and -e.ratio end
+  if key == "rating" then
+    local ratio = select(6, Route(e))
+    return ratio and -ratio
+  end
+  if key == "item" then return (Route(e)) end
+  if key == "total" then return select(2, Route(e)) end
+  if key == "per" then return select(3, Route(e)) end
   if key == "have" then return e.haveWrit * 1000 + e.haveItem end
   if key == "done" then return e.done and 1 or 0 end
   if key == "need" then return (ToTarget(e)) end
   if key == "target" then return select(2, ToTarget(e)) end
-  return e[key]   -- buy, craft, total, per (nil = no price)
+  return e[key]
 end
 
 local function Compare(a, b)
@@ -558,7 +586,7 @@ end
 ---------------------------------------------------------------------------------------------
 -- Rows
 
-local ITEM_COLS = { buy = true, craft = true }
+local ITEM_COLS = { item = true }
 local function ColumnAtCursor(row)
   local left = row:GetLeft()
   if not left then return end
@@ -652,21 +680,17 @@ function Draw()
       c.skill:SetText(e.skill)
       c.rep:SetText(e.rep)
       SetMoney(row, "writ", e.writPrice, nil, NONE)
-      local buyBest = e.buy and (not e.craft or e.buy <= e.craft)
-      SetMoney(row, "buy", e.buy and e.buy * e.qty, buyBest and ns.BEST, NONE)
-      SetMoney(row, "craft", e.craft and e.craft * e.qty, (e.craft and not buyBest) and ns.BEST,
-        ns.Crafts[e.item] and NONE or (GREY .. "-|r"))
-      SetMoney(row, "total", e.total, e.writPrice and "" or GREY, NONE)
-      SetMoney(row, "totalCraft", e.totalCraft, e.writPrice and "" or GREY,
-        ns.Crafts[e.item] and NONE or (GREY .. "-|r"))
-      SetMoney(row, "per", e.per, e.writPrice and "" or GREY, NONE)
-      SetMoney(row, "perCraft", e.perCraft, e.writPrice and "" or GREY,
-        ns.Crafts[e.item] and NONE or (GREY .. "-|r"))
+      local item, total, per, label, color = Route(e)
+      -- craft mode, no recipe data: "-" (it can't be crafted as far as we know)
+      local none = (Crafting() and not ns.Crafts[e.item]) and (GREY .. "-|r") or NONE
+      SetMoney(row, "item", item, nil, none)
+      SetMoney(row, "total", total, e.writPrice and "" or GREY, none)
+      SetMoney(row, "per", per, e.writPrice and "" or GREY, none)
       local n, cost = ToTarget(e)
       c.need:SetText(n and (n .. "x") or "")
       SetMoney(row, "target", cost, e.writPrice and "" or GREY,
         Target() and (needRep and NONE or "|cff40ff40reached|r") or (GREY .. "-|r"))
-      c.rating:SetText(RatingText(e) and (RatingText(e) .. (e.writPrice and "" or GREY .. "*|r")) or "")
+      c.rating:SetText(label and (color .. label .. "|r" .. (e.writPrice and "" or GREY .. "*|r")) or "")
       local have = ""
       if e.haveWrit > 0 then have = "|cff40ff40W|r " end
       if e.haveItem > 0 then have = have .. e.haveItem end
@@ -705,7 +729,8 @@ end
 local function UpdateHeaders()
   for _, h in ipairs(headers) do
     local on = h.col.key == view.sort
-    h.text:SetText((on and "|cffffffff" or "") .. h.col.title .. (on and (view.desc and " v" or " ^") or "")
+    local title = (Crafting() and h.col.craftTitle) or h.col.title
+    h.text:SetText((on and "|cffffffff" or "") .. title .. (on and (view.desc and " v" or " ^") or "")
       .. (on and "|r" or ""))
   end
   for _, h in ipairs(headers) do
@@ -730,6 +755,13 @@ local function UpdateHeaders()
   end
   frame.standing:SetText(txt)
   frame.rankBtn.text:SetText(view.rank or "All ranks")
+  local craft = Crafting()
+  for _, b in ipairs(frame.routeBtns) do
+    local on = (b.route == "craft") == craft
+    b:SetBackdropColor(on and 0.25 or 0.12, on and 0.22 or 0.12, on and 0.1 or 0.15, 1)
+    b:SetBackdropBorderColor(on and 1 or 0.35, on and 0.82 or 0.35, on and 0 or 0.4, 1)
+    b.text:SetTextColor(on and 1 or 0.6, on and 1 or 0.6, on and 1 or 0.6)
+  end
 end
 
 function ns.RefreshWrits()
@@ -995,7 +1027,38 @@ local function Build()
   local l1 = Check("Writ on the AH", "priced", rb, 12,
     "Only writs with an Auctionator price. The rest are rated on the item alone (marked *).")
   local l2 = Check("Writs I have", "owned", l1, 8, "Only writs in your bags or bank.")
-  Check("Hide done today", "hideDone", l2, 8, "Each writ is a daily quest.")
+  local l3 = Check("Hide done today", "hideDone", l2, 8, "Each writ is a daily quest.")
+
+  -- Buy | Craft: which way the list gets the item (per character)
+  frame.routeBtns = {}
+  local prev = l3
+  for i, route in ipairs({ { "buy", "Buy items" }, { "craft", "Craft items" } }) do
+    local b = CreateFrame("Button", nil, frame, "BackdropTemplate")
+    b:SetSize(74, 20)
+    b:SetPoint("LEFT", prev, "RIGHT", i == 1 and 16 or -1, 0)
+    b:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+    b.text = b:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    b.text:SetPoint("CENTER")
+    b.text:SetText(route[2])
+    b.route = route[1]
+    b:SetScript("OnClick", function(self)
+      if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
+      CrateCostCharDB.writCraft = self.route == "craft"
+      view.offset = 0
+      ns.RefreshWrits()
+    end)
+    b:SetScript("OnEnter", function(self)
+      GameTooltip:SetOwner(self, "ANCHOR_TOP")
+      GameTooltip:AddLine(route[2], 1, 1, 1)
+      GameTooltip:AddLine(self.route == "craft"
+        and "Item, total, per rep, rating and target use the item crafted from its reagents (needs the profession)."
+        or "Item, total, per rep, rating and target use the item bought on the AH.", 0.8, 0.8, 0.8, true)
+      GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    frame.routeBtns[i] = b
+    prev = b
+  end
 
   for _, col in ipairs(COLS) do
     local h = CreateFrame("Button", nil, frame)

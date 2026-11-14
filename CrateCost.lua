@@ -340,7 +340,9 @@ local function Process(tooltip, itemID)
   -- how this crate's favor price compares with every other crate's (Window.lua)
   -- the rating label sits under the name, above the prices; the detail line goes below
   if On("rating") and ns.AddRatingLines then
-    local owned = itemID and C_Item and C_Item.GetItemCount and C_Item.GetItemCount(itemID, true) or 0
+    -- counts every character's (alts as of their last login), like the Owned view
+    local owned = itemID and ns.OwnedWhere and (ns.OwnedWhere(itemID))
+      or (itemID and C_Item and C_Item.GetItemCount and C_Item.GetItemCount(itemID, true)) or 0
     ns.SetCrateTitle(tooltip, crateName)
     if not On("favorLine") then tooltip:AddLine(" ") end
     ns.AddRatingLines(tooltip, crateName, owned)

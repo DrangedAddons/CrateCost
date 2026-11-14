@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.30.0
+- **Buy | Owned** replaces Market / My cost, on both lists (per character). Buy: crates or writs to buy. Owned: only the ones you have, on this character, its bank, the warband bank or alts, costed as the fill alone. Together with Buy / Craft bundles (items) it picks one cell of the tooltip grid, and the Rating column shows that cell. The target is hidden in Owned.
+- Alts: each character's crates and writs (bags + bank) are saved when it logs in and when its bags change. The Have column counts all of them; the row tooltip says where ("2 here, 1 on Alty"). Item tooltips count them too.
+- Writs: the "Writs I have" checkbox is gone (Owned does that).
+- Crates, Writs and Merchant are one window now: the nav buttons swap the view in place instead of opening another window. They share one position and the same width.
+
 ## 0.29.0
 - The Crates, Writs and Merchant windows now share one layout (new UI.lua): the same window shell, a title row with the target and status on the left and the same nav bar on the right (Crates, Writs, Merchant, Cart (n), Refresh; the current window greyed out), and a filter row with search and filters on the left and gold two-part toggles on the right.
 - Crates: the Target favor box moves to the title row, next to how much favor you have, and the window shows how many crates match. View and Bundles become toggles (Market | My cost, Buy bundles | Craft bundles). Same width as the Writs window, columns grouped the same way.

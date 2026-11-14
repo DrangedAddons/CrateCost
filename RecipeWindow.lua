@@ -5,7 +5,7 @@ local _, ns = ...
 -- profession, type, slot, effect and the crafted item's Equip / Use lines. Filter by
 -- profession, stats (with a minimum), learned, affordable and favorites. Click a header to sort.
 
-local ROW_H, VISIBLE, WIDTH, TOP = 18, 24, 1000, 84
+local ROW_H, VISIBLE, WIDTH, TOP = 18, 24, 1194, 84   -- same width as Crates and Writs
 local COLS = {
   { key = "fav",    title = "",           x = 10,  w = 16,  justify = "CENTER", desc = true },
   { key = "name",   title = "Recipe",     x = 30,  w = 185, justify = "LEFT"  },
@@ -625,28 +625,8 @@ local function BuildStatSortMenu(btn)
 end
 
 local function Build()
-  frame = CreateFrame("Frame", "CrateCostRecipes", UIParent, "BackdropTemplate")
-  frame:SetSize(WIDTH, TOP + VISIBLE * ROW_H + 28)
-  frame:SetPoint("CENTER")
-  frame:SetFrameStrata("HIGH")
-  frame:SetToplevel(true)   -- clicking it brings it in front of the crate list
-  frame:SetBackdrop({
-    bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1,
-  })
-  frame:SetBackdropColor(0.05, 0.05, 0.07, 0.95)
-  frame:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-  frame:SetMovable(true)
-  frame:SetClampedToScreen(true)
-  frame:EnableMouse(true)
-  frame:RegisterForDrag("LeftButton")
-  frame:SetScript("OnDragStart", frame.StartMoving)
-  frame:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
-    -- remember where it was put (account-wide, like the minimap button)
-    if type(CrateCostDB) == "table" and self:GetLeft() then
-      CrateCostDB.merchantPos = { x = self:GetLeft(), y = self:GetTop() }
-    end
-  end)
+  frame = ns.UI.Window("CrateCostRecipes", "Merchant - what Merchant's Favor buys", WIDTH,
+    TOP + VISIBLE * ROW_H + 28, ns.UI.POS_KEY)
   frame:SetScript("OnShow", function()
     knownDirty = true
     ns.RefreshRecipes()
@@ -670,16 +650,6 @@ local function Build()
     if event == "CURRENCY_DISPLAY_UPDATE" and Favor() == lastFavor then return end
     ns.RefreshRecipes()
   end)
-  tinsert(UISpecialFrames, "CrateCostRecipes")
-
-  local title = frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-  title:SetPoint("TOPLEFT", 12, -10)
-  title:SetText("Merchant - what Merchant's Favor buys")
-
-  local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-  -- hide directly: the template's HideUIPanel path doesn't close unmanaged frames on Forever
-  close:SetScript("OnClick", function() frame:Hide() end)
-  close:SetPoint("TOPRIGHT", 2, 2)
 
   -- the same nav bar as the Crates and Writs windows (it also makes frame.count)
   ns.UI.NavBar(frame, "merchant", function() knownDirty = true ns.RefreshRecipes() end)
@@ -826,25 +796,6 @@ local function Build()
     .. "|cff40ff40Green|r|cff808080 favor = you can afford it. Data: wow-professions.com, CraftRoute.|r")
 end
 
--- Where the window opens: where you last dragged it; otherwise, with the crate list open,
--- below and right of it so the crate list's title and rows stay visible; otherwise centred.
--- SetClampedToScreen keeps it on screen either way.
-local function Place()
-  frame:ClearAllPoints()
-  local pos = type(CrateCostDB) == "table" and CrateCostDB.merchantPos
-  if pos and pos.x and pos.y then
-    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", pos.x, pos.y)
-    return
-  end
-  local crates = _G.CrateCostFrame
-  if crates and crates:IsShown() and crates:GetLeft() then
-    -- anchored to the screen, not the crate list, so moving one doesn't drag the other
-    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", crates:GetLeft() + 80, crates:GetTop() - 120)
-  else
-    frame:SetPoint("CENTER")
-  end
-end
-
 function ns.ToggleRecipes()
   if not frame then
     local ok, err = pcall(Build)
@@ -859,8 +810,5 @@ function ns.ToggleRecipes()
     end
     frame:Hide()
   end
-  if frame:IsShown() then frame:Hide() return end
-  Place()
-  frame:Show()
-  frame:Raise()
+  ns.UI.ToggleView(frame)
 end

@@ -240,7 +240,11 @@ end
 local function Live()
   for _, e in ipairs(Entries()) do
     e.done = DoneToday(e)
-    e.haveWrit = Count(e.writ)
+    if ns.OwnedWhere then
+      e.haveWrit, e.writWhere = ns.OwnedWhere(e.writ)
+    else
+      e.haveWrit, e.writWhere = Count(e.writ), {}
+    end
     e.haveItem = Count(e.item)
   end
 end
@@ -310,7 +314,18 @@ local function Crafting()
 end
 
 -- The route's numbers for writ `e`: item cost, writ + item, per rep, list rating.
+-- Owned view (per character): only writs you have (here, bank, warband bank, alts), costed
+-- as the fill alone.
+local function Owning()
+  return type(CrateCostCharDB) == "table" and CrateCostCharDB.writOwned == true
+end
+
 local function Route(e)
+  if Owning() then
+    local r = Crafting() and e.craftRating or e.fillRating
+    local item = Crafting() and (e.craft and e.craft * e.qty) or (e.buy and e.buy * e.qty)
+    return item, item, item and item / e.rep, r and r.label, r and r.color, r and r.ratio
+  end
   if Crafting() then
     local r = e.craftList
     return e.craft and e.craft * e.qty, e.totalCraft, e.perCraft, r and r.label, r and r.color, r and r.ratio
@@ -332,7 +347,7 @@ end
 
 -- How many of this writ reach the target, and what that costs.
 local function ToTarget(e)
-  if not needRep then return nil end
+  if not needRep or Owning() then return nil end
   local n = math.ceil(needRep / e.rep)
   local total = select(2, Route(e))
   return n, total and total * n or nil
@@ -461,7 +476,8 @@ local function AddRatingLine(tt, e)
   local ways = Ways(e)
   local r = ns.Crafts[e.item]
   local prof = r and r[2]
-  local own = Count(e.writ) > 0
+  local owned = ns.OwnedWhere and (ns.OwnedWhere(e.writ)) or Count(e.writ)
+  local own = owned > 0
   local canCraft = prof and MyProfessions()[prof]
   local function How(x)
     if x < 0.995 then return string.format("%.1fx the cheapest buy", x) end
@@ -483,8 +499,8 @@ local function AddRatingLine(tt, e)
   Line("Buy writ + buy item" .. (ways.buyBuy.r and string.format("  #%d of %d", e.place, e.total_rated) or ""),
     ways.buyBuy, false, false)
   Line("Buy writ + craft item" .. craftName, ways.buyCraft, false, true)
-  Line(own and ("Have writ (" .. Count(e.writ) .. ") + buy item") or "Have writ + buy item", ways.haveBuy, true, false)
-  Line((own and ("Have writ (" .. Count(e.writ) .. ")") or "Have writ") .. " + craft item" .. craftName,
+  Line(own and ("Have writ (" .. owned .. ") + buy item") or "Have writ + buy item", ways.haveBuy, true, false)
+  Line((own and ("Have writ (" .. owned .. ")") or "Have writ") .. " + craft item" .. craftName,
     ways.haveCraft, true, true)
 end
 
@@ -719,7 +735,11 @@ function Draw()
       c.rank:SetText(RANK_COLOR[e.rank] .. e.rank .. "|r")
       c.skill:SetText(e.skill)
       c.rep:SetText(e.rep)
-      SetMoney(row, "writ", e.writPrice, nil, NONE)
+      if Owning() then
+        SetMoney(row, "writ", nil, nil, "|cff40ff40owned|r")
+      else
+        SetMoney(row, "writ", e.writPrice, nil, NONE)
+      end
       local item, total, per, label, color = Route(e)
       -- craft mode, no recipe data: "-" (it can't be crafted as far as we know)
       local none = (Crafting() and not ns.Crafts[e.item]) and (GREY .. "-|r") or NONE
@@ -788,6 +808,10 @@ local function UpdateHeaders()
   frame.standing:SetText(txt)
   frame.rankBtn.text:SetText(view.rank or "All ranks")
   frame.routeToggle:Refresh()
+  frame.ownToggle:Refresh()
+  -- the target is about writs to buy: hidden in the Owned view
+  frame.targetBtn:SetShown(not Owning())
+  frame.targetLabel:SetShown(not Owning())
 end
 
 function ns.RefreshWrits()
@@ -804,7 +828,7 @@ function ns.RefreshWrits()
     elseif view.prof then ok = e.prof == view.prof end
     if ok and view.rank and e.rank ~= view.rank then ok = false end
     if ok and view.priced and not e.writPrice then ok = false end
-    if ok and view.owned and e.haveWrit == 0 then ok = false end
+    if ok and Owning() and e.haveWrit == 0 then ok = false end
     if ok and view.hideDone and e.done then ok = false end
     if ok and q ~= "" and not e.text:find(q, 1, true) then ok = false end
     if ok then
@@ -847,7 +871,7 @@ end
 local function Build()
   local UI = ns.UI
   frame = UI.Window("CrateCostWrits", "Craftsman's Writs - cheapest reputation", WIDTH,
-    TOP + VISIBLE * ROW_H + 106, "writsPos")
+    TOP + VISIBLE * ROW_H + 106, UI.POS_KEY)
   frame:SetScript("OnShow", function()
     -- every writ, filling item and envelope, so shift-click links them straight away
     local ids = {}
@@ -883,13 +907,14 @@ local function Build()
   local tl = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
   tl:SetPoint("LEFT", frame.title, "RIGHT", 24, 0)
   tl:SetText("Target:")
+  frame.targetLabel = tl
   local tb = UI.DropButton(frame, 100, tl, 10)
   frame.targetBtn = tb
   local targetChoices = { { "No target", nil }, "-" }
   for i = 5, 8 do targetChoices[#targetChoices + 1] = { STANDINGS[i][4] .. STANDINGS[i][2] .. "|r", i } end
   UI.Menu(frame, tb, targetChoices, 100, function(v) SetTarget(v) Reset() end)
   frame.standing = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  frame.standing:SetPoint("LEFT", tb, "RIGHT", 12, 0)
+  frame.standing:SetPoint("LEFT", frame.title, "RIGHT", 196, 0)
 
   UI.NavBar(frame, "writs", function() ns.InvalidateWrits() ns.RefreshWrits() end)
 
@@ -914,10 +939,8 @@ local function Build()
   local g1, s1 = Flag("priced")
   local l1 = UI.Check(frame, "Writ on the AH", rb, 12,
     "Only writs with an Auctionator price. The rest are rated on the item alone (marked *).", g1, s1)
-  local g2, s2 = Flag("owned")
-  local l2 = UI.Check(frame, "Writs I have", l1, 8, "Only writs in your bags or bank.", g2, s2)
   local g3, s3 = Flag("hideDone")
-  UI.Check(frame, "Hide done today", l2, 8, "Each writ is a daily quest.", g3, s3)
+  UI.Check(frame, "Hide done today", l1, 8, "Each writ is a daily quest.", g3, s3)
 
   -- Buy | Craft: which way the list gets the item (per character)
   frame.routeToggle = UI.Toggle(frame, {
@@ -929,7 +952,16 @@ local function Build()
     CrateCostCharDB.writCraft = v
     Reset()
   end)
-  UI.PlaceToggles(frame, { frame.routeToggle })
+  frame.ownToggle = UI.Toggle(frame, {
+    { false, "Buy", "Writs to buy: writ + item." },
+    { true, "Owned", "Only the writs you have (this character, bank, warband bank, alts): the cost "
+      .. "of filling each one." },
+  }, 60, Owning, function(v)
+    if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
+    CrateCostCharDB.writOwned = v
+    Reset()
+  end)
+  UI.PlaceToggles(frame, { frame.routeToggle, frame.ownToggle })
 
   for _, h in ipairs(UI.Headers(frame, COLS, 0, function(col)
     if view.sort == col.key then
@@ -993,9 +1025,9 @@ local function Build()
   frame.plan:SetJustifyH("LEFT")
 
   local footer = ns.UI.Footer(frame)
-  footer:SetText(GREY .. "Buy items: writ + the item on the AH. Craft items: writ + the item made from its "
-    .. "reagents. * = writ not priced, rated on the item alone. Have: W = you hold the writ, then the item "
-    .. "count. Data: wow.gg, endgametools.com.|r")
+  footer:SetText(GREY .. "Buy: writ + item. Owned: only writs you have (incl. bank, warband bank, alts), "
+    .. "the item alone. Buy items / Craft items: the item from the AH or made from its reagents. "
+    .. "* = writ not priced. Have: W = you hold the writ, then the item count. Data: wow.gg, endgametools.com.|r")
 end
 
 function ns.ToggleWrits()
@@ -1011,8 +1043,5 @@ function ns.ToggleWrits()
     end
     frame:Hide()
   end
-  if frame:IsShown() then frame:Hide() return end
-  ns.UI.Place(frame, "writsPos")
-  frame:Show()
-  frame:Raise()
+  ns.UI.ToggleView(frame)
 end

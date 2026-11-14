@@ -31,12 +31,13 @@ local frame, rows, headers = nil, {}, {}
 -- filter: nil = all crates; { group = "type" | "prof", value = ... }
 local view = { sort = "per", desc = false, search = "", filter = nil }
 
--- "market": objective best at full AH prices. "mine": what it costs you now - a crate you
--- own is free and materials in your bags/bank are subtracted. Per character (it's about
--- what this character owns).
+-- "buy": crates to buy, crate + bundle at AH prices. "owned": only the crates you have (this
+-- character, its bank, the warband bank and alts), costed as the fill alone, with materials on
+-- this character subtracted. Per character. (The old "mine" setting reads as owned.)
 local function Mode()
   if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
-  return CrateCostCharDB.mode == "mine" and "mine" or "market"
+  local m = CrateCostCharDB.mode
+  return (m == "owned" or m == "mine") and "owned" or "buy"
 end
 
 -- Craft bundles (per character, like the Writs window's toggle): the crafted crates' bundles
@@ -168,12 +169,21 @@ local function CrateList()
 end
 
 local function Evaluate(c, mine)
-  c.have = c.id and Owned(c.id) or nil
+  if ns.OwnedWhere then
+    c.have, c.where = ns.OwnedWhere(c.id)
+  else
+    c.have, c.where = c.id and Owned(c.id) or 0, {}
+  end
   c.crafting = CraftBundles() and ns.CraftedKinds[c.kind] and ns.ItemCraftCost ~= nil
-  -- crates needed to reach the target (one without a target, or when favor is unknown)
-  local target = Target()
-  c.n = (target and c.favor) and math.ceil(target / c.favor) or 1
-  c.nUnknown = target and not c.favor
+  if mine then
+    -- owned: fill every crate you have
+    c.n, c.nUnknown = math.max(c.have or 0, 1), false
+  else
+    -- crates needed to reach the target (one without a target, or when favor is unknown)
+    local target = Target()
+    c.n = (target and c.favor) and math.ceil(target / c.favor) or 1
+    c.nUnknown = target and not c.favor
+  end
   wipe(c.prices) wipe(c.owned) wipe(c.allowed) wipe(c.req) wipe(c.units)
   c.best = nil
   local prof = view.filter and view.filter.group == "prof" and view.filter.value
@@ -194,8 +204,8 @@ local function Evaluate(c, mine)
     if c.allowed[i] and total and (not c.best or total < c.prices[c.best]) then c.best = i end
   end
   c.crate = c.id and ns.Price(c.id)
-  c.crateNeed = mine and math.max(0, c.n - (c.have or 0)) or c.n
-  c.ownCrate = mine and c.crateNeed == 0
+  c.crateNeed = mine and 0 or c.n
+  c.ownCrate = mine
   local crateCost = c.crateNeed == 0 and 0 or (c.crate and c.crate * c.crateNeed)
   c.crateCost = crateCost
   c.crateUnknown = crateCost == nil
@@ -748,6 +758,7 @@ function ns.AddBuyFillLines(tooltip, unit, owned, rank, total, per, ratio, note,
 end
 
 local function Matches(c)
+  if Mode() == "owned" and (c.have or 0) == 0 then return false end
   local f = view.filter
   if f and f.group == "type" and c.kind ~= f.value then return false end
   if f and f.group == "prof" then
@@ -803,7 +814,7 @@ local function ShowRowTooltip(row)
   ns.SetCrateTitle(GameTooltip, c.name)
   GameTooltip:AddDoubleLine("Crate on the AH", c.crate and ns.Money(c.crate)
     or "|cff808080" .. (c.id and "no price" or "item not found yet") .. "|r", 0.4, 0.8, 1, 1, 1, 1)
-  if Target() then
+  if Target() and Mode() == "buy" then
     GameTooltip:AddLine(c.nUnknown and "Favor unknown: priced for 1 crate."
       or string.format("%d crate%s for %d favor (target %d)", c.n, c.n == 1 and "" or "s",
         c.n * c.favor, Target()), 1, 0.82, 0)
@@ -811,9 +822,8 @@ local function ShowRowTooltip(row)
   if c.favorEst then
     GameTooltip:AddLine("Favor ~" .. c.favor .. " is an estimate (Artisan isn't published yet).", 0.6, 0.6, 0.6)
   end
-  if c.have and c.have > 0 and Mode() == "mine" then
-    GameTooltip:AddLine("You own " .. c.have .. ": " .. (c.ownCrate and "no crates to buy."
-      or ("buy " .. c.crateNeed .. ".")), 0.25, 1, 0.25)
+  if c.have and c.have > 0 then
+    GameTooltip:AddLine("You have " .. c.have .. ": " .. ns.WhereText(c.where or {}), 0.25, 1, 0.25, true)
   end
   GameTooltip:AddLine(" ")
   -- best first, then cheapest first, unpriced last
@@ -1033,8 +1043,8 @@ local function MakeRow(i)
   add:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:AddLine("Add to cart", 1, 1, 1)
-    GameTooltip:AddLine(Mode() == "mine"
-      and "The crates you still need and the best bundle's missing materials (for the target, if set)."
+    GameTooltip:AddLine(Mode() == "owned"
+      and "The best bundle's missing materials for every crate you have."
       or "The crate(s) and the best bundle's materials (for the target, if set).", 0.8, 0.8, 0.8, true)
     GameTooltip:Show()
   end)
@@ -1074,17 +1084,20 @@ end
 
 function ns.RefreshWindow()
   if not frame then return end
-  local mine = Mode() == "mine"
+  local mine = Mode() == "owned"
   local all, list = CrateList(), {}
   local ratings = ns.CrateRatings()
   for _, c in ipairs(all) do
     Evaluate(c, mine)
-    c.rating = ratings[c.name]
-    -- craft mode: a crafted crate's rating is "buy crate + craft bundle"
-    if c.crafting then
-      c.rating = c.rating and c.rating.crafted and c.rating.crafted.buy
-    elseif c.rating and c.rating.unrated then
-      c.rating = nil
+    -- the rating for this view: the tooltip grid's cell for buy/owned x buy/craft
+    local r = ratings[c.name]
+    local cr = r and r.crafted
+    if mine then
+      c.rating = c.crafting and (cr and cr.have) or (r and r.fill)
+    elseif c.crafting then
+      c.rating = cr and cr.buy
+    else
+      c.rating = r and not r.unrated and r or nil
     end
     if Matches(c) then list[#list + 1] = c end
   end
@@ -1145,9 +1158,11 @@ function ns.RefreshWindow()
   frame.count:SetText(string.format("%d of %d crates", #list, #all))
   local fi = C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo and C_CurrencyInfo.GetCurrencyInfo(3402)
   frame.status:SetText(fi and fi.quantity and ("You have " .. fi.quantity .. ns.FavorIcon()) or "")
+  frame.targetBox:SetShown(not mine)
   frame.footer:SetText("|cff808080" .. (mine
-      and "My cost: owned crates are free, materials you have (bags + bank) are subtracted."
-      or "Market: crate + cheapest bundle at full Auctionator prices.")
+      and "Owned: crates on this character, its bank, the warband bank and alts (as of their last login). "
+        .. "Cost = filling them all; materials on this character are subtracted."
+      or "Buy: crate + cheapest bundle at Auctionator prices.")
     .. "  |cffff9933Orange|r|cff808080 total = crate not priced yet."
     .. (anyGuide and "  * = guide amounts until you hover that crate." or "") .. "|r")
   UpdateHeaders()
@@ -1155,7 +1170,7 @@ end
 
 local function Build()
   local UI = ns.UI
-  frame = UI.Window("CrateCostFrame", "Waylaid Crates - cheapest Merchant's Favor", WIDTH, 400, "cratesPos")
+  frame = UI.Window("CrateCostFrame", "Waylaid Crates - cheapest Merchant's Favor", WIDTH, 400, UI.POS_KEY)
   frame:SetScript("OnShow", function()
     -- every crate and bundle item, so shift-click links them straight away
     local ids = {}
@@ -1166,10 +1181,15 @@ local function Build()
   end)
 
   -- title row: target favor and what you have, then the nav bar
-  local tl = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-  tl:SetPoint("LEFT", frame.title, "RIGHT", 24, 0)
+  -- the target only applies to crates you'd buy: hidden in the Owned view
+  local tbox = CreateFrame("Frame", nil, frame)
+  tbox:SetSize(1, 20)
+  tbox:SetPoint("LEFT", frame.title, "RIGHT", 24, 0)
+  frame.targetBox = tbox
+  local tl = tbox:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+  tl:SetPoint("LEFT", tbox, "LEFT", 0, 0)
   tl:SetText("Target:")
-  local tb = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
+  local tb = CreateFrame("EditBox", nil, tbox, "InputBoxTemplate")
   tb:SetSize(50, 20)
   tb:SetPoint("LEFT", tl, "RIGHT", 10, 0)
   tb:SetAutoFocus(false)
@@ -1177,11 +1197,11 @@ local function Build()
   tb:SetMaxLetters(5)
   tb:SetJustifyH("CENTER")
   tb:SetText(Target() and tostring(Target()) or "")
-  local tickIcon = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  local tickIcon = tbox:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
   tickIcon:SetPoint("LEFT", tb, "RIGHT", 4, 0)
   tickIcon:SetText(ns.FavorIcon())
   frame.status = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  frame.status:SetPoint("LEFT", tickIcon, "RIGHT", 12, 0)
+  frame.status:SetPoint("LEFT", frame.title, "RIGHT", 210, 0)
   local function OnTarget(self)
     local t = tonumber(self:GetText())
     if t == 0 then t = nil end
@@ -1228,8 +1248,9 @@ local function Build()
       .. "profession). Other crates are the same either way." },
   }, 90, CraftBundles, function(v) CharDB().crateCraft = v ns.RefreshWindow() end)
   frame.viewToggle = UI.Toggle(frame, {
-    { "market", "Market", "The objective best at full AH prices." },
-    { "mine", "My cost", "Crates you own are free; materials you have (bags + bank) are subtracted." },
+    { "buy", "Buy", "Crates to buy: crate + bundle at AH prices." },
+    { "owned", "Owned", "Only the crates you have (this character, bank, warband bank, alts): the cost "
+      .. "of filling them, with materials on this character subtracted." },
   }, 70, Mode, function(v) CharDB().mode = v ns.RefreshWindow() end)
   UI.PlaceToggles(frame, { frame.bundleToggle, frame.viewToggle })
 
@@ -1262,7 +1283,7 @@ function ns.AddRowToCart(c)
     ns.Print("no priced bundle for " .. c.name .. " - nothing added.")
     return
   end
-  local mine = Mode() == "mine"
+  local mine = Mode() == "owned"
   local items = {}
   if c.crateNeed > 0 then
     items[#items + 1] = { id = c.id, name = "Waylaid Crate: " .. c.name, qty = c.crateNeed }
@@ -1283,8 +1304,5 @@ end
 
 function ns.ToggleWindow()
   if not frame then Build() frame:Hide() end
-  if frame:IsShown() then frame:Hide() return end
-  ns.UI.Place(frame, "cratesPos")
-  frame:Show()
-  frame:Raise()
+  ns.UI.ToggleView(frame)
 end

@@ -49,6 +49,7 @@ function UI.Window(name, titleText, width, height, posKey)
     end
   end)
   tinsert(UISpecialFrames, name)
+  UI.RegisterView(f)
 
   f.title = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
   f.title:SetPoint("TOPLEFT", 12, -10)
@@ -61,14 +62,45 @@ function UI.Window(name, titleText, width, height, posKey)
   return f
 end
 
--- Puts `f` where it was last dragged to (CrateCostDB[posKey]), else centred.
+-- The Crates, Writs and Merchant views act as one window: they share one saved position, and
+-- opening one swaps it in where the shown one was.
+UI.POS_KEY = "windowPos"
+local views = {}
+function UI.RegisterView(f) views[#views + 1] = f end
+
+function UI.Open(f)
+  local from
+  for _, v in ipairs(views) do
+    if v ~= f and v:IsShown() then from = v end
+  end
+  f:ClearAllPoints()
+  local left, top = from and from:GetLeft(), from and from:GetTop()
+  if left and top then
+    f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+  else
+    UI.Place(f, UI.POS_KEY)
+  end
+  for _, v in ipairs(views) do
+    if v ~= f then v:Hide() end
+  end
+  f:Show()
+  f:Raise()
+end
+
+-- Opens view `f`, or closes it if it's the one showing.
+function UI.ToggleView(f)
+  if f:IsShown() then f:Hide() else UI.Open(f) end
+end
+
+-- Puts `f` where it was last dragged to (CrateCostDB[posKey]), else centred. Centred means
+-- the top edge sits at the same height whatever the view's height, so swapping views lines up.
 function UI.Place(f, posKey)
   f:ClearAllPoints()
   local pos = posKey and type(CrateCostDB) == "table" and CrateCostDB[posKey]
   if pos and pos.x and pos.y then
     f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", pos.x, pos.y)
   else
-    f:SetPoint("CENTER")
+    f:SetPoint("TOP", UIParent, "CENTER", 0, 330)
   end
 end
 

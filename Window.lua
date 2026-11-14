@@ -360,9 +360,15 @@ end
 local TITLE_GROW = 8
 local labels = {}   -- tooltip -> its rating font string
 local odds = {}     -- tooltip -> the odds rows (ns.SetTitleOdds)
+local grids = {}    -- tooltip -> the rating grid (ns.SetTitleGrid)
 local function Restore(tooltip)
   local l = labels[tooltip]
   if l then l:Hide() end
+  local g = grids[tooltip]
+  if g then
+    g.shown = false
+    for _, fs in ipairs(g.pool) do fs:Hide() end
+  end
   local o = odds[tooltip]
   if o then
     o.shown = false
@@ -504,14 +510,100 @@ function ns.SetTitleOdds(tooltip, rows, widest, big, small)
   return true
 end
 
+-- A small table in the gap under the name: a header row (`heads`, index 1 = the corner, left
+-- empty) and `rows` = { {label, cell, cell, ...}, ... }. Labels are right-justified, cells
+-- centred under their header. Body text is `grow` over the title's size, the header `headGrow`.
+-- Sits at the tooltip's right edge once ns.AlignTitleRating knows it.
+local GRID_GAP = 12
+local function PlaceGrid(g, left, dx)
+  for _, p in ipairs(g.places) do
+    p.fs:ClearAllPoints()
+    p.fs:SetPoint(p.point, left, "BOTTOMLEFT", dx + p.x, p.y)
+  end
+end
+
+function ns.SetTitleGrid(tooltip, heads, rows, grow, headGrow)
+  local tn = tooltip.GetName and tooltip:GetName()
+  local left = tn and _G[tn .. "TextLeft1"]
+  local title = left and left:GetText()
+  if not (#rows > 0 and type(title) == "string") then return false end
+  local font, size = left:GetFont()
+  if not (font and size) then return false end
+
+  local g = grids[tooltip]
+  if not g then
+    g = { pool = {} }
+    grids[tooltip] = g
+    HookRestore(tooltip)
+  end
+  if g.shown then return true end   -- already placed on this tooltip
+  for _, fs in ipairs(g.pool) do fs:Hide() end
+
+  local bodySize, headSize = size + (grow or 4), size + (headGrow or -2)
+  local used = 0
+  local function FS(text, sz, justify)
+    used = used + 1
+    local fs = g.pool[used]
+    if not fs then
+      fs = tooltip:CreateFontString(nil, "OVERLAY")
+      g.pool[used] = fs
+    end
+    fs:SetFont(font, sz, "OUTLINE")
+    fs:SetJustifyH(justify)
+    fs:SetText(text)
+    fs:Show()
+    return fs
+  end
+
+  -- column widths, measured on our own font string (a tooltip's report secret widths)
+  local ncol = #heads
+  local w = {}
+  for j = 1, ncol do w[j] = 0 end
+  local probe = FS("", headSize, "CENTER")
+  for j = 2, ncol do w[j] = math.max(w[j], ns.MeasureWidth(probe, heads[j])) end
+  probe:SetFont(font, bodySize, "OUTLINE")
+  for _, r in ipairs(rows) do
+    for j = 1, ncol do w[j] = math.max(w[j], ns.MeasureWidth(probe, r[j] or "")) end
+  end
+  probe:Hide()
+  used = 0
+  local x = { 0 }
+  for j = 2, ncol do x[j] = x[j - 1] + w[j - 1] + GRID_GAP end
+  g.width = x[ncol] + w[ncol]
+
+  -- rows from the bottom up, header on top
+  g.places = {}
+  local y = 1
+  for i = #rows, 1, -1 do
+    local r = rows[i]
+    g.places[#g.places + 1] = { fs = FS(r[1], bodySize, "RIGHT"), point = "BOTTOMRIGHT", x = w[1], y = y }
+    for j = 2, ncol do
+      g.places[#g.places + 1] = { fs = FS(r[j] or "", bodySize, "CENTER"), point = "BOTTOM",
+                                  x = x[j] + w[j] / 2, y = y }
+    end
+    y = y + bodySize + 2
+  end
+  for j = 2, ncol do
+    g.places[#g.places + 1] = { fs = FS(heads[j], headSize, "CENTER"), point = "BOTTOM",
+                                x = x[j] + w[j] / 2, y = y }
+  end
+  y = y + headSize + 2
+  g.shown = true
+
+  left:SetText(title .. string.rep("\n ", math.ceil(y / (size + 2))))
+  PlaceGrid(g, left, 0)   -- left under the name until AlignTitleRating knows the edge
+  return true
+end
+
 -- After the tooltip is shown (widths known): slide the label right so it ends where the
 -- bundle prices end, i.e. it sits in the gap under the name, above the price column.
 -- `edge` is the price column's anchor region (the bundle line); nil = the tooltip's text edge.
 local EDGE_PAD = 10
 function ns.AlignTitleRating(tooltip, edge)
-  local l, o = labels[tooltip], odds[tooltip]
+  local l, o, g = labels[tooltip], odds[tooltip], grids[tooltip]
   local oddsShown = o and o.shown
-  if not (oddsShown or (l and l:IsShown() and not l.keepLeft)) then return end
+  local gridShown = g and g.shown
+  if not (oddsShown or gridShown or (l and l:IsShown() and not l.keepLeft)) then return end
   local tn = tooltip:GetName()
   local left = tn and _G[tn .. "TextLeft1"]
   -- positions can be secret on Forever: then the label stays where SetTitleRating put it
@@ -522,6 +614,10 @@ function ns.AlignTitleRating(tooltip, edge)
   end
   local x0 = left and Plain(left:GetLeft())
   if not (right and x0) then return end
+  if gridShown then
+    PlaceGrid(g, left, right - x0 - g.width)
+    return
+  end
   if oddsShown then
     -- values column against the edge, names ending just left of it
     PlaceOdds(o, left, right - x0 - o.nameW - COL_GAP - o.valueW)

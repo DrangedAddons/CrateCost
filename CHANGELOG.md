@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.26.0
+- Writ tooltips rate all four ways to do a writ, as a 2x2 grid under the name: Buy writ / Have writ by Buy item / Craft item. New: buy the writ and craft the item. All four are measured against the cheapest rep you can buy outright. "?" = a price is missing, "-" = no recipe data.
+- Four cost lines to match ("Buy writ + craft item (Engineering)" etc.), per rep and against the cheapest buy. The ones for your situation are white: whether you hold the writ, and craft lines only if this character has the profession.
+
 ## 0.25.0
 - Writs window: a **Buy items | Craft items** toggle (per character) replaces the separate craft columns. One set of columns (item, total, per rep, rating, target) follows the toggle; craft mode rates writ + crafted item per rep against every writ's crafted cost. The window is back to its narrower width.
 - Columns are grouped: the writ | the route | the rep target | what you have.

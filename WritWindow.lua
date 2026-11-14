@@ -148,7 +148,7 @@ local function Calc()
     e.perCraft = e.totalCraft and e.totalCraft / e.rep or nil
     e.per = e.total and e.total / e.rep or nil
     e.label, e.color, e.ratio, e.place = nil, nil, nil, nil
-    e.fillRating, e.craftRating, e.craftList = nil, nil, nil
+    e.fillRating, e.craftRating, e.craftList, e.buyCraftRating = nil, nil, nil, nil
     if e.per then rated[#rated + 1] = e end
     if e.fill then
       fillSum[e.rank] = (fillSum[e.rank] or 0) + e.fill
@@ -180,8 +180,10 @@ local function Calc()
   local bestBuy = ns.CheapestBuy(proxies, function(p) return p.e.writPrice ~= nil end)
   for _, e in ipairs(Entries()) do
     if e.fill then e.fillRating = ns.RateFill(e.fill / e.rep, bestBuy) end
-    -- "to Craft": the same, with the item crafted instead of bought (needs the profession)
+    -- have the writ, craft the item (needs the profession)
     if e.craft then e.craftRating = ns.RateFill(e.craft * e.qty / e.rep, bestBuy) end
+    -- buy the writ, craft the item
+    if e.craft and e.writPrice then e.buyCraftRating = ns.RateFill(e.perCraft, bestBuy) end
   end
   -- Sealed envelopes hold a random writ of the rank, so there's no single rating: each writ
   -- of the rank is rated as if it came out of the envelope (envelope price + its fill, per rep,
@@ -415,40 +417,62 @@ local function AddFillLines(tt, e)
   end
 end
 
--- Cost per rep both ways: buying the writ and filling it, or filling one you have. The line
--- that applies to you is white, the other grey.
--- The third cost line: a writ you have, filled by crafting the item. White if this character
--- has the profession, grey if not. Nothing for an item with no recipe data.
-local function AddCraftLine(tt, e)
-  local r = ns.Crafts[e.item]
-  if not r then return end
-  local c = MyProfessions()[r[2]] and 1 or 0.6
-  local x = e.craftRating
-  if not x then
-    tt:AddDoubleLine("If you craft it (" .. r[2] .. ")", "reagents not priced", c, c, c, 0.5, 0.5, 0.5)
-    return
+-- The four ways to do a writ: buy it or have it, then buy the item or craft it. Each is
+-- { rating, per rep, why it's missing }. Ratings are against the cheapest rep you can buy
+-- outright (buy writ + buy item), the same for everyone.
+local function Ways(e)
+  local craftable = ns.Crafts[e.item] ~= nil
+  local function Way(r, per, missing)
+    if r and per then return { r = r, per = per } end
+    return { missing = missing }
   end
-  local how = x.ratio < 0.995 and string.format("%.1fx the cheapest buy", x.ratio)
-    or x.ratio <= 1.005 and "the cheapest buy" or string.format("%.1fx the cheapest buy", x.ratio)
-  tt:AddDoubleLine("If you craft it (" .. r[2] .. ")",
-    ns.Money(math.floor(x.per + 0.5)) .. " per rep, " .. how, c, c, c, c, c, c)
+  local noWrit, noItem = "writ not on the AH", "item not on the AH"
+  local noCraft = craftable and "reagents not priced" or "no recipe data"
+  return {
+    buyBuy = Way(e.writPrice and e.label and e, e.writPrice and e.per, e.writPrice and noItem or noWrit),
+    buyCraft = Way(e.buyCraftRating, e.buyCraftRating and e.buyCraftRating.per,
+      not e.writPrice and noWrit or noCraft),
+    haveBuy = Way(e.fillRating, e.fillRating and e.fillRating.per, noItem),
+    haveCraft = Way(e.craftRating, e.craftRating and e.craftRating.per, noCraft),
+  }
 end
 
+local function Cell(w)
+  if w.r then return w.r.color .. w.r.label .. "|r" end
+  return GREY .. (w.missing == "no recipe data" and "-" or "?") .. "|r"
+end
+
+-- One cost line per way. Lines for your situation are white (have the writ or not; craft lines
+-- only with the profession), the rest grey.
 local function AddRatingLine(tt, e)
-  local f = e.fillRating
-  if not f then
-    tt:AddDoubleLine("Rating", "to Buy / to Fill not rated (the item isn't priced on the AH)",
-      0.4, 0.8, 1, 0.5, 0.5, 0.5)
-    AddCraftLine(tt, e)
-    return
+  local ways = Ways(e)
+  local r = ns.Crafts[e.item]
+  local prof = r and r[2]
+  local own = Count(e.writ) > 0
+  local canCraft = prof and MyProfessions()[prof]
+  local function How(x)
+    if x < 0.995 then return string.format("%.1fx the cheapest buy", x) end
+    if x <= 1.005 then return "the cheapest buy" end
+    return string.format("%.1fx the cheapest buy", x)
   end
-  local owned = Count(e.writ)
-  if e.writPrice then
-    ns.AddBuyFillLines(tt, "rep", owned > 0 and owned or nil, e.place, e.total_rated, e.per, e.ratio, nil, f)
-  else
-    ns.AddBuyFillLines(tt, "rep", owned > 0 and owned or nil, nil, nil, nil, nil, "writ not priced", f)
+  local function Line(label, w, haveRow, craftCol)
+    local mine = (own == haveRow) and (not craftCol or canCraft)
+    local c = mine and 1 or 0.6
+    if w.r then
+      local ratio = w.r.ratio or 1
+      tt:AddDoubleLine(label, ns.Money(math.floor(w.per + 0.5)) .. " per rep, " .. How(ratio),
+        c, c, c, c, c, c)
+    else
+      tt:AddDoubleLine(label, w.missing, c, c, c, 0.5, 0.5, 0.5)
+    end
   end
-  AddCraftLine(tt, e)
+  local craftName = prof and (" (" .. prof .. ")") or ""
+  Line("Buy writ + buy item" .. (ways.buyBuy.r and string.format("  #%d of %d", e.place, e.total_rated) or ""),
+    ways.buyBuy, false, false)
+  Line("Buy writ + craft item" .. craftName, ways.buyCraft, false, true)
+  Line(own and ("Have writ (" .. Count(e.writ) .. ") + buy item") or "Have writ + buy item", ways.haveBuy, true, false)
+  Line((own and ("Have writ (" .. Count(e.writ) .. ")") or "Have writ") .. " + craft item" .. craftName,
+    ways.haveCraft, true, true)
 end
 
 local function RatingText(e)
@@ -458,10 +482,13 @@ end
 -- The writ's own lines, under its item tooltip or in the list's row tooltip.
 local function AddWritLines(tt, e, titled)
   Calc()
-  -- "X to Buy" / "Y to Fill"; no buy rating while the writ itself has no AH price
+  -- the four ratings as a grid: writ (buy / have) x item (buy / craft)
   if not titled then
-    ns.SetBuyFillTitle(tt, e.writPrice and e.label and e or nil, e.fillRating, true,
-      ns.Crafts[e.item] ~= nil, e.craftRating)
+    local w = Ways(e)
+    ns.SetTitleGrid(tt, { "", "Buy item", "Craft item" }, {
+      { "Buy writ", Cell(w.buyBuy), Cell(w.buyCraft) },
+      { "Have writ", Cell(w.haveBuy), Cell(w.haveCraft) },
+    }, 4, -2)
   end
   tt:AddLine(" ")
   tt:AddDoubleLine(RANK_COLOR[e.rank] .. e.rank .. "|r writ", e.rep .. " reputation", 1, 1, 1, 1, 1, 1)

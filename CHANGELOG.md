@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.19.0
+- Crate tooltips show two ratings under the name: **to Buy** (crate + cheapest bundle per favor, the rating so far) and **to Fill** (cheapest bundle per favor against the cheapest fill of any crate). A crate can be Poor to Buy and Great to Fill. Both are the same for everyone; the one that applies to you is drawn bigger (Fill if you have the crate in bags or bank).
+- The cost per favor shows both ways: "If you buy it" and "If you have it" ("You have N" when you do), each with its rank. The one that applies to you is white, the other grey.
+- A crate with no AH price of its own shows "? to Buy" instead of a rating based on its bundle alone.
+
 ## 0.18.9
 - Shift-click links are reliable: the crate and writ windows ask the server for all their items when they open, so links are ready before you click. A click on an item that still isn't loaded waits up to 5 seconds (and polls, in case the load callback never fires) instead of 1.
 - Chat no longer gets the bare name in place of a link. If an item really won't load, CrateCost says so and you shift-click again. Search boxes still get the name.

@@ -230,9 +230,13 @@ local ratingCache, ratingTime
 
 function ns.InvalidateRatings() ratingCache = nil end
 
+-- Two ratings per crate, both the same for everyone (a linked crate reads the same in any
+-- chat): "to Buy" = (crate + cheapest bundle) per favor against the cheapest such crate, and
+-- "to Fill" = cheapest bundle per favor against the cheapest fill of any crate (for a crate
+-- you already have). The buy rating is the entry itself, the fill rating is its .fill.
 function ns.CrateRatings()
   if ratingCache and GetTime() - ratingTime < RATING_TTL then return ratingCache end
-  local rated = {}
+  local rated, fills = {}, {}
   for _, c in ipairs(CrateList()) do
     local favor = c.favor
     local bundle
@@ -244,10 +248,14 @@ function ns.CrateRatings()
     if favor and bundle then
       local crate = c.id and ns.Price(c.id)
       rated[#rated + 1] = { name = c.name, per = (bundle + (crate or 0)) / favor, noCrate = crate == nil }
+      fills[#fills + 1] = { name = c.name, per = bundle / favor }
     end
   end
   local out = {}
   for _, r in ipairs(ns.RateList(rated)) do out[r.name] = r end
+  for _, f in ipairs(ns.RateList(fills)) do
+    if out[f.name] then out[f.name].fill = f end
+  end
   ratingCache, ratingTime = out, GetTime()
   return out
 end
@@ -285,7 +293,21 @@ function ns.RatingText(r)
   return r.color, r.label
 end
 
--- Two tooltip lines for crate `name`. Returns true if it had a rating.
+-- Two rows under a crate's name: "Poor to Buy" / "Great to Fill". The one that applies to
+-- you is drawn bigger: Fill if you have the crate (`owned`), Buy if you don't.
+function ns.SetCrateTitle(tooltip, name, owned)
+  local r = ns.CrateRatings()[name]
+  if not (r and r.fill) then return false end
+  local f = r.fill
+  -- no AH price for the crate itself: the buy cost isn't known, don't rate it
+  local bc, bl = r.color, r.label
+  if r.noCrate then bc, bl = "|cff808080", "?" end
+  return ns.SetTitleOdds(tooltip, {
+    { name = bc .. bl .. "|r", value = bc .. "to Buy|r", pct = owned and 0 or 1 },
+    { name = f.color .. f.label .. "|r", value = f.color .. "to Fill|r", pct = owned and 1 or 0 },
+  }, nil, 6, 0)
+end
+
 -- The label for the tooltip's title row ("Great", coloured), or nil if the crate isn't rated.
 function ns.RatingTitle(name)
   local r = ns.CrateRatings()[name]
@@ -383,8 +405,9 @@ end
 -- are drawn bigger than the title, the rest smaller, so the likeliest tier is what you see.
 -- `rows` = { {name = coloured, value = coloured, pct = number}, ... }. `widest` is the widest
 -- value text ("100%"), so the column has the same width on every tooltip.
-local ODDS_BIG, ODDS_SMALL = 4, -2   -- font size over the title's
-function ns.SetTitleOdds(tooltip, rows, widest)
+local ODDS_BIG, ODDS_SMALL = 4, -2   -- font size over the title's (default)
+function ns.SetTitleOdds(tooltip, rows, widest, big, small)
+  big, small = big or ODDS_BIG, small or ODDS_SMALL
   local tn = tooltip.GetName and tooltip:GetName()
   local left = tn and _G[tn .. "TextLeft1"]
   local title = left and left:GetText()
@@ -412,7 +435,7 @@ function ns.SetTitleOdds(tooltip, rows, widest)
       vf = tooltip:CreateFontString(nil, "OVERLAY")
       o.names[i], o.values[i] = nf, vf
     end
-    local sz = size + (r.pct == top and ODDS_BIG or ODDS_SMALL)
+    local sz = size + (r.pct == top and big or small)
     sizes[i] = sz
     height = height + sz + 2
     nf:SetFont(font, sz, "OUTLINE")
@@ -472,17 +495,23 @@ function ns.AlignTitleRating(tooltip, edge)
 end
 
 -- The detail line under the favor line (the label itself sits above the prices).
-function ns.AddRatingLines(tooltip, name)
+-- Cost per favor both ways: buying the crate and filling it, or filling one you have. The
+-- line that applies to you (`owned` = how many you have) is white, the other grey.
+function ns.AddRatingLines(tooltip, name, owned)
   local r = ns.CrateRatings()[name]
-  if not r then
+  if not (r and r.fill) then
     tooltip:AddDoubleLine("Rating", "not rated (no price or favor yet)", 0.4, 0.8, 1, 0.5, 0.5, 0.5)
     return false
   end
-  local how = r.rank == 1 and "cheapest favor of all crates"
-    or string.format("%.1fx the cheapest favor", r.ratio)
-  tooltip:AddDoubleLine(string.format("#%d of %d crates", r.rank, r.total),
-    ns.Money(math.floor(r.per + 0.5)) .. " per favor, " .. how
-    .. (r.noCrate and " (crate not priced)" or ""), 0.6, 0.6, 0.6, 0.6, 0.6, 0.6)
+  local has = owned and owned > 0
+  local function Line(label, x, what, mine, note)
+    local how = x.rank == 1 and ("cheapest " .. what) or string.format("%.1fx the cheapest", x.ratio)
+    local c = mine and 1 or 0.6
+    tooltip:AddDoubleLine(string.format("%s  #%d of %d", label, x.rank, x.total),
+      ns.Money(math.floor(x.per + 0.5)) .. " per favor, " .. how .. (note or ""), c, c, c, c, c, c)
+  end
+  Line("If you buy it", r, "of all crates", not has, r.noCrate and " (crate not priced)" or nil)
+  Line(has and ("You have " .. owned) or "If you have it", r.fill, "fill", has)
   return true
 end
 
@@ -538,7 +567,7 @@ local function ShowRowTooltip(row)
   if not c then return end
   GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
   GameTooltip:AddLine((RANK_COLOR[c.rank] or "") .. "Waylaid Crate: " .. c.name .. "|r")
-  ns.SetTitleRating(GameTooltip, c.name)
+  ns.SetCrateTitle(GameTooltip, c.name, (c.have or 0) > 0)
   GameTooltip:AddDoubleLine("Crate on the AH", c.crate and ns.Money(c.crate)
     or "|cff808080" .. (c.id and "no price" or "item not found yet") .. "|r", 0.4, 0.8, 1, 1, 1, 1)
   if Target() then
@@ -580,7 +609,7 @@ local function ShowRowTooltip(row)
     end
   end
   GameTooltip:AddLine(" ")
-  ns.AddRatingLines(GameTooltip, c.name)
+  ns.AddRatingLines(GameTooltip, c.name, c.have)
   if not c.live then
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine("Amounts from the beta guide. Hover this crate in your bags to use its real amounts.",

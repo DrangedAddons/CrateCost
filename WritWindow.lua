@@ -144,6 +144,7 @@ local function Calc()
     e.total = e.fill and (e.fill + (e.writPrice or 0)) or nil
     e.per = e.total and e.total / e.rep or nil
     e.label, e.color, e.ratio, e.place = nil, nil, nil, nil
+    e.fillRating = nil
     if e.per then rated[#rated + 1] = e end
     if e.fill then
       fillSum[e.rank] = (fillSum[e.rank] or 0) + e.fill
@@ -159,6 +160,17 @@ local function Calc()
   for _, p in ipairs(proxies) do
     local e = p.e
     e.place, e.total_rated, e.ratio, e.label, e.color = p.rank, p.total, p.ratio, p.label, p.color
+  end
+  -- "to Fill": the fill alone per rep (for a writ you already have), against the cheapest
+  -- fill of any writ. Same for everyone, like the buy rating above.
+  local fills = {}
+  for _, e in ipairs(Entries()) do
+    if e.fill then fills[#fills + 1] = { per = e.fill / e.rep, e = e } end
+  end
+  ns.RateList(fills)
+  for _, p in ipairs(fills) do
+    p.e.fillRating = { place = p.rank, total = p.total, ratio = p.ratio, label = p.label,
+                       color = p.color, per = p.per }
   end
   -- Sealed envelopes hold a random writ of the rank, so there's no single rating: each writ
   -- of the rank is rated as if it came out of the envelope (envelope price + its fill, per rep,
@@ -370,15 +382,29 @@ local function AddFillLines(tt, e)
   end
 end
 
+-- Cost per rep both ways: buying the writ and filling it, or filling one you have. The line
+-- that applies to you is white, the other grey.
 local function AddRatingLine(tt, e)
-  if not e.per then
+  local f = e.fillRating
+  if not f then
     tt:AddDoubleLine("Rating", "not rated (the item has no price yet)", 0.4, 0.8, 1, 0.5, 0.5, 0.5)
     return
   end
-  local how = e.place == 1 and "cheapest rep of all writs" or string.format("%.1fx the cheapest rep", e.ratio)
-  tt:AddDoubleLine(string.format("#%d of %d writs", e.place, e.total_rated),
-    ns.Money(math.floor(e.per + 0.5)) .. " per rep, " .. how
-    .. (e.writPrice and "" or " (writ not priced)"), 0.6, 0.6, 0.6, 0.6, 0.6, 0.6)
+  local owned = Count(e.writ)
+  local has = owned > 0
+  local function Line(label, place, total, per, ratio, mine, note)
+    local how = place == 1 and "cheapest" or string.format("%.1fx the cheapest", ratio)
+    local c = mine and 1 or 0.6
+    tt:AddDoubleLine(string.format("%s  #%d of %d", label, place, total),
+      ns.Money(math.floor(per + 0.5)) .. " per rep, " .. how .. (note or ""), c, c, c, c, c, c)
+  end
+  if e.writPrice then
+    Line("If you buy it", e.place, e.total_rated, e.per, e.ratio, not has)
+  else
+    local c = has and 0.6 or 1
+    tt:AddDoubleLine("If you buy it", "writ not priced", c, c, c, 0.5, 0.5, 0.5)
+  end
+  Line(has and ("You have " .. owned) or "If you have it", f.place, f.total, f.per, f.ratio, has)
 end
 
 local function RatingText(e)
@@ -388,7 +414,8 @@ end
 -- The writ's own lines, under its item tooltip or in the list's row tooltip.
 local function AddWritLines(tt, e, titled)
   Calc()
-  if not titled then ns.SetTitleRating(tt, nil, RatingText(e)) end
+  -- "X to Buy" / "Y to Fill"; no buy rating while the writ itself has no AH price
+  if not titled then ns.SetBuyFillTitle(tt, e.writPrice and e.label and e or nil, e.fillRating) end
   tt:AddLine(" ")
   tt:AddDoubleLine(RANK_COLOR[e.rank] .. e.rank .. "|r writ", e.rep .. " reputation", 1, 1, 1, 1, 1, 1)
   if e.recipient ~= "" then tt:AddDoubleLine("Deliver to", e.recipient, 1, 0.82, 0, 1, 1, 1) end

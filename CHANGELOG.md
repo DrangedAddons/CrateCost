@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.20.0
+- Writ tooltips get the crate treatment: "X to Buy" / "Y to Fill" under the name, same size. to Buy = writ + fill per rep (the list's rating); to Fill = the fill alone per rep against the cheapest fill of any writ. A writ with no AH price shows "? to Buy".
+- The cost per rep shows both ways: "If you buy it" and "If you have it" ("You have N" when you hold the writ), the one that applies to you in white.
+
 ## 0.19.1
 - "to Buy" and "to Fill" are the same size under the crate name (no bigger row for the one that applies to you).
 

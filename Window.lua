@@ -293,19 +293,25 @@ function ns.RatingText(r)
   return r.color, r.label
 end
 
--- Two rows under a crate's name, same size: "Poor to Buy" / "Great to Fill".
-local CRATE_TITLE_GROW = 4   -- font size over the title's
+-- Two rows under an item's name, same size: "Poor to Buy" / "Great to Fill". `buy` and
+-- `fill` are ratings (.label, .color); a nil `buy` (the item itself has no AH price) shows
+-- a grey "?". Used by crates and writs.
+local TITLE_PAIR_GROW = 4   -- font size over the title's
+function ns.SetBuyFillTitle(tooltip, buy, fill)
+  if not fill then return false end
+  local bc, bl = "|cff808080", "?"
+  if buy then bc, bl = buy.color, buy.label end
+  return ns.SetTitleOdds(tooltip, {
+    { name = bc .. bl .. "|r", value = bc .. "to Buy|r", pct = 0 },
+    { name = fill.color .. fill.label .. "|r", value = fill.color .. "to Fill|r", pct = 0 },
+  }, nil, TITLE_PAIR_GROW, TITLE_PAIR_GROW)
+end
+
 function ns.SetCrateTitle(tooltip, name)
   local r = ns.CrateRatings()[name]
   if not (r and r.fill) then return false end
-  local f = r.fill
   -- no AH price for the crate itself: the buy cost isn't known, don't rate it
-  local bc, bl = r.color, r.label
-  if r.noCrate then bc, bl = "|cff808080", "?" end
-  return ns.SetTitleOdds(tooltip, {
-    { name = bc .. bl .. "|r", value = bc .. "to Buy|r", pct = 0 },
-    { name = f.color .. f.label .. "|r", value = f.color .. "to Fill|r", pct = 0 },
-  }, nil, CRATE_TITLE_GROW, CRATE_TITLE_GROW)
+  return ns.SetBuyFillTitle(tooltip, not r.noCrate and r or nil, r.fill)
 end
 
 -- The label for the tooltip's title row ("Great", coloured), or nil if the crate isn't rated.

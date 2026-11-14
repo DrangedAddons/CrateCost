@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.30.2
+- Owned view: the crate / writ cost column becomes **Who**, the character that has it (yours in green, "+N" when more characters have some; the row tooltip lists them all). Sortable, this character first.
+
 ## 0.30.1
 - Owned counts read the bag addons' records, so alts and their banks show up without logging each one in first: Syndicator (Baganator) first, with mail; else EllesmereUI Bags' offline bank. CrateCost's own records are the fallback. Only one source is used, so nothing counts twice; this character's bags are always read live.
 - Row tooltips drop the "Amounts from the beta guide" and "Shift-click: search in Auctionator" lines.

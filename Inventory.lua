@@ -183,6 +183,27 @@ function ns.OwnedWhere(id)
   return total, where
 end
 
+-- Who has it, short, for the Owned views' Who column: the first holder's name (this
+-- character's in green), "+N" for the others. "" when nobody has it.
+function ns.WhoText(where)
+  local first = where and where[1]
+  if not first then return "" end
+  local name
+  if first.name == "here" then name = "|cff40ff40" .. (UnitName("player") or "you") .. "|r"
+  elseif first.alt then name = first.name
+  else name = "Warband" end
+  if #where > 1 then name = name .. " |cff808080+" .. (#where - 1) .. "|r" end
+  return name
+end
+
+-- The Who column's sort key: this character first, then by name.
+function ns.WhoSort(where)
+  local first = where and where[1]
+  if not first then return nil end
+  if first.name == "here" then return " " end
+  return first.name:lower()
+end
+
 -- "2 here, 1 on Moonlight (bank), 1 in the warband bank"
 function ns.WhereText(where)
   local parts = {}

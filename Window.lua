@@ -12,7 +12,7 @@ local CART_ATLAS, CART_FILE = "Perks-ShoppingCart", "Interface\\AddOns\\CrateCos
 local COLS = {
   { key = "name",   title = "Crate",       x = 10,  w = 175, justify = "LEFT"  },
   { key = "n",      title = "Crates",      x = 190, w = 40,  justify = "RIGHT", desc = false },
-  { key = "crate",  title = "Crate cost",  x = 235, w = 92,  justify = "RIGHT", desc = false, money = true },
+  { key = "crate",  title = "Crate cost",  ownedTitle = "Who", x = 235, w = 92,  justify = "RIGHT", desc = false, money = true },
   { key = "best",   title = "Best bundle", craftTitle = "Cheapest to craft", x = 345, w = 240, justify = "LEFT"  },
   { key = "bundle", title = "Bundle cost", craftTitle = "Craft cost", x = 590, w = 92, justify = "RIGHT", desc = false, money = true },
   { key = "cost",   title = "Total cost",  x = 687, w = 96,  justify = "RIGHT", desc = false, money = true },
@@ -781,7 +781,10 @@ local function SortValue(c, key)
   if key == "best" then return c.bestName and c.bestName:lower() end
   if key == "have" then return c.have or 0 end
   if key == "bundle" then return c.bundleCost end
-  if key == "crate" then return c.crateCost end
+  if key == "crate" then
+    if Mode() == "owned" then return ns.WhoSort(c.where) end
+    return c.crateCost
+  end
   if key == "rating" then return c.rating and -c.rating.ratio end   -- higher = better
   return c[key]
 end
@@ -1065,7 +1068,7 @@ end
 
 local function UpdateHeaders()
   for _, h in ipairs(headers) do
-    local title = (CraftBundles() and h.col.craftTitle) or h.col.title
+    local title = (Mode() == "owned" and h.col.ownedTitle) or (CraftBundles() and h.col.craftTitle) or h.col.title
     ns.UI.HeaderText(h, title, h.col.key == view.sort, view.desc)
   end
   if frame.filterBtn then
@@ -1125,7 +1128,7 @@ function ns.RefreshWindow()
       SetMoney(row, "cost", nil, nil, "")
     end
     if c.ownCrate then
-      SetMoney(row, "crate", nil, nil, "|cff40ff40owned|r")
+      SetMoney(row, "crate", nil, nil, ns.WhoText(c.where))
     else
       SetMoney(row, "crate", c.crateCost, nil, "|cff808080?|r")
     end

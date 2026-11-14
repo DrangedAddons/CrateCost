@@ -17,7 +17,7 @@ local COLS = {
   { key = "rank", title = "Rank", x = 279, w = 66, justify = "LEFT", desc = false },
   { key = "skill", title = "Skill", x = 350, w = 30, justify = "RIGHT", desc = false },
   { key = "rep", title = "Rep", x = 385, w = 30, justify = "RIGHT", desc = true },
-  { key = "writ", title = "Writ cost", x = 420, w = 92, justify = "RIGHT", desc = false, money = true },
+  { key = "writ", title = "Writ cost", ownedTitle = "Who", x = 420, w = 92, justify = "RIGHT", desc = false, money = true },
   { key = "item", title = "Buy item", craftTitle = "Craft item", x = 530, w = 92, justify = "RIGHT", desc = false, money = true },
   { key = "total", title = "Total cost", x = 627, w = 96, justify = "RIGHT", desc = false, money = true },
   { key = "per", title = "Per rep", x = 728, w = 92, justify = "RIGHT", desc = false, money = true },
@@ -377,7 +377,10 @@ local function SortValue(e, key)
   if key == "name" or key == "prof" then return e[key]:lower() end
   if key == "rank" then return RANK_ORDER[e.rank] * 1000 + e.skill end
   if key == "skill" or key == "rep" then return e[key] end
-  if key == "writ" then return e.writPrice end
+  if key == "writ" then
+    if Owning() then return ns.WhoSort(e.writWhere) end
+    return e.writPrice
+  end
   if key == "rating" then
     local ratio = select(6, Route(e))
     return ratio and -ratio
@@ -731,7 +734,7 @@ function Draw()
       c.skill:SetText(e.skill)
       c.rep:SetText(e.rep)
       if Owning() then
-        SetMoney(row, "writ", nil, nil, "|cff40ff40owned|r")
+        SetMoney(row, "writ", nil, nil, ns.WhoText(e.writWhere))
       else
         SetMoney(row, "writ", e.writPrice, nil, NONE)
       end
@@ -783,7 +786,7 @@ end
 
 local function UpdateHeaders()
   for _, h in ipairs(headers) do
-    local title = (Crafting() and h.col.craftTitle) or h.col.title
+    local title = (Owning() and h.col.ownedTitle) or (Crafting() and h.col.craftTitle) or h.col.title
     if h.col.key == "target" and Target() then title = "To " .. STANDINGS[Target()][2] end
     ns.UI.HeaderText(h, title, h.col.key == view.sort, view.desc)
   end

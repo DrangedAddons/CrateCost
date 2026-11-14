@@ -237,7 +237,7 @@ function ns.InvalidateRatings() ratingCache = nil end
 -- The buy rating is the entry itself, the fill rating is its .fill.
 function ns.CrateRatings()
   if ratingCache and GetTime() - ratingTime < RATING_TTL then return ratingCache end
-  local rated, fills = {}, {}
+  local rated, fills, crafts = {}, {}, {}
   for _, c in ipairs(CrateList()) do
     local favor = c.favor
     local bundle
@@ -250,6 +250,21 @@ function ns.CrateRatings()
       local crate = c.id and ns.Price(c.id)
       rated[#rated + 1] = { name = c.name, per = (bundle + (crate or 0)) / favor, noCrate = crate == nil }
       fills[#fills + 1] = { name = c.name, per = bundle / favor }
+      -- crafted crates (Fabrics, Ingots, Parts): the bundle that's cheapest to make
+      if ns.CraftedKinds[c.kind] then
+        local cr = { crate = crate }
+        for _, b in ipairs(c.bundles) do
+          local id = ns.ItemIDs[b[1]]
+          local unit = id and ns.ItemCraftCost and ns.ItemCraftCost(id)
+          if unit and (not cr.cost or unit * b[2] < cr.cost) then
+            cr.cost, cr.bundle = unit * b[2], b[2] .. " " .. b[1]
+            cr.prof = ns.Crafts[id] and ns.Crafts[id][2]
+          end
+          if not cr.prof and id and ns.Crafts and ns.Crafts[id] then cr.prof = ns.Crafts[id][2] end
+        end
+        crafts[c.name] = cr
+        cr.favor = favor
+      end
     end
   end
   local out = {}
@@ -257,6 +272,17 @@ function ns.CrateRatings()
   local best = ns.CheapestBuy(rated, function(r) return not r.noCrate end)
   for _, f in ipairs(fills) do
     if out[f.name] then out[f.name].fill = ns.RateFill(f.per, best) end
+  end
+  -- the craft column: have the crate + craft the bundle, buy the crate + craft the bundle
+  for name, cr in pairs(crafts) do
+    local r = out[name]
+    if r then
+      r.crafted = cr
+      if cr.cost then
+        cr.have = ns.RateFill(cr.cost / cr.favor, best)
+        if cr.crate then cr.buy = ns.RateFill((cr.cost + cr.crate) / cr.favor, best) end
+      end
+    end
   end
   ratingCache, ratingTime = out, GetTime()
   return out
@@ -338,11 +364,22 @@ function ns.SetBuyFillTitle(tooltip, buy, fill, always, withCraft, craft)
   return ns.SetTitleOdds(tooltip, rows, nil, TITLE_PAIR_GROW, TITLE_PAIR_GROW)
 end
 
+local function GridCell(x)
+  if x then return x.color .. x.label .. "|r" end
+  return "|cff808080?|r"
+end
+
 function ns.SetCrateTitle(tooltip, name)
   local r = ns.CrateRatings()[name]
   if not (r and r.fill) then return false end
-  -- no AH price for the crate itself: the buy cost isn't known, don't rate it
-  return ns.SetBuyFillTitle(tooltip, not r.noCrate and r or nil, r.fill)
+  local buy = not r.noCrate and r or nil   -- no AH price for the crate: don't rate buying it
+  local cr = r.crafted
+  if not cr then return ns.SetBuyFillTitle(tooltip, buy, r.fill) end
+  -- crafted crates: crate (buy / have) x bundle (buy / craft)
+  return ns.SetTitleGrid(tooltip, { "", "Buy bundle", "Craft bundle" }, {
+    { "Buy crate", GridCell(buy), GridCell(cr.buy) },
+    { "Have crate", GridCell(r.fill), GridCell(cr.have) },
+  }, 4, -2)
 end
 
 -- The label for the tooltip's title row ("Great", coloured), or nil if the crate isn't rated.
@@ -636,8 +673,41 @@ function ns.AddRatingLines(tooltip, name, owned)
     tooltip:AddDoubleLine("Rating", "not rated (no price or favor yet)", 0.4, 0.8, 1, 0.5, 0.5, 0.5)
     return false
   end
-  ns.AddBuyFillLines(tooltip, "favor", owned and owned > 0 and owned or nil,
-    r.rank, r.total, r.per, r.ratio, r.noCrate and " (crate not priced)" or nil, r.fill)
+  local cr = r.crafted
+  if not cr then
+    ns.AddBuyFillLines(tooltip, "favor", owned and owned > 0 and owned or nil,
+      r.rank, r.total, r.per, r.ratio, r.noCrate and " (crate not priced)" or nil, r.fill)
+    return true
+  end
+  -- crafted crates: one line per way. Yours are white: have the crate or not, and the craft
+  -- lines only with the profession.
+  local own = owned and owned > 0
+  local canCraft = cr.prof and ns.MyProfessions and ns.MyProfessions()[cr.prof]
+  local function How(x)
+    if x < 0.995 then return string.format("%.1fx the cheapest buy", x) end
+    if x <= 1.005 then return "the cheapest buy" end
+    return string.format("%.1fx the cheapest buy", x)
+  end
+  local function Line(label, x, missing, haveRow, craftCol)
+    local c = ((own and true or false) == haveRow and (not craftCol or canCraft)) and 1 or 0.6
+    if x then
+      tooltip:AddDoubleLine(label, ns.Money(math.floor(x.per + 0.5)) .. " per favor, " .. How(x.ratio or 1),
+        c, c, c, c, c, c)
+    else
+      tooltip:AddDoubleLine(label, missing, c, c, c, 0.5, 0.5, 0.5)
+    end
+  end
+  local prof = cr.prof and (" (" .. cr.prof .. ")") or ""
+  local haveLabel = own and ("Have crate (" .. owned .. ")") or "Have crate"
+  local noCraft = cr.prof and "reagents not priced" or "no recipe data"
+  Line("Buy crate + buy bundle" .. (r.noCrate and "" or string.format("  #%d of %d", r.rank, r.total)),
+    not r.noCrate and r or nil, "crate not on the AH", false, false)
+  Line("Buy crate + craft bundle" .. prof, cr.buy, r.noCrate and "crate not on the AH" or noCraft, false, true)
+  Line(haveLabel .. " + buy bundle", r.fill, "bundle not on the AH", true, false)
+  Line(haveLabel .. " + craft bundle" .. prof, cr.have, noCraft, true, true)
+  if cr.bundle then
+    tooltip:AddLine("Cheapest bundle to craft: " .. cr.bundle, 0.6, 0.6, 0.6)
+  end
   return true
 end
 

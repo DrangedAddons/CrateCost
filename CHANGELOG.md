@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.27.0
+- Crafted crates (Fabrics, Ingots, Parts) get the writ treatment: a 2x2 rating grid under the name, Buy crate / Have crate by Buy bundle / Craft bundle, and four cost lines. Crafting uses whichever bundle is cheapest to make, named under the lines. Raw crates keep "to Buy / to Fill".
+- Recipe data now covers the crafted crates' bundle items (bolts, cured hides, engineering parts, and bars: classic smelting added by hand, the source has none). Writ craft costs can use smelting too, when ore is cheaper than the bar.
+
 ## 0.26.0
 - Writ tooltips rate all four ways to do a writ, as a 2x2 grid under the name: Buy writ / Have writ by Buy item / Craft item. New: buy the writ and craft the item. All four are measured against the cheapest rep you can buy outright. "?" = a price is missing, "-" = no recipe data.
 - Four cost lines to match ("Buy writ + craft item (Engineering)" etc.), per rep and against the cheapest buy. The ones for your situation are white: whether you hold the writ, and craft lines only if this character has the profession.

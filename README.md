@@ -28,7 +28,9 @@ Each crate's market cost per favor is `p = (crate AH price + cheapest bundle) / 
 
 Tiers by ratio keep each one tight: one very expensive crate can't drag mid-priced crates up a tier. A crate with no AH price of its own shows `? to Buy`.
 
-The **to Fill** rating is for a crate you already have: `cheapest bundle / favor`, compared with the same number as to Buy, the cheapest favor you can buy outright (crate + bundle). At or under it is Best (filling beats buying favor anywhere); above it, the same tiers. So Poor to Fill means the bundle alone costs over 3x what buying and filling the cheapest crate does. Both ratings are the same for everyone, so a crate linked in chat reads the same for whoever hovers it. The `/crates` Rating column sorts by the ratio itself.
+The **to Fill** rating is for a crate you already have: `cheapest bundle / favor`, compared with the same number as to Buy, the cheapest favor you can buy outright (crate + bundle). At or under it is Best (filling beats buying favor anywhere); above it, the same tiers. So Poor to Fill means the bundle alone costs over 3x what buying and filling the cheapest crate does. Both ratings are the same for everyone, so a crate linked in chat reads the same for whoever hovers it.
+
+**Crafted crates** (Fabrics, Ingots, Parts) show four ratings as a grid instead: **Buy crate / Have crate** by **Buy bundle / Craft bundle**. Crafting uses the bundle that's cheapest to make from its reagents (bolts and cured hides from Tailoring / Leatherworking, parts from Engineering, bars by smelting ore). Each has a cost line; yours are white (have the crate or not, and the craft lines only with the profession). Smelting recipes are the classic ones, added by hand: the recipe source has none. The `/crates` Rating column sorts by the ratio itself.
 
 Hovering a crate also saves its real bundle amounts for the crate list. The beta guides don't always match the live game (Journeyman Textiles wants 20 Wool Cloth, not 40).
 

@@ -82,7 +82,7 @@ end
 -- Pricing. One pass works out every writ; it's kept for CALC_TTL seconds (search, filters
 -- and scrolling reuse it) and the per-item answers are shared within the pass.
 
-local memo = {}
+local memo, memoTime = {}, nil
 local CraftCost
 
 -- Cheapest way to get one `id`: a vendor's price, else the AH, or crafting it if cheaper.
@@ -115,6 +115,16 @@ function CraftCost(id, depth)
   return sum / r[1]
 end
 
+-- Making one `id` from its reagents, for the crate tooltips (crafted crates' bundles). Shares
+-- the pricing memo, refreshed after CALC_TTL like the writ list.
+function ns.ItemCraftCost(id)
+  if not memoTime or GetTime() - memoTime > CALC_TTL then
+    wipe(memo)
+    memoTime = GetTime()
+  end
+  return CraftCost(id, 0)
+end
+
 local function Count(id)
   local ok, n = pcall(C_Item.GetItemCount, id, true)
   return ok and n or 0
@@ -133,6 +143,7 @@ local function Calc()
   if calcTime and GetTime() - calcTime < CALC_TTL then return end
   calcTime = GetTime()
   wipe(memo)
+  memoTime = calcTime
   local rated = {}
   local fillSum, fillN = {}, {}
   for _, e in ipairs(Entries()) do
@@ -331,6 +342,7 @@ local function Num(n)
   return BreakUpLargeNumbers and BreakUpLargeNumbers(n) or tostring(n)
 end
 
+
 ---------------------------------------------------------------------------------------------
 
 local function MyProfessions()
@@ -344,6 +356,7 @@ local function MyProfessions()
   end
   return set
 end
+ns.MyProfessions = MyProfessions
 
 local function SortValue(e, key)
   if key == "name" or key == "prof" then return e[key]:lower() end

@@ -341,7 +341,7 @@ local function Process(tooltip, itemID)
   -- the rating label sits under the name, above the prices; the detail line goes below
   if On("rating") and ns.AddRatingLines then
     local owned = itemID and C_Item and C_Item.GetItemCount and C_Item.GetItemCount(itemID, true) or 0
-    ns.SetCrateTitle(tooltip, crateName, owned > 0)
+    ns.SetCrateTitle(tooltip, crateName)
     if not On("favorLine") then tooltip:AddLine(" ") end
     ns.AddRatingLines(tooltip, crateName, owned)
   end

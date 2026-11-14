@@ -11,7 +11,7 @@ Hover a Waylaid Crate:
 - each bundle gets its Auctionator price, with gold, silver and copper in their own columns
 - the cheapest bundle is listed first and highlighted in gold
 - a Merchant's Favor line shows what the crate pays (the same whichever bundle you use)
-- two **Ratings** (Best, Great, Good, Fair, Poor, Worst) under the crate's name: **to Buy** (buying the crate and filling it) and **to Fill** (filling one you already have). The one that applies to you is bigger: Fill if this character has the crate in bags or bank, Buy if not. Under the favor line, the cost per favor both ways, with rank and how it compares to the cheapest.
+- two **Ratings** (Best, Great, Good, Fair, Poor, Worst) under the crate's name: **to Buy** (buying the crate and filling it) and **to Fill** (filling one you already have). Under the favor line, the cost per favor both ways, with rank and how it compares to the cheapest.
 
 ### How the rating works
 
@@ -28,7 +28,7 @@ Each crate's market cost per favor is `p = (crate AH price + cheapest bundle) / 
 
 Tiers by ratio keep each one tight: one very expensive crate can't drag mid-priced crates up a tier. A crate with no AH price of its own shows `? to Buy`.
 
-The **to Fill** rating works the same way on `cheapest bundle / favor`, compared with the cheapest fill of any crate. Both ratings are the same for everyone, so a crate linked in chat reads the same for whoever hovers it; only which line is bigger depends on what you have. The `/crates` Rating column sorts by the ratio itself.
+The **to Fill** rating works the same way on `cheapest bundle / favor`, compared with the cheapest fill of any crate. Both ratings are the same for everyone, so a crate linked in chat reads the same for whoever hovers it. The `/crates` Rating column sorts by the ratio itself.
 
 Hovering a crate also saves its real bundle amounts for the crate list. The beta guides don't always match the live game (Journeyman Textiles wants 20 Wool Cloth, not 40).
 

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.19.1
+- "to Buy" and "to Fill" are the same size under the crate name (no bigger row for the one that applies to you).
+
 ## 0.19.0
 - Crate tooltips show two ratings under the name: **to Buy** (crate + cheapest bundle per favor, the rating so far) and **to Fill** (cheapest bundle per favor against the cheapest fill of any crate). A crate can be Poor to Buy and Great to Fill. Both are the same for everyone; the one that applies to you is drawn bigger (Fill if you have the crate in bags or bank).
 - The cost per favor shows both ways: "If you buy it" and "If you have it" ("You have N" when you do), each with its rank. The one that applies to you is white, the other grey.

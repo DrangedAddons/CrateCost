@@ -293,9 +293,9 @@ function ns.RatingText(r)
   return r.color, r.label
 end
 
--- Two rows under a crate's name: "Poor to Buy" / "Great to Fill". The one that applies to
--- you is drawn bigger: Fill if you have the crate (`owned`), Buy if you don't.
-function ns.SetCrateTitle(tooltip, name, owned)
+-- Two rows under a crate's name, same size: "Poor to Buy" / "Great to Fill".
+local CRATE_TITLE_GROW = 4   -- font size over the title's
+function ns.SetCrateTitle(tooltip, name)
   local r = ns.CrateRatings()[name]
   if not (r and r.fill) then return false end
   local f = r.fill
@@ -303,9 +303,9 @@ function ns.SetCrateTitle(tooltip, name, owned)
   local bc, bl = r.color, r.label
   if r.noCrate then bc, bl = "|cff808080", "?" end
   return ns.SetTitleOdds(tooltip, {
-    { name = bc .. bl .. "|r", value = bc .. "to Buy|r", pct = owned and 0 or 1 },
-    { name = f.color .. f.label .. "|r", value = f.color .. "to Fill|r", pct = owned and 1 or 0 },
-  }, nil, 6, 0)
+    { name = bc .. bl .. "|r", value = bc .. "to Buy|r", pct = 0 },
+    { name = f.color .. f.label .. "|r", value = f.color .. "to Fill|r", pct = 0 },
+  }, nil, CRATE_TITLE_GROW, CRATE_TITLE_GROW)
 end
 
 -- The label for the tooltip's title row ("Great", coloured), or nil if the crate isn't rated.
@@ -567,7 +567,7 @@ local function ShowRowTooltip(row)
   if not c then return end
   GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
   GameTooltip:AddLine((RANK_COLOR[c.rank] or "") .. "Waylaid Crate: " .. c.name .. "|r")
-  ns.SetCrateTitle(GameTooltip, c.name, (c.have or 0) > 0)
+  ns.SetCrateTitle(GameTooltip, c.name)
   GameTooltip:AddDoubleLine("Crate on the AH", c.crate and ns.Money(c.crate)
     or "|cff808080" .. (c.id and "no price" or "item not found yet") .. "|r", 0.4, 0.8, 1, 1, 1, 1)
   if Target() then

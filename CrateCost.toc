@@ -2,7 +2,7 @@
 ## Title: CrateCost
 ## Notes: Waylaid Crates: Auctionator prices for each bundle, Merchant's Favor, and a crate list sorted by cost per favor with a shopping cart, and every Merchant's Favor recipe.
 ## Author: Dranged
-## Version: 0.30.2
+## Version: 0.30.3
 ## Dependencies: Auctionator
 ## OptionalDeps: Syndicator, EllesmereUIBags
 ## X-DrangedAddons-Games: _forever_

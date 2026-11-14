@@ -12,12 +12,12 @@ local SUB = 28
 -- grouped: the writ | the route (Buy / Craft toggle: the item, total, per rep, rating)
 -- | the rep target | what you have
 local COLS = {
-  { key = "name", title = "Writ", x = 10, w = 175, justify = "LEFT" },
-  { key = "prof", title = "Profession", x = 190, w = 84, justify = "LEFT" },
-  { key = "rank", title = "Rank", x = 279, w = 66, justify = "LEFT", desc = false },
-  { key = "skill", title = "Skill", x = 350, w = 30, justify = "RIGHT", desc = false },
-  { key = "rep", title = "Rep", x = 385, w = 30, justify = "RIGHT", desc = true },
-  { key = "writ", title = "Writ cost", ownedTitle = "Who", x = 420, w = 92, justify = "RIGHT", desc = false, money = true },
+  { key = "name", title = "Writ", x = 10, ownedX = 107, w = 175, justify = "LEFT" },
+  { key = "prof", title = "Profession", x = 190, ownedX = 287, w = 84, justify = "LEFT" },
+  { key = "rank", title = "Rank", x = 279, ownedX = 376, w = 66, justify = "LEFT", desc = false },
+  { key = "skill", title = "Skill", x = 350, ownedX = 447, w = 30, justify = "RIGHT", desc = false },
+  { key = "rep", title = "Rep", x = 385, ownedX = 482, w = 30, justify = "RIGHT", desc = true },
+  { key = "writ", title = "Writ cost", ownedTitle = "Who", ownedX = 10, ownedJustify = "LEFT", x = 420, w = 92, justify = "RIGHT", desc = false, money = true },
   { key = "item", title = "Buy item", craftTitle = "Craft item", x = 530, w = 92, justify = "RIGHT", desc = false, money = true },
   { key = "total", title = "Total cost", x = 627, w = 96, justify = "RIGHT", desc = false, money = true },
   { key = "per", title = "Per rep", x = 728, w = 92, justify = "RIGHT", desc = false, money = true },
@@ -807,6 +807,8 @@ local function UpdateHeaders()
   frame.rankBtn.text:SetText(view.rank or "All ranks")
   frame.routeToggle:Refresh()
   frame.ownToggle:Refresh()
+  -- Owned view: Who (the writ cost column) first, Writ .. Rep moved right into its space
+  ns.UI.Relayout(rows, headers, COLS, Owning())
   -- the target is about writs to buy: hidden in the Owned view
   frame.targetBtn:SetShown(not Owning())
   frame.targetLabel:SetShown(not Owning())
@@ -860,6 +862,7 @@ function ns.RefreshWrits()
   frame.plan:SetText(plan)
   UpdateHeaders()
   Draw()
+  ns.UI.Relayout(rows, headers, COLS, Owning())   -- rows made by this Draw too
   DrawSealed()
 end
 

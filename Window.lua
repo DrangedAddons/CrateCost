@@ -10,9 +10,10 @@ local ROW_H, WIDTH, TOP = 18, 1194, 84   -- same width as the Writs window (ns.U
 local SUB = 28
 local CART_ATLAS, CART_FILE = "Perks-ShoppingCart", "Interface\\AddOns\\CrateCost\\cart"
 local COLS = {
-  { key = "name",   title = "Crate",       x = 10,  w = 175, justify = "LEFT"  },
-  { key = "n",      title = "Crates",      x = 190, w = 40,  justify = "RIGHT", desc = false },
-  { key = "crate",  title = "Crate cost",  ownedTitle = "Who", x = 235, w = 92,  justify = "RIGHT", desc = false, money = true },
+  -- Owned view: Who (the crate cost column) first, Crate and Crates moved right into its space
+  { key = "name",   title = "Crate",       x = 10,  ownedX = 107, w = 175, justify = "LEFT"  },
+  { key = "n",      title = "Crates",      x = 190, ownedX = 287, w = 40,  justify = "RIGHT", desc = false },
+  { key = "crate",  title = "Crate cost",  ownedTitle = "Who", x = 235, ownedX = 10, ownedJustify = "LEFT", w = 92, justify = "RIGHT", desc = false, money = true },
   { key = "best",   title = "Best bundle", craftTitle = "Cheapest to craft", x = 345, w = 240, justify = "LEFT"  },
   { key = "bundle", title = "Bundle cost", craftTitle = "Craft cost", x = 590, w = 92, justify = "RIGHT", desc = false, money = true },
   { key = "cost",   title = "Total cost",  x = 687, w = 96,  justify = "RIGHT", desc = false, money = true },
@@ -1150,6 +1151,7 @@ function ns.RefreshWindow()
   frame.empty:SetShown(#list == 0)
   frame.viewToggle:Refresh()
   frame.bundleToggle:Refresh()
+  ns.UI.Relayout(rows, headers, COLS, mine)
   frame.count:SetText(string.format("%d of %d crates", #list, #all))
   local fi = C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo and C_CurrencyInfo.GetCurrencyInfo(3402)
   frame.status:SetText(fi and fi.quantity and ("You have " .. fi.quantity .. ns.FavorIcon()) or "")

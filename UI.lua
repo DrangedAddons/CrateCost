@@ -312,6 +312,42 @@ function UI.Headers(f, cols, xoff, onClick)
   return headers
 end
 
+-- The Owned views move a few columns: a column with .ownedX (and .ownedJustify) sits there while
+-- `owned`, at .x otherwise. Re-anchors those columns' headers and row cells (money slots too).
+local SUB = 28
+function UI.Relayout(rows, headers, cols, owned)
+  for _, col in ipairs(cols) do
+    if col.ownedX then
+      local x = owned and col.ownedX or col.x
+      local j = owned and col.ownedJustify or col.justify
+      for _, h in ipairs(headers) do
+        if h.col == col then
+          h:ClearAllPoints()
+          h:SetPoint("TOPLEFT", h:GetParent(), "TOPLEFT", x, UI.HEADER_Y)
+          h.text:SetJustifyH(j)
+        end
+      end
+      for _, row in ipairs(rows) do
+        local fs = row.cells and row.cells[col.key]
+        if fs then
+          fs:ClearAllPoints()
+          fs:SetPoint("LEFT", row, "LEFT", x - 10, 0)
+          fs:SetJustifyH(j)
+        end
+        local m = row.money and row.money[col.key]
+        if m then
+          m.g:ClearAllPoints()
+          m.g:SetPoint("LEFT", row, "LEFT", x - 10, 0)
+          m.s:ClearAllPoints()
+          m.s:SetPoint("LEFT", row, "LEFT", x - 10 + col.w - SUB * 2, 0)
+          m.c:ClearAllPoints()
+          m.c:SetPoint("LEFT", row, "LEFT", x - 10 + col.w - SUB, 0)
+        end
+      end
+    end
+  end
+end
+
 -- Header text: the sorted one white with its arrow.
 function UI.HeaderText(h, title, sorted, desc)
   h.text:SetText((sorted and "|cffffffff" or "") .. title .. (sorted and ((desc and " v" or " ^") .. "|r") or ""))

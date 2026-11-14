@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.30.3
+- Owned view: **Who** is the first column. Crate / Crates (Writ .. Rep on the writ list) move right into the space the cost column left; Buy puts them back.
+
 ## 0.30.2
 - Owned view: the crate / writ cost column becomes **Who**, the character that has it (yours in green, "+N" when more characters have some; the row tooltip lists them all). Sortable, this character first.
 

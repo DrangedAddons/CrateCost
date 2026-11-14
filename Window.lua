@@ -230,10 +230,11 @@ local ratingCache, ratingTime
 
 function ns.InvalidateRatings() ratingCache = nil end
 
--- Two ratings per crate, both the same for everyone (a linked crate reads the same in any
--- chat): "to Buy" = (crate + cheapest bundle) per favor against the cheapest such crate, and
--- "to Fill" = cheapest bundle per favor against the cheapest fill of any crate (for a crate
--- you already have). The buy rating is the entry itself, the fill rating is its .fill.
+-- Two ratings per crate, both against the same number: the cheapest favor you can buy outright
+-- (crate + cheapest bundle, crate priced on the AH). "to Buy" = this crate bought and filled;
+-- "to Fill" = only its bundle, for a crate you already have: is filling it cheaper than buying
+-- favor elsewhere? Both are the same for everyone (a linked crate reads the same in any chat).
+-- The buy rating is the entry itself, the fill rating is its .fill.
 function ns.CrateRatings()
   if ratingCache and GetTime() - ratingTime < RATING_TTL then return ratingCache end
   local rated, fills = {}, {}
@@ -253,11 +254,37 @@ function ns.CrateRatings()
   end
   local out = {}
   for _, r in ipairs(ns.RateList(rated)) do out[r.name] = r end
-  for _, f in ipairs(ns.RateList(fills)) do
-    if out[f.name] then out[f.name].fill = f end
+  local best = ns.CheapestBuy(rated, function(r) return not r.noCrate end)
+  for _, f in ipairs(fills) do
+    if out[f.name] then out[f.name].fill = ns.RateFill(f.per, best) end
   end
   ratingCache, ratingTime = out, GetTime()
   return out
+end
+
+-- Cheapest .per among `list` entries that pass `ok` (falling back to all of them): the
+-- cheapest buy-everything price, the baseline for the fill ratings.
+function ns.CheapestBuy(list, ok)
+  local best, any
+  for _, r in ipairs(list) do
+    if not any or r.per < any then any = r.per end
+    if ok(r) and (not best or r.per < best) then best = r.per end
+  end
+  return best or any
+end
+
+-- A fill rating: fill cost `per` against `best`, the cheapest price to buy outright. At or
+-- under it (within EXTREME_MARGIN) is Best: filling beats buying anywhere. Over it, the same
+-- tiers as the buy rating. Returns { per, ratio, label, color }.
+function ns.RateFill(per, best)
+  local ratio = (best and best > 0) and per / best or 1
+  local label, color
+  if not best or per - best <= EXTREME_MARGIN then
+    label, color = BEST[1], BEST[2]
+  else
+    label, color = ns.TierFor(ratio)
+  end
+  return { per = per, ratio = ratio, label = label, color = color }
 end
 
 -- Tier for a ratio to the cheapest (no Best / Worst): label, colour.
@@ -509,16 +536,30 @@ function ns.AddRatingLines(tooltip, name, owned)
     tooltip:AddDoubleLine("Rating", "not rated (no price or favor yet)", 0.4, 0.8, 1, 0.5, 0.5, 0.5)
     return false
   end
-  local has = owned and owned > 0
-  local function Line(label, x, what, mine, note)
-    local how = x.rank == 1 and ("cheapest " .. what) or string.format("%.1fx the cheapest", x.ratio)
-    local c = mine and 1 or 0.6
-    tooltip:AddDoubleLine(string.format("%s  #%d of %d", label, x.rank, x.total),
-      ns.Money(math.floor(x.per + 0.5)) .. " per favor, " .. how .. (note or ""), c, c, c, c, c, c)
-  end
-  Line("If you buy it", r, "of all crates", not has, r.noCrate and " (crate not priced)" or nil)
-  Line(has and ("You have " .. owned) or "If you have it", r.fill, "fill", has)
+  ns.AddBuyFillLines(tooltip, "favor", owned and owned > 0 and owned or nil,
+    r.rank, r.total, r.per, r.ratio, r.noCrate and " (crate not priced)" or nil, r.fill)
   return true
+end
+
+-- The two cost lines, crates and writs: buying it and filling it (with its rank), and filling
+-- one you have. Both say how they compare with the cheapest buy. `owned` (a count or nil)
+-- turns the second line white and the first grey. `rank` nil = the buy price isn't known.
+function ns.AddBuyFillLines(tooltip, unit, owned, rank, total, per, ratio, note, fill)
+  local function How(x)
+    if x <= 1.005 then return x < 0.995 and string.format("%.1fx the cheapest buy", x) or "the cheapest buy" end
+    return string.format("%.1fx the cheapest buy", x)
+  end
+  local cb, cf = owned and 0.6 or 1, owned and 1 or 0.6
+  if rank then
+    tooltip:AddDoubleLine(string.format("If you buy it  #%d of %d", rank, total),
+      ns.Money(math.floor(per + 0.5)) .. " per " .. unit .. ", " .. How(ratio) .. (note or ""),
+      cb, cb, cb, cb, cb, cb)
+  else
+    tooltip:AddDoubleLine("If you buy it", note or "not priced", cb, cb, cb, 0.5, 0.5, 0.5)
+  end
+  tooltip:AddDoubleLine(owned and ("You have " .. owned) or "If you have it",
+    ns.Money(math.floor(fill.per + 0.5)) .. " per " .. unit .. ", " .. How(fill.ratio),
+    cf, cf, cf, cf, cf, cf)
 end
 
 local function Matches(c)

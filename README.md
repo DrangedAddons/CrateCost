@@ -28,7 +28,7 @@ Each crate's market cost per favor is `p = (crate AH price + cheapest bundle) / 
 
 Tiers by ratio keep each one tight: one very expensive crate can't drag mid-priced crates up a tier. A crate with no AH price of its own shows `? to Buy`.
 
-The **to Fill** rating works the same way on `cheapest bundle / favor`, compared with the cheapest fill of any crate. Both ratings are the same for everyone, so a crate linked in chat reads the same for whoever hovers it. The `/crates` Rating column sorts by the ratio itself.
+The **to Fill** rating is for a crate you already have: `cheapest bundle / favor`, compared with the same number as to Buy, the cheapest favor you can buy outright (crate + bundle). At or under it is Best (filling beats buying favor anywhere); above it, the same tiers. So Poor to Fill means the bundle alone costs over 3x what buying and filling the cheapest crate does. Both ratings are the same for everyone, so a crate linked in chat reads the same for whoever hovers it. The `/crates` Rating column sorts by the ratio itself.
 
 Hovering a crate also saves its real bundle amounts for the crate list. The beta guides don't always match the live game (Journeyman Textiles wants 20 Wool Cloth, not 40).
 
@@ -78,7 +78,7 @@ The **Writs** button on `/crates`, `/writs` (or `/writ`, `/crates writs`), or ct
 - **Writ cost**: the writ on the AH. **Buy item**: the required item on the AH. **Craft item**: its reagents, each at the vendor price (from Auctionator's vendor cache), the AH price, or crafted when that's cheaper. The cheaper of buy and craft is gold.
 - **Total** = writ + the cheaper way to get the item. **Per rep** = total / the writ's reputation (75 Journeyman, 125 Expert, 200 Artisan).
 - **Rating**: the crate tiers on cost per rep. A writ with no AH price is rated on the item alone and marked *.
-- Writ tooltips show two ratings under the name, like crates: **to Buy** (writ + fill per rep) and **to Fill** (the fill alone per rep, against the cheapest fill of any writ, for a writ you already have), and the cost per rep both ways. A writ with no AH price shows `? to Buy`.
+- Writ tooltips show two ratings under the name, like crates: **to Buy** (writ + fill per rep) and **to Fill** (the fill alone per rep, for a writ you already have, against the cheapest rep you can buy outright: writ + fill), and the cost per rep both ways. A writ with no AH price shows `? to Buy`.
 - **Have**: W if you hold the writ, then how many of the item you have. **Today**: the writ's daily is done.
 - **Standing** with the trade camp is shown at the top. Pick a **Target** standing (per character) and each writ shows how many of it you'd need (**Writs**) and what they'd cost (**To <target>**). The line under the envelopes names the cheapest shown writ to repeat until you get there, and how many days that is.
 - Under the list, each Sealed envelope (a random writ of that rank): its price + the rank's average fill = the average cost per rep, and the **odds** of each tier: every writ of the rank rated as if it came out of the envelope (envelope price + its fill). This assumes each writ of a rank is equally likely, and writs without a price aren't counted.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.21.0
+- **to Fill** is now measured against the cheapest favor (crates) or rep (writs) you can buy outright, the same number as **to Buy**, instead of against the cheapest fill of any other crate or writ. It answers "I have this, is filling it cheaper than buying elsewhere?": Best = at or under the cheapest buy, then the usual tiers. One near-free fill can no longer push every other fill to Poor.
+- Both cost lines say how they compare with the cheapest buy ("0.4x the cheapest buy"). The fill line no longer has a rank.
+
 ## 0.20.0
 - Writ tooltips get the crate treatment: "X to Buy" / "Y to Fill" under the name, same size. to Buy = writ + fill per rep (the list's rating); to Fill = the fill alone per rep against the cheapest fill of any writ. A writ with no AH price shows "? to Buy".
 - The cost per rep shows both ways: "If you buy it" and "If you have it" ("You have N" when you hold the writ), the one that applies to you in white.

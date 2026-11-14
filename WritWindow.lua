@@ -161,16 +161,12 @@ local function Calc()
     local e = p.e
     e.place, e.total_rated, e.ratio, e.label, e.color = p.rank, p.total, p.ratio, p.label, p.color
   end
-  -- "to Fill": the fill alone per rep (for a writ you already have), against the cheapest
-  -- fill of any writ. Same for everyone, like the buy rating above.
-  local fills = {}
+  -- "to Fill": the fill alone per rep, for a writ you already have, against the cheapest rep
+  -- you can buy outright (a writ priced on the AH + its fill): is filling it cheaper than
+  -- buying rep elsewhere? Same for everyone, like the buy rating above.
+  local bestBuy = ns.CheapestBuy(proxies, function(p) return p.e.writPrice ~= nil end)
   for _, e in ipairs(Entries()) do
-    if e.fill then fills[#fills + 1] = { per = e.fill / e.rep, e = e } end
-  end
-  ns.RateList(fills)
-  for _, p in ipairs(fills) do
-    p.e.fillRating = { place = p.rank, total = p.total, ratio = p.ratio, label = p.label,
-                       color = p.color, per = p.per }
+    if e.fill then e.fillRating = ns.RateFill(e.fill / e.rep, bestBuy) end
   end
   -- Sealed envelopes hold a random writ of the rank, so there's no single rating: each writ
   -- of the rank is rated as if it came out of the envelope (envelope price + its fill, per rep,
@@ -391,20 +387,11 @@ local function AddRatingLine(tt, e)
     return
   end
   local owned = Count(e.writ)
-  local has = owned > 0
-  local function Line(label, place, total, per, ratio, mine, note)
-    local how = place == 1 and "cheapest" or string.format("%.1fx the cheapest", ratio)
-    local c = mine and 1 or 0.6
-    tt:AddDoubleLine(string.format("%s  #%d of %d", label, place, total),
-      ns.Money(math.floor(per + 0.5)) .. " per rep, " .. how .. (note or ""), c, c, c, c, c, c)
-  end
   if e.writPrice then
-    Line("If you buy it", e.place, e.total_rated, e.per, e.ratio, not has)
+    ns.AddBuyFillLines(tt, "rep", owned > 0 and owned or nil, e.place, e.total_rated, e.per, e.ratio, nil, f)
   else
-    local c = has and 0.6 or 1
-    tt:AddDoubleLine("If you buy it", "writ not priced", c, c, c, 0.5, 0.5, 0.5)
+    ns.AddBuyFillLines(tt, "rep", owned > 0 and owned or nil, nil, nil, nil, nil, "writ not priced", f)
   end
-  Line(has and ("You have " .. owned) or "If you have it", f.place, f.total, f.per, f.ratio, has)
 end
 
 local function RatingText(e)

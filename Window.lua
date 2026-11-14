@@ -853,14 +853,6 @@ local function ShowRowTooltip(row)
   end
   GameTooltip:AddLine(" ")
   ns.AddRatingLines(GameTooltip, c.name, c.have)
-  if not c.live then
-    GameTooltip:AddLine(" ")
-    GameTooltip:AddLine("Amounts from the beta guide. Hover this crate in your bags to use its real amounts.",
-      0.6, 0.6, 0.6, true)
-  end
-  GameTooltip:AddLine(" ")
-  GameTooltip:AddLine("Shift-click: search in Auctionator (bundle columns = material, rest = crate)",
-    0.6, 0.6, 0.6, true)
   GameTooltip:Show()
   ns.AlignTitleRating(GameTooltip)   -- over the prices on the right
 end

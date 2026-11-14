@@ -617,9 +617,6 @@ local function ShowRowTooltip(row)
     GameTooltip:AddLine("|cff0070ddCraftsman's Writ: " .. e.name .. "|r")
   end
   if shownOn[GameTooltip] ~= e.writ then AddWritLines(GameTooltip, e) end
-  GameTooltip:AddLine(" ")
-  GameTooltip:AddLine("Shift-click: search in Auctionator (item columns = the item, rest = the writ)",
-    0.6, 0.6, 0.6, true)
   GameTooltip:Show()
   ns.AlignTitleRating(GameTooltip)
 end
@@ -633,8 +630,6 @@ local function ShowSealedTooltip(box)
     GameTooltip:AddLine("Sealed " .. box.rank .. "'s Writ")
   end
   if s and shownOn[GameTooltip] ~= s.id then AddSealedLines(GameTooltip, box.rank) end
-  GameTooltip:AddLine(" ")
-  GameTooltip:AddLine("Shift-click: search in Auctionator", 0.6, 0.6, 0.6)
   GameTooltip:Show()
   ns.AlignTitleRating(GameTooltip)
 end

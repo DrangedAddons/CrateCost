@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.30.1
+- Owned counts read the bag addons' records, so alts and their banks show up without logging each one in first: Syndicator (Baganator) first, with mail; else EllesmereUI Bags' offline bank. CrateCost's own records are the fallback. Only one source is used, so nothing counts twice; this character's bags are always read live.
+- Row tooltips drop the "Amounts from the beta guide" and "Shift-click: search in Auctionator" lines.
+
 ## 0.30.0
 - **Buy | Owned** replaces Market / My cost, on both lists (per character). Buy: crates or writs to buy. Owned: only the ones you have, on this character, its bank, the warband bank or alts, costed as the fill alone. Together with Buy / Craft bundles (items) it picks one cell of the tooltip grid, and the Rating column shows that cell. The target is hidden in Owned.
 - Alts: each character's crates and writs (bags + bank) are saved when it logs in and when its bags change. The Have column counts all of them; the row tooltip says where ("2 here, 1 on Alty"). Item tooltips count them too.

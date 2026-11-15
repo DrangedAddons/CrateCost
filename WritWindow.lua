@@ -147,8 +147,10 @@ local function Calc()
   local rated = {}
   local fillSum, fillN = {}, {}
   for _, e in ipairs(Entries()) do
-    e.writPrice = ns.Price(e.writ)
-    e.buy = ns.Price(e.item)
+    -- one writ and one fill's worth of items, up the scanned AH listings when fresh (Depth.lua)
+    e.writPrice = (ns.FillCost(e.writ, 1))
+    local fill = (ns.FillCost(e.item, e.qty))
+    e.buy = fill and fill / e.qty or nil
     e.craft = CraftCost(e.item, 0)
     -- the fill is the item bought on the AH: anyone can do that. Crafting needs the
     -- profession and the recipe, so it's shown on its own line instead of in the ratings.
@@ -377,8 +379,9 @@ ns.MyProfessions = MyProfessions
 ---------------------------------------------------------------------------------------------
 -- Plan: the cheapest writs that reach the rep target in the fewest days. Each writ is a daily,
 -- so one day takes each writ at most once; more days only when every writ once can't reach the
--- target. Cooldowns don't change the plan: writs done today are marked in the plan window (and
--- can be hidden there). The plan is kept until Regenerate (or a new target).
+-- target. Writs done today wait for tomorrow. The writs the plan would have used today if they
+-- weren't done yet are listed too, in red, outside the cost: they show when the best writs are
+-- already used up. The plan is kept until Regenerate (or a new target).
 -- A writ's k-th copy costs what k copies cost less what k-1 cost: writs you have first (free),
 -- then bought up the AH listings (Depth.lua, else Auctionator's price); the item likewise,
 -- minus the items in your bags, or crafted when you have the profession and that's cheaper.
@@ -411,10 +414,11 @@ local function CopiesCost(e, k, canCraft)
 end
 
 -- copies[rep] = { { e, k, cost }, ... } for up to `days` days, cheapest first per rank.
-local function Copies(days, profs)
+-- `cd`: writs done today miss day 1.
+local function Copies(days, profs, cd)
   local groups, capacity = {}, 0
   for _, e in ipairs(Entries()) do
-    local m = days
+    local m = days - ((cd and e.done) and 1 or 0)
     local prev = 0
     for k = 1, m do
       local cum = CopiesCost(e, k, profs[e.prof])
@@ -473,13 +477,24 @@ local function Choose(groups, need)
   return best, bestCost
 end
 
+local function SortPlan(list)
+  table.sort(list, function(a, b)
+    if a.day ~= b.day then return a.day < b.day end
+    -- best value first: cost per rep
+    local pa, pb = a.cost / a.e.rep, b.cost / b.e.rep
+    if pa ~= pb then return pa < pb end
+    if (a.spent or false) ~= (b.spent or false) then return a.spent or false end
+    return a.e.name < b.e.name
+  end)
+end
+
 -- { need, days, cost, rep, short, list = { { day, e, cost, crafted, owned }, ... } } or nil
-local function MakePlan(need)
-  local profs = MyProfessions()
+-- `cd`: writs done today miss day 1 (their copies start on day 2).
+local function BuildPlan(need, profs, cd)
   local groups, capacity
   local days = 1
   repeat
-    groups, capacity = Copies(days, profs)
+    groups, capacity = Copies(days, profs, cd)
     if capacity >= need then break end
     days = days + 1
   until days > PLAN_MAX_DAYS
@@ -492,8 +507,8 @@ local function MakePlan(need)
     for i = 1, n do
       local c = groups[r][i]
       local e = c.e
-      -- copy k is done on day k
-      local day = c.k
+      -- copy k is done on day k (a day later when it's done today)
+      local day = c.k + ((cd and e.done) and 1 or 0)
       local _, crafted = CopiesCost(e, c.k, profs[e.prof])
       table.insert(plan.list, { day = day, e = e, cost = c.cost, crafted = crafted,
         owned = c.k <= (e.haveWrit or 0) })
@@ -501,13 +516,26 @@ local function MakePlan(need)
       if day > plan.days then plan.days = day end
     end
   end
-  table.sort(plan.list, function(a, b)
-    if a.day ~= b.day then return a.day < b.day end
-    -- best value first: cost per rep
-    local pa, pb = a.cost / a.e.rep, b.cost / b.e.rep
-    if pa ~= pb then return pa < pb end
-    return a.e.name < b.e.name
-  end)
+  return plan
+end
+
+-- The plan around today's cooldowns, plus `spent`: the writs done today that the plan would
+-- have used today without the cooldowns. Those go in day 1 marked .spent, outside the cost,
+-- rep and cart.
+local function MakePlan(need)
+  local profs = MyProfessions()
+  local plan = BuildPlan(need, profs, true)
+  if not plan then return nil end
+  local ideal = BuildPlan(need, profs, false)
+  plan.spent = 0
+  for _, it in ipairs(ideal and ideal.list or {}) do
+    if it.day == 1 and it.e.done then
+      it.spent = true
+      table.insert(plan.list, it)
+      plan.spent = plan.spent + 1
+    end
+  end
+  SortPlan(plan.list)
   return plan
 end
 
@@ -525,10 +553,10 @@ end
 ns.WritPlan = function() return CurrentPlan() end
 ns.RegenerateWritPlan = function() Calc() Live() UpdateNeed() RegeneratePlan() end
 
--- Writs on cooldown (done today) among the plan's.
-local function PlanCD(p)
+-- The plan's writs that count: not the spent ones (done before the plan was made).
+local function PlanCount(p)
   local n = 0
-  for _, it in ipairs(p.list) do if it.e.done then n = n + 1 end end
+  for _, it in ipairs(p.list) do if not it.spent then n = n + 1 end end
   return n
 end
 
@@ -966,6 +994,10 @@ local function UpdateHeaders()
   frame.rankBtn.text:SetText(view.rank or "All ranks")
   frame.routeToggle:Refresh()
   frame.ownToggle:Refresh()
+  if ns.OnDepthChangedWrits then
+    local b = frame.scanBtn
+    if b and ns.Depth.state ~= "running" then b:SetEnabled(ns.Depth.atAH and true or false) end
+  end
   -- Owned view: Who (the writ cost column) first, Writ .. Rep moved right into its space
   ns.UI.Relayout(rows, headers, COLS, Owning())
   -- the target is about writs to buy: hidden in the Owned view
@@ -1007,10 +1039,9 @@ function ns.RefreshWrits()
     plan = STANDINGS[t][4] .. STANDINGS[t][2] .. "|r: " .. Num(needRep) .. " rep to go.  "
     local p = CurrentPlan()
     if p then
-      local cd = PlanCD(p)
-      plan = plan .. string.format("Plan: %d writs, %s, %s%s%s.", #p.list, ns.Money(p.cost),
+      plan = plan .. string.format("Plan: %d writs, %s, %s%s%s.", PlanCount(p), ns.Money(p.cost),
         p.days <= 1 and "one day" or (p.days .. " days"),
-        cd > 0 and string.format(", |cffff8040%d on CD today|r", cd) or "",
+        (p.spent or 0) > 0 and string.format(", |cffff4040%d of the best already done today|r", p.spent) or "",
         p.short and (" |cffff4040- only " .. Num(p.rep) .. " rep in " .. PLAN_MAX_DAYS .. " days|r") or "")
     else
       plan = plan .. GREY .. "No plan: no writ has a price yet.|r"
@@ -1102,7 +1133,29 @@ local function Build()
   local l1 = UI.Check(frame, "Writ on the AH", rb, 12,
     "Only writs with an Auctionator price. The rest are rated on the item alone (marked *).", g1, s1)
   local g3, s3 = Flag("hideDone")
-  UI.Check(frame, "Hide done today", l1, 8, "Each writ is a daily quest.", g3, s3)
+  local l2 = UI.Check(frame, "Hide done today", l1, 8, "Each writ is a daily quest.", g3, s3)
+
+  -- Scan AH: the writs' and their items' listings (Depth.lua, shared with /crates)
+  local scan = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+  scan:SetSize(130, 20)
+  scan:SetPoint("LEFT", l2, "RIGHT", 14, 0)
+  frame.scanBtn = scan
+  scan:SetScript("OnClick", function()
+    if ns.Depth.state == "running" then ns.Depth.Stop() else ns.Depth.Start(ns.WritDepthWants()) end
+  end)
+  scan:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+    GameTooltip:AddLine("Scan AH")
+    GameTooltip:AddLine("Reads the auction house listings for every writ and the item it wants, deep "
+      .. "enough for the plan, so prices and the plan use the real listings instead of the cheapest "
+      .. "price x amount.", 1, 1, 1, true)
+    local age = ns.Depth.Age()
+    GameTooltip:AddLine(age and string.format("Last scan: %dm ago%s.", math.floor(age / 60),
+      age >= ns.Depth.TTL and " (too old, Auctionator prices in use)" or "") or "Not scanned yet.", 0.6, 0.6, 0.6, true)
+    if not ns.Depth.atAH then GameTooltip:AddLine("Open the auction house to scan.", 1, 0.5, 0.25) end
+    GameTooltip:Show()
+  end)
+  scan:SetScript("OnLeave", GameTooltip_Hide)
 
   -- Buy | Craft: which way the list gets the item (per character)
   frame.routeToggle = UI.Toggle(frame, {
@@ -1206,7 +1259,7 @@ end
 
 local PROWS, PROW_H, PTOP, PFOOT = 22, 18, 58, 70
 local pf, ShowCD
--- Show writs on cooldown in the plan window (per character, default on).
+-- Show the writs already done today in the plan window (per character, default on).
 ShowCD = function()
   return not (type(CrateCostCharDB) == "table" and CrateCostCharDB.planHideCD)
 end
@@ -1216,11 +1269,15 @@ local function PlanLines(p)
   for _, it in ipairs(p.list) do
     if it.day ~= day then
       day = it.day
-      local n, cost, rep = 0, 0, 0
+      local n, cost, rep, spent = 0, 0, 0, 0
       for _, x in ipairs(p.list) do
-        if x.day == day then n, cost, rep = n + 1, cost + x.cost, rep + x.e.rep end
+        if x.day == day then
+          if x.spent then spent = spent + 1
+          else n, cost, rep = n + 1, cost + x.cost, rep + x.e.rep end
+        end
       end
-      lines[#lines + 1] = { head = "Day " .. day .. string.format("  -  %d writs", n), cost = cost, rep = rep }
+      lines[#lines + 1] = { head = "Day " .. day .. string.format("  -  %d writs", n)
+        .. (spent > 0 and string.format("  |cffff4040(+%d done today)|r", spent) or ""), cost = cost, rep = rep }
     end
     if ShowCD() or not it.e.done then lines[#lines + 1] = { it = it } end
   end
@@ -1240,30 +1297,42 @@ local function FillPlan()
       r.name:SetText("|cffffd100" .. ln.head .. "|r")
       r.how:SetText("")
       r.rep:SetText("|cffffd100" .. Num(ln.rep) .. "|r")
-      r.per:SetText("|cffffd100" .. ns.Money(math.floor(ln.cost / ln.rep + 0.5)) .. "|r")
+      r.per:SetText(ln.rep > 0 and ("|cffffd100" .. ns.Money(math.floor(ln.cost / ln.rep + 0.5)) .. "|r") or "")
       r.cost:SetText("|cffffd100" .. ns.Money(ln.cost) .. "|r")
       r.addBtn:Hide()
       r:Show()
     else
       local it, e = ln.it, ln.it.e
-      -- done today: can't be handed in again until the daily reset
-      r.name:SetText("   " .. (RANK_COLOR[e.rank] or "") .. e.name .. "|r"
-        .. (e.done and " |cffff8040(on CD today)|r" or ""))
-      r.how:SetText(GREY .. (it.owned and "have writ" or "buy writ") .. " + "
-        .. (it.crafted and "craft" or "buy") .. " " .. (e.qty > 1 and (e.qty .. "x ") or "") .. "item|r")
-      r.rep:SetText(e.rep)
-      r.per:SetText(ns.Money(math.floor(it.cost / e.rep + 0.5)))
-      r.addBtn:Show()
-      r.cost:SetText(ns.Money(it.cost))
+      local per = ns.Money(math.floor(it.cost / e.rep + 0.5))
+      if it.spent then
+        -- one of the best, but already filled today: red, outside the cost
+        r.name:SetText("   |cffff4040" .. e.name .. " (already filled today)|r")
+        r.how:SetText("|cffff4040not in the cost|r")
+        r.rep:SetText("|cffff4040" .. e.rep .. "|r")
+        r.per:SetText("|cffff4040" .. per .. "|r")
+        r.cost:SetText("|cffff4040" .. ns.Money(it.cost) .. "|r")
+        r.addBtn:Hide()
+      else
+        -- handed in since the plan was made
+        r.name:SetText("   " .. (RANK_COLOR[e.rank] or "") .. e.name .. "|r"
+          .. ((e.done and it.day == 1) and " |cff40ff40(done)|r" or ""))
+        r.how:SetText(GREY .. (it.owned and "have writ" or "buy writ") .. " + "
+          .. (it.crafted and "craft" or "buy") .. " " .. (e.qty > 1 and (e.qty .. "x ") or "") .. "item|r")
+        r.rep:SetText(e.rep)
+        r.per:SetText(per)
+        r.cost:SetText(ns.Money(it.cost))
+        r.addBtn:Show()
+      end
       r:Show()
     end
   end
   pf.showCD:SetChecked(ShowCD())
-  local cd = p and PlanCD(p) or 0
-  pf.cd:SetText(cd > 0 and string.format("|cffff8040%d on CD today|r%s", cd, ShowCD() and "" or " (hidden)") or "")
+  local cd = p and p.spent or 0
+  pf.cd:SetText(cd > 0 and string.format("|cffff4040%d of the best already filled today|r%s", cd,
+    ShowCD() and "" or " (hidden)") or "")
   if p then
     pf.title:SetText(string.format("Plan to %s: %s rep", STANDINGS[Target()][2], Num(p.need)))
-    pf.total:SetText(string.format("%d writs, %s rep, %s%s   Total %s", #p.list, Num(p.rep),
+    pf.total:SetText(string.format("%d writs, %s rep, %s%s   Total %s", PlanCount(p), Num(p.rep),
       p.days <= 1 and "one day" or (p.days .. " days"),
       p.short and " |cffff4040(not enough writs listed)|r" or "", ns.Money(p.cost)))
   else
@@ -1289,11 +1358,11 @@ local function EntryItems(it, items)
   end
 end
 
--- Adds the whole plan's buys to the cart. Writs on CD only when they're shown.
+-- Adds the whole plan's buys to the cart: not the writs already filled today.
 local function PlanToCart(p)
   local items = {}
   for _, it in ipairs(p.list) do
-    if ShowCD() or not it.e.done then EntryItems(it, items) end
+    if not it.spent and not (it.e.done and it.day == 1) then EntryItems(it, items) end
   end
   local n = ns.CartAdd(items)
   ns.Print(string.format("added %d to the cart.", n))
@@ -1306,10 +1375,44 @@ local function RowToCart(it)
   ns.Print("added " .. it.e.name .. " to the cart.")
 end
 
+-- Units to read per item for a writ scan: as many writs as the plan has days (one without a
+-- plan), their items for that many with 25% to spare.
+function ns.WritDepthWants()
+  local n = (planMemo and planMemo.days and planMemo.days > 0) and planMemo.days or 1
+  local wants = {}
+  for _, e in ipairs(Entries()) do
+    wants[e.writ] = math.max(wants[e.writ] or 0, n)
+    local items = e.qty * n
+    if items > 1 then items = math.ceil(items * 1.25) end
+    wants[e.item] = math.max(wants[e.item] or 0, items)
+  end
+  return wants
+end
+
+local function UpdateWritScan()
+  local b = frame and frame.scanBtn
+  if not (b and ns.Depth) then return end
+  local dp = ns.Depth
+  if dp.state == "running" then
+    b:SetText(string.format("Stop scan %d/%d", dp.done, math.max(dp.total, dp.done)))
+    b:Enable()
+  else
+    b:SetText("Scan AH")
+    b:SetEnabled(dp.atAH and true or false)
+  end
+end
+ns.OnDepthChangedWrits = function()
+  UpdateWritScan()
+  if ns.Depth.state == "idle" then
+    ns.InvalidateWrits()
+    if frame and frame:IsShown() then ns.RefreshWrits() end
+  end
+end
+
 function ns.ShowWritPlan()
   if not pf then
     pf = CreateFrame("Frame", "CrateCostWritPlan", UIParent, "BackdropTemplate")
-    pf:SetSize(640, PTOP + PROWS * PROW_H + PFOOT)
+    pf:SetSize(720, PTOP + PROWS * PROW_H + PFOOT)
     pf:SetPoint("CENTER", 0, 80)
     pf:SetFrameStrata("FULLSCREEN_DIALOG")
     pf:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
@@ -1346,15 +1449,15 @@ function ns.ShowWritPlan()
     cb:SetPoint("RIGHT", regen, "LEFT", -150, 0)
     local cbl = cb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     cbl:SetPoint("LEFT", cb, "RIGHT", 2, 0)
-    cbl:SetText("Show writs on CD")
+    cbl:SetText("Show writs done today")
     cb:SetScript("OnClick", function(self)
       if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
       CrateCostCharDB.planHideCD = not self:GetChecked() or nil
       pf.offset = 0
       FillPlan()
     end)
-    ns.UI.Tip(cb, "Show writs on CD", "Writs in the plan already done today (on cooldown until the daily "
-      .. "reset), marked orange. Untick to hide them.")
+    ns.UI.Tip(cb, "Show writs done today", "The writs the plan would have used today but you've already "
+      .. "filled (red, outside the cost), and the ones handed in since the plan was made. Untick to hide them.")
     pf.showCD = cb
     -- cooldowns change as writs are handed in
     pcall(pf.RegisterEvent, pf, "QUEST_TURNED_IN")
@@ -1374,15 +1477,15 @@ function ns.ShowWritPlan()
         fs:SetWordWrap(false)
         return fs
       end
-      r.name = Text(230, "LEFT")
+      -- name and route from the left; the numbers from the right, each in its own slot, so a
+      -- long amount ("100g 11s 21c") can't run into the next column
+      r.name = Text(240, "LEFT")
       r.name:SetPoint("LEFT", 0, 0)
-      r.how = Text(170, "LEFT")
+      r.how = Text(150, "LEFT")
       r.how:SetPoint("LEFT", r.name, "RIGHT", 6, 0)
-      r.rep = Text(40, "RIGHT")
-      r.rep:SetPoint("LEFT", r.how, "RIGHT", 4, 0)
+      r.cost = Text(110, "RIGHT")
       r.per = Text(80, "RIGHT")
-      r.per:SetPoint("LEFT", r.rep, "RIGHT", 6, 0)
-      r.cost = Text(90, "RIGHT")
+      r.rep = Text(46, "RIGHT")
       -- [+cart]: this writ and its fill
       local add = CreateFrame("Button", nil, r, "UIPanelButtonTemplate")
       add:SetSize(34, 17)
@@ -1410,6 +1513,8 @@ function ns.ShowWritPlan()
       add:SetScript("OnLeave", function() GameTooltip:Hide() end)
       r.addBtn = add
       r.cost:SetPoint("RIGHT", add, "LEFT", -6, 0)
+      r.per:SetPoint("RIGHT", r.cost, "LEFT", -10, 0)
+      r.rep:SetPoint("RIGHT", r.per, "LEFT", -10, 0)
       r:EnableMouse(true)
       -- the writ's full tooltip, as on the writ list, then its place in the plan
       r:SetScript("OnEnter", function(self)
@@ -1458,7 +1563,7 @@ function ns.ShowWritPlan()
       if p then PlanToCart(p) end
     end)
     ns.UI.Tip(add, "Add plan to cart", "The plan's writs to buy and their fills: the item, or its reagents "
-      .. "when the plan crafts it (writs on CD only when shown).")
+      .. "when the plan crafts it. Not the writs already filled today.")
     local note = pf:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     note:SetPoint("LEFT", add, "RIGHT", 12, 0)
     note:SetPoint("RIGHT", pf, "RIGHT", -12, 0)

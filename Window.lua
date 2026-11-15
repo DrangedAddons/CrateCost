@@ -1146,6 +1146,7 @@ end
 function ns.OnDepthChanged()
   UpdateScanButton()
   if ns.Depth.state == "idle" and frame and frame:IsShown() then ns.RefreshWindow() end
+  if ns.OnDepthChangedWrits then ns.OnDepthChangedWrits() end
 end
 
 local function UpdateHeaders()

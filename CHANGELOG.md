@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.38.0
+- Writ plan: writs done today are left out of the plan's cost and rep (they wait for tomorrow). The ones it would have picked for day 1 still show, in red as "already filled today", outside the cost and cart, so you can tell when the best writs are used up. Writs handed in after the plan was made show (done). **Show writs done today** hides them.
+- **Scan AH** on the writs window: reads every writ's and item's listings, deep enough for the plan. Writ prices, ratings and the plan use them.
+- Plan window: Rep, Per rep and Cost no longer overlap on long amounts (right-aligned slots, wider window).
+
 ## 0.37.0
 - Writ plan: a **[+cart]** button on each writ adds the writ and its fill. **Add plan to cart** (was Add day 1 to cart) adds the whole plan's. The writ goes in unless you have it; the fill is the item, or the recipe's reagents when the plan crafts it. Writs on CD only when shown.
 

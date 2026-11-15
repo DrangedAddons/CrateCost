@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.40.0
+- Writ plan: if this character hasn't done the one-time Shipping Label quest (2,000 rep, 50 Merchant's Favor; quests 98247 / 98248), it's the plan's first step and the writs cover only the rest. Its row says to fill a crate or start a writ, or to deliver the label you already have; the tooltip names your camp's NPC.
+
 ## 0.39.0
 - Writ plan: one day. The cheapest writs you can do now (not done today), each once; if they can't reach the target it says how far they get, and Regenerate the next day plans the rest. No day headings: the writs are listed best value first, with the totals at the bottom.
 

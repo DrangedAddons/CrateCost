@@ -513,11 +513,38 @@ end
 -- The plan around today's cooldowns, plus `spent`: the writs done today that the plan would
 -- have used today without the cooldowns. Those go in day 1 marked .spent, outside the cost,
 -- rep and cart.
+-- The one-time Shipping Label: the first crate you fill or writ you start gives one; delivering
+-- it to the camp pays 2,000 rep (and 50 Merchant's Favor), once per character. Quests 98247
+-- (Alliance) / 98248 (Horde), as Waylaid Auction Helper tracks them; the label is item 280180.
+-- Rep from wow-professions.com and other Forever guides (beta data).
+local LABEL_QUESTS, LABEL_REP, LABEL_ITEM = { 98247, 98248 }, 2000, 280180
+
+-- nil when it's done (or the client can't tell: don't nag), else { rep, have = label in bags }.
+local function LabelStep()
+  if not (C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted) then return nil end
+  for _, q in ipairs(LABEL_QUESTS) do
+    local ok, done = pcall(C_QuestLog.IsQuestFlaggedCompleted, q)
+    if not ok or done then return nil end
+  end
+  return { rep = LABEL_REP, have = Count(LABEL_ITEM) > 0 }
+end
+
 local function MakePlan(need)
   local profs = MyProfessions()
-  local plan = BuildPlan(need, profs, true)
-  if not plan then return nil end
-  local ideal = BuildPlan(need, profs, false)
+  -- the Shipping Label first: it covers the first 2,000 rep for nothing
+  local label = LabelStep()
+  local writNeed = label and math.max(0, need - label.rep) or need
+  local plan
+  if writNeed == 0 then
+    plan = { need = need, days = 1, cost = 0, rep = 0, short = false, list = {} }
+  else
+    plan = BuildPlan(writNeed, profs, true)
+    if not plan then return nil end
+  end
+  plan.need = need
+  plan.label = label
+  if label then plan.rep = plan.rep + label.rep end
+  local ideal = writNeed > 0 and BuildPlan(writNeed, profs, false) or nil
   plan.spent = 0
   for _, it in ipairs(ideal and ideal.list or {}) do
     if it.day == 1 and it.e.done then
@@ -1030,7 +1057,9 @@ function ns.RefreshWrits()
     plan = STANDINGS[t][4] .. STANDINGS[t][2] .. "|r: " .. Num(needRep) .. " rep to go.  "
     local p = CurrentPlan()
     if p then
-      plan = plan .. string.format("Plan: %d writs, %s%s%s.", PlanCount(p), ns.Money(p.cost),
+      plan = plan .. string.format("Plan: %s%d writs, %s%s%s.",
+        p.label and ("|cffffd100Shipping Label quest (+" .. Num(p.label.rep) .. ")|r, then ") or "",
+        PlanCount(p), ns.Money(p.cost),
         (p.spent or 0) > 0 and string.format(", |cffff4040%d of the best already done today|r", p.spent) or "",
         p.short and (" |cffff4040- gets " .. Num(p.rep) .. " rep; regenerate tomorrow for the rest|r") or "")
     else
@@ -1258,6 +1287,7 @@ end
 -- the totals.
 local function PlanLines(p)
   local lines = {}
+  if p.label then lines[1] = { label = p.label } end
   for _, it in ipairs(p.list) do
     if ShowCD() or not it.e.done then lines[#lines + 1] = { it = it } end
   end
@@ -1271,8 +1301,18 @@ local function FillPlan()
   for i = 1, PROWS do
     local r, ln = pf.rows[i], lines[pf.offset + i]
     r.it = ln and ln.it
+    r.label = (ln and ln.label) or false
     if not ln then
       r:Hide()
+    elseif ln.label then
+      -- the one-time Shipping Label quest, before any writ
+      r.name:SetText("   |cffffd100Shipping Label quest (one time)|r")
+      r.how:SetText(ln.label.have and "|cff40ff40deliver your label|r" or (GREY .. "fill a crate or start a writ|r"))
+      r.rep:SetText("|cffffd100" .. Num(ln.label.rep) .. "|r")
+      r.per:SetText("")
+      r.cost:SetText(GREY .. "free|r")
+      r.addBtn:Hide()
+      r:Show()
     else
       local it, e = ln.it, ln.it.e
       local per = ns.Money(math.floor(it.cost / e.rep + 0.5))
@@ -1489,6 +1529,18 @@ function ns.ShowWritPlan()
       r:EnableMouse(true)
       -- the writ's full tooltip, as on the writ list, then its place in the plan
       r:SetScript("OnEnter", function(self)
+        if self.label then
+          local horde = UnitFactionGroup and UnitFactionGroup("player") == "Horde"
+          GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+          GameTooltip:AddLine("Shipping Label quest")
+          GameTooltip:AddLine("The first time you fill a Waylaid Crate or start a Craftsman's Writ you get a "
+            .. "Shipping Label. Deliver it to " .. (horde and "Dokimi at Durotar Supply and Logistics"
+            or "Marcy Baker at the Azeroth Commerce Authority") .. " for 2,000 reputation and 50 Merchant's "
+            .. "Favor. Once per character, so do it first: the plan's writs cover the rest.", 1, 1, 1, true)
+          if self.label.have then GameTooltip:AddLine("You have the label: deliver it.", 0.25, 1, 0.25) end
+          GameTooltip:Show()
+          return
+        end
         local it = self.it
         if not it then return end
         local e = it.e

@@ -14,7 +14,11 @@ local _, ns = ...
 -- The progress belongs to the plan it was made for: a new plan (Regenerate, another target)
 -- starts again from where you stand.
 
+-- W x H to start with; the window can be resized (rows follow the height, up to MAX_ROWS) and
+-- scaled with Ctrl + mouse wheel. Both are kept per checklist.
 local W, ROW_H, ROWS, HEAD = 360, 20, 20, 64
+local MAX_ROWS = 45
+local SCALE_MIN, SCALE_MAX = 0.6, 1.6
 local GREY = "|cff8a8a8a"
 local GREEN = "|cff40ff40"
 local GOLD = "|cffffd100"
@@ -287,8 +291,26 @@ local function Fill(w)
     if s.sub and not s.done and s.sub.need and s.sub.need > 0 then lines[#lines + 1] = { sub = s.sub } end
   end
   if not w.scrolled then w.offset = math.max(0, (curLine or #lines) - 3) end
-  w.offset = math.max(0, math.min(w.offset, #lines - ROWS))
-  for i = 1, ROWS do
+  local visible = w.visible or ROWS
+  w.offset = math.max(0, math.min(w.offset, #lines - visible))
+  -- the scrollbar: shown when there's more than fits
+  if #lines > visible then
+    local track = tonumber(w.track:GetHeight()) or (visible * ROW_H)
+    local thumbH = math.max(16, track * visible / #lines)
+    local y = (track - thumbH) * (w.offset / math.max(1, #lines - visible))
+    w.thumb:SetHeight(thumbH)
+    w.thumb:ClearAllPoints()
+    w.thumb:SetPoint("TOP", w.track, "TOP", 0, -y)
+    w.track:Show()
+    w.thumb:Show()
+  else
+    w.track:Hide()
+    w.thumb:Hide()
+  end
+  for i = 1, MAX_ROWS do
+    if i > visible then w.rows[i]:Hide() end
+  end
+  for i = 1, visible do
     local ln = lines[w.offset + i]
     local r = w.rows[i]
     local s = ln and ln.step
@@ -370,7 +392,7 @@ local function Fill(w)
       -- a step with a count fills as it goes
       local frac = (s.need and s.need > 0 and not s.done) and (s.have / s.need) or 0
       if frac > 0 then
-        r.fill:SetWidth(math.max(1, (W - 12) * frac))
+        r.fill:SetWidth(math.max(1, ((tonumber(w:GetWidth()) or W) - 22) * frac))
         r.fill:Show()
       else
         r.fill:Hide()
@@ -383,8 +405,18 @@ end
 local function Build(kind)
   local w = CreateFrame("Frame", "CrateCostChecklist" .. kind, UIParent, "BackdropTemplate")
   w.kind, w.offset, w.rows = kind, 0, {}
-  w:SetSize(W, HEAD + ROWS * ROW_H + 10)
+  local db = type(CrateCostDB) == "table" and CrateCostDB or {}
+  local size = db["checklistSize" .. kind]
+  w:SetSize(size and size.w or W, size and size.h or (HEAD + ROWS * ROW_H + 10))
+  w:SetScale(db["checklistScale" .. kind] or 1)
   w:SetFrameStrata("MEDIUM")
+  w:SetResizable(true)
+  if w.SetResizeBounds then
+    w:SetResizeBounds(260, HEAD + 4 * ROW_H + 10, 720, HEAD + MAX_ROWS * ROW_H + 10)
+  elseif w.SetMinResize then
+    w:SetMinResize(260, HEAD + 4 * ROW_H + 10)
+    w:SetMaxResize(720, HEAD + MAX_ROWS * ROW_H + 10)
+  end
   w:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
   -- dark: near-opaque, the stone only a hint
   w:SetBackdropColor(0.03, 0.03, 0.04, 0.94)
@@ -460,11 +492,57 @@ local function Build(kind)
   w.empty:SetPoint("TOP", 0, -HEAD - 6)
   w.empty:SetText(kind == "rep" and "No rep plan: pick a target." or "No favor plan: type a target.")
 
-  for i = 1, ROWS do
+  -- the scrollbar's track and thumb, at the right edge
+  w.track = w:CreateTexture(nil, "ARTWORK")
+  w.track:SetWidth(4)
+  w.track:SetPoint("TOPRIGHT", -4, -HEAD)
+  w.track:SetPoint("BOTTOMRIGHT", -4, 18)
+  w.track:SetColorTexture(1, 1, 1, 0.08)
+  w.thumb = w:CreateTexture(nil, "OVERLAY")
+  w.thumb:SetWidth(4)
+  w.thumb:SetColorTexture(1, 0.82, 0, 0.6)
+  -- the resize grip, bottom right
+  local grip = CreateFrame("Button", nil, w)
+  grip:SetSize(14, 14)
+  grip:SetPoint("BOTTOMRIGHT", -2, 2)
+  grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+  grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+  grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+  grip:SetScript("OnMouseDown", function() w:StartSizing("BOTTOMRIGHT") end)
+  grip:SetScript("OnMouseUp", function()
+    w:StopMovingOrSizing()
+    if type(CrateCostDB) == "table" then
+      CrateCostDB["checklistSize" .. kind] = { w = w:GetWidth(), h = w:GetHeight() }
+      if w:GetLeft() then CrateCostDB[posKey] = { x = w:GetLeft(), y = w:GetTop() } end
+    end
+  end)
+  -- rows: as many as the height holds
+  local function Visible()
+    local h = tonumber(w:GetHeight()) or (HEAD + ROWS * ROW_H + 10)
+    w.visible = math.max(1, math.min(MAX_ROWS, math.floor((h - HEAD - 18) / ROW_H)))
+  end
+  w:SetScript("OnSizeChanged", function()
+    Visible()
+    if w:IsShown() then Fill(w) end
+  end)
+  -- the wheel scrolls; Ctrl + wheel scales the window
+  local function Wheel(_, d)
+    if IsControlKeyDown and IsControlKeyDown() then
+      local sc = math.max(SCALE_MIN, math.min(SCALE_MAX, (tonumber(w:GetScale()) or 1) + d * 0.05))
+      w:SetScale(sc)
+      if type(CrateCostDB) == "table" then CrateCostDB["checklistScale" .. kind] = sc end
+      return
+    end
+    w.offset = w.offset - d * 3
+    w.scrolled = true
+    Fill(w)
+  end
+  w.Wheel = Wheel
+  for i = 1, MAX_ROWS do
     local r = CreateFrame("Frame", nil, w)
     r:SetHeight(ROW_H)
     r:SetPoint("TOPLEFT", 6, -HEAD - (i - 1) * ROW_H)
-    r:SetPoint("RIGHT", w, "RIGHT", -6, 0)
+    r:SetPoint("RIGHT", w, "RIGHT", -12, 0)
     r.bg = r:CreateTexture(nil, "BACKGROUND")
     r.bg:SetAllPoints()
     r.fill = r:CreateTexture(nil, "BORDER")
@@ -518,11 +596,13 @@ local function Build(kind)
     end)
     r:SetScript("OnLeave", function() GameTooltip:Hide() end)
     r:EnableMouseWheel(true)
-    r:SetScript("OnMouseWheel", function(_, d) w.offset = w.offset - d * 3 w.scrolled = true Fill(w) end)
+    r:SetScript("OnMouseWheel", Wheel)
+    r:Hide()
     w.rows[i] = r
   end
   w:EnableMouseWheel(true)
-  w:SetScript("OnMouseWheel", function(_, d) w.offset = w.offset - d * 3 w.scrolled = true Fill(w) end)
+  w:SetScript("OnMouseWheel", Wheel)
+  Visible()
   -- the game moves the steps along
   for _, ev in ipairs({ "QUEST_TURNED_IN", "BAG_UPDATE_DELAYED", "CURRENCY_DISPLAY_UPDATE", "UPDATE_FACTION",
     "GET_ITEM_INFO_RECEIVED" }) do

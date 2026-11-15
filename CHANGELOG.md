@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.51.2
+- Checklist: a scrollbar when there are more steps than fit, a resize grip (bottom right; the rows follow the height), and Ctrl + mouse wheel over it to scale it. Size and scale are kept per checklist.
+
 ## 0.51.1
 - Scan AH: while it runs, the button turns into a progress bar with the status inside ("Reading listings 12 / 98"); click the bar to stop. The button comes back when the scan's done. On every view with a scan.
 

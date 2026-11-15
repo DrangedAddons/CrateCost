@@ -85,7 +85,7 @@ Two tickboxes in both plans (per character, shared, on by default):
 - empty Waylaid Crates in your bags;
 - favor earned and containers handed in, from your favor and rep since the plan was made.
 
-Writ and crate steps show the item with its icon and quality colour (hover for its tooltip), and under them the fill with how many you have of what's still needed. The step you're on is highlighted gold, done steps green, and a step with a count fills as it goes. Hover a step for its details. It drags anywhere, scrolls to where you're up to, reopens after a reload, and starts again with a new plan.
+Writ and crate steps show the item with its icon and quality colour (hover for its tooltip), and under them the fill with how many you have of what's still needed. The step you're on is highlighted gold, done steps green, and a step with a count fills as it goes. Hover a step for its details. It drags anywhere, resizes from its bottom-right corner, scales with Ctrl + mouse wheel, shows a scrollbar when there's more than fits, scrolls to where you're up to, reopens after a reload, and starts again with a new plan.
 
 ## Checklists
 

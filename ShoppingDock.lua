@@ -19,7 +19,7 @@
 -- Buying needs a click (the game only allows a purchase from one). A commodity is two clicks:
 -- Buy now asks the AH for the exact price (StartCommoditiesPurchase), then Confirm buys at it.
 
-local MINOR = 10
+local MINOR = 12
 
 local _, NS = ...
 NS = type(NS) == "table" and NS or {}
@@ -124,6 +124,16 @@ local function RawLists()
     if type(l) == "table" and type(l.name) == "string" and not l.isTemporary and type(l.items) == "table" then
       out[#out + 1] = l
     end
+  end
+  return out
+end
+
+-- the lists the dock offers: Auctionator's, less the ones you told it to forget
+local function DockLists()
+  local out, lists = {}, Store().lists
+  for _, l in ipairs(RawLists()) do
+    local L = lists[l.name]
+    if not (L and L.forgotten) then out[#out + 1] = l end
   end
   return out
 end
@@ -267,6 +277,28 @@ local function Diff(actual, planned)
   return GREEN .. Money(-d) .. " under|r"
 end
 
+-- Delete a list from Auctionator (its ListManager, as Auctionator's own Delete button does).
+-- True when it's gone.
+local function DeleteFromAuctionator(name)
+  local lm = Auctionator and Auctionator.Shopping and Auctionator.Shopping.ListManager
+  if not (lm and lm.GetIndexForName and lm.Delete) then return false end
+  local ok = pcall(function()
+    if lm:GetIndexForName(name) then lm:Delete(name) end
+  end)
+  return ok and not FindRaw(name)
+end
+
+-- Lists forgotten before Forget list deleted them (0.5.x), or while Auctionator wasn't ready:
+-- delete them now.
+local function DeleteForgotten()
+  local s = Store()
+  for name, L in pairs(s.lists) do
+    if type(L) == "table" and L.forgotten and FindRaw(name) and DeleteFromAuctionator(name) then
+      s.lists[name] = nil
+    end
+  end
+end
+
 local function ActiveName()
   local s = Store()
   if s.active and FindRaw(s.active) then return s.active end
@@ -333,7 +365,7 @@ local function CancelQuote()
   end
 end
 
-local Refresh, UpdateButton
+local Refresh, UpdateButton, ForgetList
 
 local function SendQuery()
   if state.phase == "find" then
@@ -676,7 +708,7 @@ Refresh = function()
   if not (panel and panel:IsShown()) then return end
   local name = ActiveName()
   local x, idx, items = Current()
-  local count = #RawLists()
+  local count = #DockLists()
   if not items then
     panel.listName:SetText(GREY .. (count > 0 and "Click to pick a list" or "No shopping lists") .. "|r")
     panel.progress:SetText("")
@@ -893,7 +925,7 @@ end
 -- headers and lists in menu order: sources A-Z (OTHER last), each source's lists A-Z
 local function MenuEntries()
   local groups, order = {}, {}
-  for _, l in ipairs(RawLists()) do
+  for _, l in ipairs(DockLists()) do
     local src = SourceOf(l.name)
     if not groups[src] then
       groups[src] = {}
@@ -937,10 +969,8 @@ local function FillMenu()
         if IsDone(it) then done = done + 1 end
       end
       row.text:SetPoint("LEFT", 18, 0)
-      local L = Store().lists[e.name]
-      local forgotten = L and L.forgotten
-      row.text:SetText((e.name == cur and "|cffffffff" or forgotten and GREY or "|cffcccccc") .. e.name .. "|r"
-        .. GREY .. "  " .. (forgotten and "forgotten" or (done .. " / " .. #items)) .. "|r")
+      row.text:SetText((e.name == cur and "|cffffffff" or "|cffcccccc") .. e.name .. "|r"
+        .. GREY .. "  " .. done .. " / " .. #items .. "|r")
       row.sel:SetShown(e.name == cur)
       row.name = e.name
       row:EnableMouse(true)
@@ -1033,6 +1063,26 @@ local function ToggleMenu(anchor)
   end
   FillMenu()
   menu.catcher:Show()
+end
+
+-- Forget list: the list goes from Auctionator and the dock, progress and all. If Auctionator
+-- won't delete it, the dock still drops it (hidden from the menu) and tries again next login.
+ForgetList = function(name)
+  if not (Active() and type(name) == "string") then return end
+  local s = Store()
+  if DeleteFromAuctionator(name) then
+    s.lists[name] = nil
+  else
+    local L = Track(name)
+    for _, rec in pairs(L.items) do
+      rec.bought, rec.spent, rec.skipped, rec.want = 0, 0, nil, nil
+    end
+    L.focus, L.forgotten = nil, true
+  end
+  if s.active == name then s.active = nil end
+  if panel then panel.scrolled = false end
+  Search()
+  UpdateButton()
 end
 
 local function Build()
@@ -1229,20 +1279,19 @@ local function Build()
   local forget = Button(p, "Forget list", 120, 22, function()
     local name = ActiveName()
     if not name then return end
-    -- the dock drops this list's progress and stops opening for it; the plan's prices stay,
-    -- and Auctionator's list isn't touched
-    local L = Track(name)
-    for _, rec in pairs(L.items) do
-      rec.bought, rec.spent, rec.skipped, rec.want = 0, 0, nil, nil
-    end
-    L.focus, L.forgotten = nil, true
-    Store().active = nil
-    p.scrolled = false
-    Search()
+    -- defined at the click, so it's always the running copy's dialog
+    StaticPopupDialogs["SHOPPINGDOCK_FORGET"] = {
+      text = "Forget the shopping list \"%s\"?\n\nIt's deleted from Auctionator's shopping lists too.",
+      button1 = "Forget",
+      button2 = CANCEL or "Cancel",
+      OnAccept = function(_, listName) ForgetList(listName) end,
+      timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+    }
+    StaticPopup_Show("SHOPPINGDOCK_FORGET", name, nil, name)
   end)
   forget:SetPoint("BOTTOMRIGHT", -16, 14)
-  Tip(forget, "Forget list", "Drop what's been bought and skipped on this list, and stop opening the dock for it "
-    .. "at the auction house. Auctionator's list isn't touched: pick it from the list menu to start it again.")
+  Tip(forget, "Forget list", "Delete this list: from the dock, with what's been bought on it, and from "
+    .. "Auctionator's shopping lists. Asks first.")
   p:SetScript("OnShow", function() UpdateButton() end)
   p:SetScript("OnHide", function()
     UpdateButton()
@@ -1369,7 +1418,7 @@ local function BuildAHButton(ahf)
       GameTooltip:AddLine(name, 1, 0.82, 0)
       if left then GameTooltip:AddLine(left .. " item" .. (left == 1 and "" or "s") .. " left to buy", 1, 1, 1) end
     end
-    local n = #RawLists()
+    local n = #DockLists()
     GameTooltip:AddLine(n .. " shopping list" .. (n == 1 and "" or "s"), 0.7, 0.7, 0.7)
     GameTooltip:AddLine(self.down and "|cffffd100Click|r to close the dock"
       or "|cffffd100Click|r to open the dock beside the auction house", 1, 1, 1)
@@ -1393,7 +1442,7 @@ UpdateButton = function()
   if not ahButton then BuildAHButton(ahf) end
   -- shown while there's a list, open or not; pressed in while the dock is open
   local open = panel and panel:IsShown() and true or false
-  local show = open or (SD.IsEnabled() and #RawLists() > 0)
+  local show = open or (SD.IsEnabled() and #DockLists() > 0)
   ahButton:SetShown(show and true or false)
   if not show then return end
   ahButton:SetDown(open)
@@ -1553,6 +1602,7 @@ local function Init()
   for name in pairs(s.lists) do
     if not FindRaw(name) then s.lists[name] = nil end
   end
+  DeleteForgotten()
   ActiveName()
 end
 
@@ -1578,6 +1628,7 @@ local ahOpened = false
 local function OnAHShown()
   if ahOpened then return end
   ahOpened, atAH = true, true
+  DeleteForgotten()
   if SD.IsEnabled() then
     local name = ActiveName()
     if name and not Track(name).forgotten and Current() then ShowDock() end

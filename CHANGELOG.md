@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.56.9
+- Shopping dock (ShoppingDock 0.6.0): Forget list deletes the list, from the dock and from Auctionator, after asking. Lists forgotten earlier are deleted too.
+
 ## 0.56.8
 - Shopping dock (ShoppingDock 0.5.5): the Shopping List button stays in the AH title bar while the dock is open, pressed in; click it to close the dock.
 

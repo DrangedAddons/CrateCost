@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.55.4
+- Rep plan's shopping list follows the plan's steps: the writs to Friendly (each writ, then its fill), the favor crates and bundles, the empty crates, then the writs after Friendly. Buying from the top never gets ahead of a step you haven't reached.
+
 ## 0.55.3
 - Buy panel: the button reads **Buy now ~(estimate)**, then **Confirm (exact price)** once the AH quotes it, as the AH's own Buy Now and confirm do.
 

@@ -1714,13 +1714,22 @@ local function ContainerItems(c, items, step, onlyPick)
 end
 
 -- The whole plan's buys (not the writs already filled today), for review, then an Auctionator
--- shopping list: each writ and its fill, the containers' favor crates and bundles, the empties.
+-- shopping list, in the order of the plan's steps, so buying from the top never gets ahead of a
+-- step you haven't reached: the writs to Friendly (each writ, then its fill), the containers'
+-- favor crates and bundles, their empty crates, then the writs after Friendly.
 local function PlanShopping(p)
   local items = {}
-  if p.containers then ContainerItems(p.containers, items) end
-  for _, it in ipairs(p.list) do
-    if not it.spent and not (it.e.done and it.day == 1) then EntryItems(it, items) end
+  local function Writs(stage)
+    for _, it in ipairs(p.list) do
+      if not it.spent and not (it.e.done and it.day == 1) and (it.stage or 2) == stage then EntryItems(it, items) end
+    end
   end
+  Writs(1)
+  if p.containers then
+    ContainerItems(p.containers, items, "favor")
+    ContainerItems(p.containers, items, "crates")
+  end
+  Writs(2)
   local t = Target()
   ns.ShowShoppingReview(items, "Rep plan" .. (t and (" to " .. STANDINGS[t][2]) or "") .. ": shopping list",
     "CrateCost rep plan")

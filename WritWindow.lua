@@ -539,12 +539,7 @@ local FRIENDLY = 3000   -- absolute standing where Friendly starts (STANDINGS[5]
 
 -- { pf, crate (name of the cheapest favor crate), cum[k] = cost of k containers, ids[k] } for up
 -- to `kmax` containers, or nil when there's no favor or crate price.
-local function ContainerPricing(kmax)
-  local pf, crate
-  for name, r in pairs(ns.CrateRatings and ns.CrateRatings() or {}) do
-    if r.per and not r.noCrate and not r.unrated and (not pf or r.per < pf) then pf, crate = r.per, name end
-  end
-  if not pf then return nil end
+local function ContainerPricing(kmax, pf, have)
   local rows = {}
   for _, id in pairs(ns.CrateIDs or {}) do
     local listed = ns.Depth and ns.Depth.Rows and ns.Depth.Rows(id)
@@ -556,21 +551,38 @@ local function ContainerPricing(kmax)
     end
   end
   table.sort(rows, function(a, b) return a[1] < b[1] end)
-  local cum, ids = { [0] = 0 }, {}
+  -- crates[k] = k empty crates; cum[k] = that + the favor still to earn for k receipts
+  local crates, cum, ids = { [0] = 0 }, { [0] = 0 }, {}
   local k = 0
   for _, r in ipairs(rows) do
     local left = r[2]
     while left > 0 and k < kmax do
       k = k + 1
-      cum[k] = cum[k - 1] + r[1] + CONTAINER_FAVOR * pf
+      crates[k] = crates[k - 1] + r[1]
+      cum[k] = crates[k] + math.max(0, CONTAINER_FAVOR * k - have) * pf
       ids[k] = r[3]
       left = left - 1
     end
     if k >= kmax then break end
   end
-  return { pf = pf, crate = crate, cum = cum, ids = ids }
+  return { crates = crates, cum = cum, ids = ids }
 end
 
+-- Merchant's Favor this character has.
+local function FavorHave()
+  local info = C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo and C_CurrencyInfo.GetCurrencyInfo(3402)
+  return (info and info.quantity) or 0
+end
+
+-- The cheapest favor per favor the crate list can buy, one crate at a time (a first guess;
+-- ns.FavorSource prices the real amount).
+local function FavorPrice()
+  local pf
+  for _, r in pairs(ns.CrateRatings and ns.CrateRatings() or {}) do
+    if r.per and not r.noCrate and not r.unrated and (not pf or r.per < pf) then pf = r.per end
+  end
+  return pf
+end
 -- best[u] = the least writs (one each, not done today) cost for at least u * 25 rep, u up to
 -- ceil(need / 25): a knapsack over every writ copy.
 local function WritCosts(groups, need)
@@ -603,23 +615,35 @@ local function MakePlan(need)
   local after = label and math.max(0, need - label.rep) or need
   -- writs only until Friendly: containers need Friendly
   local gate = math.max(0, math.min(after, FRIENDLY - ((standing and standing.value) or 0) - (label and label.rep or 0)))
-  -- past Friendly: the cheapest mix of writs and containers
-  local nCont, cont = 0, nil
-  if after > gate then
+  -- past Friendly: the cheapest mix of writs and containers. Favor is priced at the cheapest
+  -- crate first, then again at what earning that much really costs (crates up the listings).
+  local nCont, cont, src = 0, nil, nil
+  local have = FavorHave()
+  local pf = FavorPrice()
+  if after > gate and pf then
     local kmax = math.ceil((after - gate) / CONTAINER_REP)
-    cont = ContainerPricing(kmax)
-    if cont then
-      local best, N = WritCosts((Copies(1, profs, true)), after)
-      local gu = math.ceil(gate / 25)
-      local bestTotal
+    local best, N = WritCosts((Copies(1, profs, true)), after)
+    local gu = math.ceil(gate / 25)
+    local function Pick(price)
+      cont = ContainerPricing(kmax, price, have)
+      local bestTotal, pick = nil, 0
       for k = 0, kmax do
         local cc = cont.cum[k]
         if not cc then break end
         local wu = k == 0 and N or math.max(gu, N - k * CONTAINER_REP / 25)
         wu = math.max(0, math.ceil(wu))
         local w = best[wu]
-        if w and (not bestTotal or w + cc < bestTotal) then bestTotal, nCont = w + cc, k end
+        if w and (not bestTotal or w + cc < bestTotal) then bestTotal, pick = w + cc, k end
       end
+      return pick
+    end
+    nCont = Pick(pf)
+    local earn = math.max(0, nCont * CONTAINER_FAVOR - have)
+    src = earn > 0 and ns.FavorSource and ns.FavorSource(earn) or nil
+    if src then
+      nCont = Pick(src.total / earn)
+      earn = math.max(0, nCont * CONTAINER_FAVOR - have)
+      src = earn > 0 and ns.FavorSource(earn) or nil
     end
   end
   local writNeed = nCont > 0 and math.max(gate, after - nCont * CONTAINER_REP) or after
@@ -637,8 +661,12 @@ local function MakePlan(need)
   if nCont > 0 then
     local byId = {}
     for k = 1, nCont do byId[cont.ids[k]] = (byId[cont.ids[k]] or 0) + 1 end
-    plan.containers = { n = nCont, cost = cont.cum[nCont], favor = nCont * CONTAINER_FAVOR, pf = cont.pf,
-      crate = cont.crate, byId = byId }
+    local favor = nCont * CONTAINER_FAVOR
+    local earn = math.max(0, favor - have)
+    -- favor to earn: the crates to fill (src); without one, at the first guess per favor
+    local favorCost = src and src.total or earn * pf
+    plan.containers = { n = nCont, favor = favor, have = have, earn = earn, src = src,
+      crateCost = cont.crates[nCont], favorCost = favorCost, cost = cont.crates[nCont] + favorCost, byId = byId }
     plan.cost = plan.cost + plan.containers.cost
     plan.rep = plan.rep + nCont * CONTAINER_REP
     -- the target's reached with containers, whatever the writs alone could do
@@ -1407,13 +1435,18 @@ local function PlanLines(p)
     end
   end
   if staged then
-    lines[#lines + 1] = { head = "To Friendly: " .. Num(p.gate) .. " rep in writs (containers unlock at Friendly)" }
+    lines[#lines + 1] = { head = "To Friendly: " .. Num(p.gate) .. " rep, writs only" }
     Writs(1)
     lines[#lines + 1] = { head = "Friendly onwards" }
   else
     Writs(1)
   end
-  if p.containers then lines[#lines + 1] = { cont = p.containers } end
+  if p.containers then
+    -- the containers step by step: earn the favor, buy the receipts, buy the crates, hand them in
+    for _, step in ipairs({ "favor", "receipts", "crates", "handin" }) do
+      lines[#lines + 1] = { cont = p.containers, step = step }
+    end
+  end
   Writs(2)
   return lines
 end
@@ -1427,6 +1460,7 @@ local function FillPlan()
     r.it = (ln and ln.it) or false
     r.label = (ln and ln.label) or false
     r.cont = (ln and ln.cont) or false
+    r.step = (ln and ln.step) or false
     if not ln then
       r:Hide()
     elseif ln.head then
@@ -1438,14 +1472,44 @@ local function FillPlan()
       r.addBtn:Hide()
       r:Show()
     elseif ln.cont then
-      -- Notarized Shipping Containers: empty crates + favor, 50 rep each
-      local c = ln.cont
-      r.name:SetText("   |cffffd100Notarized Shipping Container x" .. c.n .. "|r")
-      r.how:SetText(GREY .. c.n .. " empty crates + " .. Num(c.favor) .. " favor|r")
-      r.rep:SetText(Num(c.n * CONTAINER_REP))
-      r.per:SetText(ns.Money(math.floor(c.cost / (c.n * CONTAINER_REP) + 0.5)))
-      r.cost:SetText(ns.Money(c.cost))
-      r.addBtn:Show()
+      -- Notarized Shipping Containers, one step a row
+      local c, step = ln.cont, ln.step
+      local horde = UnitFactionGroup and UnitFactionGroup("player") == "Horde"
+      r.step = step
+      r.rep:SetText("")
+      r.per:SetText("")
+      r.addBtn:Hide()
+      if step == "favor" then
+        if c.src then
+          r.name:SetText("   1. Buy + fill " .. c.src.n .. "x " .. c.src.name)
+          r.how:SetText(GREY .. c.src.qty .. " " .. c.src.bundle .. " each|r")
+          r.cost:SetText(ns.Money(c.src.total))
+          r.addBtn:Show()
+        elseif c.earn == 0 then
+          r.name:SetText("   1. Favor: you have " .. Num(c.have))
+          r.how:SetText(GREY .. "enough for the receipts|r")
+          r.cost:SetText("")
+        else
+          r.name:SetText("   1. Earn " .. Num(c.earn) .. " Merchant's Favor")
+          r.how:SetText(GREY .. "no crate to buy for it|r")
+          r.cost:SetText(ns.Money(c.favorCost))
+        end
+      elseif step == "receipts" then
+        r.name:SetText("   2. Buy " .. c.n .. " Forged Delivery Receipts")
+        r.how:SetText(GREY .. Num(c.favor) .. " favor, " .. (horde and "Kurvelk Shadowhoof" or "Dianne Softstep") .. "|r")
+        r.cost:SetText(GREY .. "favor|r")
+      elseif step == "crates" then
+        r.name:SetText("   3. Buy " .. c.n .. " empty Waylaid Crates")
+        r.how:SetText(GREY .. "the cheapest on the AH|r")
+        r.cost:SetText(ns.Money(c.crateCost))
+        r.addBtn:Show()
+      else
+        r.name:SetText("   |cffffd1004. Hand in " .. c.n .. " containers|r")
+        r.how:SetText(GREY .. (horde and "Dokimi" or "Marcy Baker") .. "|r")
+        r.rep:SetText(Num(c.n * CONTAINER_REP))
+        r.per:SetText(ns.Money(math.floor(c.cost / (c.n * CONTAINER_REP) + 0.5)))
+        r.cost:SetText(ns.Money(c.cost))
+      end
       r:Show()
     elseif ln.label then
       -- the one-time Shipping Label quest, before any writ
@@ -1523,12 +1587,20 @@ local function PlanToCart(p)
   ns.Print(string.format("added %d to the cart.", n))
 end
 
--- The empty crates for the containers, by crate (the cheapest ones the plan priced).
-local function ContainerItems(c, items)
-  local names = {}
-  for name, id in pairs(ns.CrateIDs or {}) do names[id] = name end
-  for id, n in pairs(c.byId) do
-    items[#items + 1] = { id = id, name = "Waylaid Crate: " .. (names[id] or id), qty = n }
+-- The containers' buys: `step` "favor" = the crates to fill and their bundles, "crates" = the
+-- empty crates; nil = both.
+local function ContainerItems(c, items, step)
+  if (not step or step == "favor") and c.src then
+    local src = c.src
+    items[#items + 1] = { id = src.id, name = "Waylaid Crate: " .. src.name, qty = src.n }
+    items[#items + 1] = { id = src.bundleID, name = src.bundle, qty = src.n * src.qty }
+  end
+  if not step or step == "crates" then
+    local names = {}
+    for name, id in pairs(ns.CrateIDs or {}) do names[id] = name end
+    for id, n in pairs(c.byId) do
+      items[#items + 1] = { id = id, name = "Waylaid Crate: " .. (names[id] or id), qty = n }
+    end
   end
 end
 
@@ -1669,9 +1741,10 @@ function ns.ShowWritPlan()
       add:SetScript("OnClick", function()
         if r.cont then
           local items = {}
-          ContainerItems(r.cont, items)
+          ContainerItems(r.cont, items, r.step)
           ns.CartAdd(items)
-          ns.Print(string.format("added %d empty crates to the cart.", r.cont.n))
+          ns.Print(r.step == "favor" and "added the crates and bundles for the favor to the cart."
+            or string.format("added %d empty crates to the cart.", r.cont.n))
         elseif r.it then
           RowToCart(r.it)
         end
@@ -1704,23 +1777,47 @@ function ns.ShowWritPlan()
           return
         end
         if self.cont then
-          local c = self.cont
+          local c, step = self.cont, self.step
           local horde = UnitFactionGroup and UnitFactionGroup("player") == "Horde"
           GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-          GameTooltip:AddLine("Notarized Shipping Container x" .. c.n)
-          GameTooltip:AddLine("From Friendly: buy a Forged Delivery Receipt for 15 Merchant's Favor from "
-            .. (horde and "Kurvelk Shadowhoof" or "Dianne Softstep") .. ", use it on an empty Waylaid Crate, "
-            .. "and hand the container in at the camp for 50 rep. No daily limit.", 1, 1, 1, true)
-          GameTooltip:AddLine(" ")
-          GameTooltip:AddDoubleLine("Empty crates (cheapest on the AH)", c.n, 1, 1, 1, 1, 1, 1)
-          GameTooltip:AddDoubleLine("Merchant's Favor", Num(c.favor), 1, 1, 1, 1, 1, 1)
-          GameTooltip:AddDoubleLine("Favor priced at", ns.Money(math.floor(c.pf + 0.5)) .. " each", 1, 1, 1, 1, 1, 1)
-          if c.crate then
-            GameTooltip:AddLine("Cheapest favor: buy and fill " .. c.crate .. " crates (crate + bundle, less the "
-              .. "turn-in silver). Favor you already have counts at the same price.", 0.6, 0.6, 0.6, true)
+          if step == "favor" then
+            GameTooltip:AddLine("Earn the Merchant's Favor")
+            GameTooltip:AddDoubleLine("Receipts need", Num(c.favor), 1, 1, 1, 1, 1, 1)
+            GameTooltip:AddDoubleLine("You have", Num(c.have), 1, 1, 1, 1, 1, 1)
+            GameTooltip:AddDoubleLine("To earn", Num(c.earn), 1, 1, 1, 1, 1, 1)
+            local src = c.src
+            if src then
+              GameTooltip:AddLine(" ")
+              GameTooltip:AddLine("Cheapest way, from the AH listings: buy " .. src.n .. " Waylaid Crate: " .. src.name
+                .. ", fill each with " .. src.qty .. " " .. src.bundle .. ", and turn them in ("
+                .. src.favor .. " favor each).", 1, 1, 1, true)
+              GameTooltip:AddDoubleLine(src.n .. " crates", ns.Money(src.crateCost), 1, 1, 1, 1, 1, 1)
+              GameTooltip:AddDoubleLine(src.n * src.qty .. " " .. src.bundle, ns.Money(src.bundleCost), 1, 1, 1, 1, 1, 1)
+              if src.pay > 0 then
+                GameTooltip:AddDoubleLine("Turn-in silver back", "-" .. ns.Money(src.pay), 1, 1, 1, 0.25, 1, 0.25)
+              end
+              GameTooltip:AddDoubleLine("Total", ns.Money(src.total), 1, 0.82, 0, 1, 1, 1)
+              GameTooltip:AddLine("[+cart] adds the crates and bundles. Scan AH for prices up the listings.", 0.6, 0.6, 0.6, true)
+            end
+          elseif step == "receipts" then
+            GameTooltip:AddLine("Forged Delivery Receipts")
+            GameTooltip:AddLine("15 Merchant's Favor each from " .. (horde and "Kurvelk Shadowhoof" or "Dianne Softstep")
+              .. ", the camp's Uncertified Scribe. Needs Friendly.", 1, 1, 1, true)
+          elseif step == "crates" then
+            local names = {}
+            for name, id in pairs(ns.CrateIDs or {}) do names[id] = name end
+            GameTooltip:AddLine("Empty Waylaid Crates")
+            GameTooltip:AddLine("Any crate takes a receipt, so the cheapest on the AH:", 1, 1, 1, true)
+            for id, n in pairs(c.byId) do GameTooltip:AddDoubleLine(names[id] or tostring(id), n, 1, 1, 1, 1, 1, 1) end
+            GameTooltip:AddDoubleLine("Total", ns.Money(c.crateCost), 1, 0.82, 0, 1, 1, 1)
+          else
+            GameTooltip:AddLine("Notarized Shipping Containers")
+            GameTooltip:AddLine("Use a receipt on each empty crate and hand the containers to "
+              .. (horde and "Dokimi" or "Marcy Baker") .. ": 50 rep each, no daily limit.", 1, 1, 1, true)
+            GameTooltip:AddDoubleLine("Empty crates", ns.Money(c.crateCost), 1, 1, 1, 1, 1, 1)
+            GameTooltip:AddDoubleLine("Favor to earn", ns.Money(c.favorCost), 1, 1, 1, 1, 1, 1)
+            GameTooltip:AddDoubleLine("Total", ns.Money(c.cost), 1, 0.82, 0, 1, 1, 1)
           end
-          GameTooltip:AddDoubleLine("Per rep", ns.Money(math.floor(c.cost / (c.n * CONTAINER_REP) + 0.5)), 1, 1, 1, 1, 1, 1)
-          GameTooltip:AddDoubleLine("Total", ns.Money(c.cost), 1, 1, 1, 1, 1, 1)
           GameTooltip:Show()
           return
         end

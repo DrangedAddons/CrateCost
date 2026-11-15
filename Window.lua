@@ -274,6 +274,42 @@ function ns.InvalidateRatings() ratingCache = nil end
 -- "to Fill" = only its bundle, for a crate you already have: is filling it cheaper than buying
 -- favor elsewhere? Both are the same for everyone (a linked crate reads the same in any chat).
 -- The buy rating is the entry itself, the fill rating is its .fill.
+
+-- The cheapest way to earn `favor` Merchant's Favor by buying and filling crates of one kind:
+-- n crates up their scanned AH listings (Depth.lua, else Auctionator), the bundle that's cheapest
+-- for all n (one the AH can fully supply), less n turn-in silvers. { name, id, n, favor (per
+-- crate), bundle, qty (per crate), bundleID, crateCost, bundleCost, pay, total } or nil.
+function ns.FavorSource(favor)
+  if not favor or favor <= 0 then return nil end
+  local best
+  for _, c in ipairs(CrateList()) do
+    if c.favor and c.id then
+      local n = math.ceil(favor / c.favor)
+      local crateCost, how = ns.FillCost(c.id, n)
+      if crateCost and not how.short then
+        local bCost, bName, bQty, bID
+        for _, b in ipairs(c.bundles) do
+          local id = ns.ItemIDs[b[1]]
+          local cost, bh
+          if id then cost, bh = ns.FillCost(id, b[2] * n) end
+          if cost and not bh.short and (not bCost or cost < bCost) then
+            bCost, bName, bQty, bID = cost, b[1], b[2], id
+          end
+        end
+        if bCost then
+          local pay = (c.pay1 or 0) * n
+          local total = math.max(0, crateCost + bCost - pay)
+          if not best or total < best.total then
+            best = { name = c.name, id = c.id, n = n, favor = c.favor, bundle = bName, qty = bQty,
+              bundleID = bID, crateCost = crateCost, bundleCost = bCost, pay = pay, total = total }
+          end
+        end
+      end
+    end
+  end
+  return best
+end
+
 function ns.CrateRatings()
   if ratingCache and GetTime() - ratingTime < RATING_TTL then return ratingCache end
   local rated, fills, crafts = {}, {}, {}

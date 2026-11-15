@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.42.0
+- Writ plan: the containers are laid out as steps. **1. Buy + fill** N of the crate that earns the favor cheapest, picked from the AH listings for that many crates and bundles, less the turn-in silver, with the favor you already have subtracted. **2. Buy** the receipts (your camp's scribe). **3. Buy** the cheapest empty crates. **4. Hand in** the containers. Steps 1 and 3 have [+cart]; each step's tooltip breaks it down.
+- The containers are re-costed at the real favor price for that amount, so the writ / container split uses it.
+- Shorter "To Friendly" heading.
+
 ## 0.41.0
 - Writ plan: guides you to Friendly, then onwards. After the Shipping Label quest (assumed done), **To Friendly** is writs only; **Friendly onwards** is the cheapest mix of writs and **Notarized Shipping Containers** (empty crate + 15 Merchant's Favor = 50 rep, no daily limit).
 - A container costs the cheapest empty crate on the AH (scanned listings, else Auctionator) plus 15 favor at the crate list's cheapest favor (crate + bundle - turn-in silver, per favor). The plan picks how many containers against how many writs for the lowest total.

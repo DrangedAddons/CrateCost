@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.56.3
+- Shopping dock (ShoppingDock 0.4.1): the list arrows are gone; pick the list from the dropdown.
+
 ## 0.56.2
 - Shopping dock (ShoppingDock 0.4.0): click any row in **The plan** to buy that item next; **Forget list** is back in place of Start over and Done with list.
 

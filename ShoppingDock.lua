@@ -19,7 +19,7 @@
 -- Buying needs a click (the game only allows a purchase from one). A commodity is two clicks:
 -- Buy now asks the AH for the exact price (StartCommoditiesPurchase), then Confirm buys at it.
 
-local MINOR = 4
+local MINOR = 5
 
 local _, NS = ...
 NS = type(NS) == "table" and NS or {}
@@ -562,19 +562,6 @@ local function FocusItem(key)
   Search()
 end
 
--- dir = 1 next list, -1 previous
-local function Cycle(dir)
-  local lists = RawLists()
-  if #lists == 0 then return end
-  local cur = ActiveName()
-  local idx = 0
-  for i, l in ipairs(lists) do
-    if l.name == cur then idx = i end
-  end
-  idx = ((idx - 1 + dir) % #lists) + 1
-  SelectList(lists[idx].name)
-end
-
 ------------------------------------------------------------------------------------------------
 -- Rescanning the whole list: every item not yet bought is searched in turn, and what buying the
 -- rest of it would cost now is kept on its row (rec.now). The current item's own search keeps
@@ -690,8 +677,6 @@ Refresh = function()
   local name = ActiveName()
   local x, idx, items = Current()
   local count = #RawLists()
-  panel.prev:SetEnabled(count > 1)
-  panel.next:SetEnabled(count > 1)
   if not items then
     panel.listName:SetText(GREY .. (count > 0 and "Click to pick a list" or "No shopping lists") .. "|r")
     panel.progress:SetText("")
@@ -1060,16 +1045,11 @@ local function Build()
   local close = CreateFrame("Button", nil, p, "UIPanelCloseButton")
   close:SetPoint("TOPRIGHT", -6, -6)
   close:SetScript("OnClick", function() p:Hide() end)
-  -- which list: < name >
-  p.prev = Button(p, "<", 24, 22, function() Cycle(-1) end)
-  p.prev:SetPoint("TOPLEFT", 16, -44)
-  Tip(p.prev, "Previous list", "Switch to another Auctionator shopping list.")
-  p.next = Button(p, ">", 24, 22, function() Cycle(1) end)
-  p.next:SetPoint("TOPRIGHT", -16, -44)
-  Tip(p.next, "Next list", "Switch to another Auctionator shopping list.")
+  -- which list: a dropdown across the top
   p.pick = CreateFrame("Button", nil, p, "BackdropTemplate")
-  p.pick:SetPoint("TOPLEFT", p.prev, "TOPRIGHT", 6, 0)
-  p.pick:SetPoint("BOTTOMRIGHT", p.next, "BOTTOMLEFT", -6, 0)
+  p.pick:SetHeight(22)
+  p.pick:SetPoint("TOPLEFT", 16, -44)
+  p.pick:SetPoint("TOPRIGHT", -16, -44)
   p.pick:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
   p.pick:SetBackdropColor(0.1, 0.1, 0.11, 1)
   p.pick:SetBackdropBorderColor(0.25, 0.25, 0.28, 1)

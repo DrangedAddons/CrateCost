@@ -15,6 +15,11 @@ local function Cart()
   return CrateCostCharDB.cart
 end
 
+-- A plan's shopping list under review (ns.ShowShoppingReview): the window shows it instead of
+-- the cart, and Create Shopping List makes the Auctionator list from it. The cart is untouched.
+local review
+local function List() return review or Cart() end
+
 local function ItemName(id, fallback)
   local name = id and C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(id)
   return name or fallback
@@ -118,6 +123,7 @@ local function Build()
   local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   title:SetPoint("TOPLEFT", 14, -12)
   title:SetText("Crate shopping cart")
+  f.titleText = title
   local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
   -- hide directly: the template's HideUIPanel path doesn't close unmanaged frames on Forever
   close:SetScript("OnClick", function() f:Hide() end)
@@ -147,7 +153,7 @@ local function Build()
     r.remove:SetSize(20, 20)
     r.remove:SetPoint("RIGHT", 0, 0)
     r.remove:SetScript("OnClick", function()
-      local cart = Cart()
+      local cart = List()
       for k, it in ipairs(cart) do
         if it == r.it then table.remove(cart, k) break end
       end
@@ -221,10 +227,16 @@ local function Build()
     local name = strtrim(f.box:GetText() or "")
     if name == "" then name = f.suggested end
     local chosen = {}
-    for _, it in ipairs(Cart()) do
+    for _, it in ipairs(List()) do
       if it.on and it.qty > 0 then chosen[#chosen + 1] = it end
     end
     if CreateList(name, f.suggested, chosen) then
+      if review then
+        -- a plan's list: done with it, the cart stays as it was
+        review = nil
+        f:Hide()
+        return
+      end
       -- what went on the list leaves the cart; unticked items stay
       local keep = {}
       for _, it in ipairs(Cart()) do
@@ -247,6 +259,7 @@ local function Build()
   local clear = Btn("Clear", 80)
   clear:SetPoint("BOTTOMLEFT", 14, 12)
   clear:SetScript("OnClick", function()
+    if review then wipe(review) f:Fill() return end
     CrateCostCharDB.cart = {}
     if ns.OnCartChanged then ns.OnCartChanged() end
     f:Fill()
@@ -260,7 +273,7 @@ local function Build()
 
   function f:Totals()
     local n, total, unknown = 0, 0, false
-    for _, it in ipairs(Cart()) do
+    for _, it in ipairs(List()) do
       if it.on and it.qty > 0 then
         n = n + 1
         local c = Cost(it)
@@ -273,7 +286,7 @@ local function Build()
   end
 
   function f:Fill()
-    local items = Cart()
+    local items = List()
     self.offset = math.max(0, math.min(self.offset, #items - ROWS))
     for i = 1, ROWS do
       local r = self.rows[i]
@@ -316,12 +329,40 @@ end
 
 function ns.ShowCart()
   if not f then Build() end
+  review = nil
+  f.titleText:SetText("Crate shopping cart")
   f.suggested = "CrateCost crates (" .. date("%H:%M") .. ")"
   f.box:SetText(f.suggested)
   f.box:HighlightText()
   f.offset = 0
   f:Show()
   f:Fill()
+end
+
+-- A plan's buys, for review before they become an Auctionator shopping list: `items` =
+-- { { id, name, qty }, ... } (the same item adds up), every one ticked. `title` heads the window,
+-- `name` is the list's suggested name.
+function ns.ShowShoppingReview(items, title, name)
+  if not f then Build() end
+  review = {}
+  for _, new in ipairs(items) do
+    if new.qty and new.qty > 0 then
+      local found
+      for _, it in ipairs(review) do
+        if Key(it) == Key(new) then found = it break end
+      end
+      if found then found.qty = found.qty + new.qty
+      else review[#review + 1] = { id = new.id, name = new.name, qty = new.qty, on = true } end
+    end
+  end
+  f.titleText:SetText(title or "Shopping list")
+  f.suggested = (name or "CrateCost plan") .. " (" .. date("%H:%M") .. ")"
+  f.box:SetText(f.suggested)
+  f.box:HighlightText()
+  f.offset = 0
+  f:Show()
+  f:Fill()
+  if #review == 0 then ns.Print("nothing to buy in this plan.") end
 end
 
 function ns.RefreshCart()

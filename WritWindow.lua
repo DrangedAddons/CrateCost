@@ -1558,7 +1558,7 @@ local function FillPlan()
           r.per:SetText(ns.Money(math.floor(pk.cost / (pk.n * pk.c.favor) + 0.5)))
           -- what you pay for the crates and bundles; the turn-in silver comes back later
           r.cost:SetText((pk.guess and "~" or "") .. ns.Money(pk.upFront))
-          r.addBtn:Show()
+          r.addBtn:Hide()
         elseif c.earn == 0 then
           r.name:SetText("   1. Favor: you have " .. Num(c.have))
           r.how:SetText(GREY .. "enough for the receipts|r")
@@ -1577,7 +1577,7 @@ local function FillPlan()
         r.name:SetText("   3. Buy " .. c.n .. " empty Waylaid Crates")
         r.how:SetText(GREY .. "the cheapest on the AH|r")
         r.cost:SetText((c.crateGuess and "~" or "") .. ns.Money(c.crateCost))
-        r.addBtn:Show()
+        r.addBtn:Hide()
       else
         r.name:SetText("   |cffffd1004. Hand in " .. c.n .. " containers|r")
         r.how:SetText(GREY .. (horde and "Dokimi" or "Marcy Baker") .. "|r")
@@ -1632,7 +1632,7 @@ local function FillPlan()
         r.rep:SetText(e.rep)
         r.per:SetText(per)
         r.cost:SetText(ns.Money(it.cost))
-        r.addBtn:Show()
+        r.addBtn:Hide()
       end
       r:Show()
     end
@@ -1686,23 +1686,12 @@ local function EntryItems(it, items)
       items[#items + 1] = { id = id, name = name or ("item " .. id), qty = math.ceil(n * e.qty / r[1]) }
     end
   else
-    items[#items + 1] = { id = e.item, name = e.name, qty = e.qty }
+    -- the item, less what's in your bags when the plan uses your materials
+    local need = e.qty - (ns.PlanUseMats() and math.min(e.qty, e.haveItem or 0) or 0)
+    if need > 0 then items[#items + 1] = { id = e.item, name = e.name, qty = need } end
   end
 end
 
--- Adds the whole plan's buys to the cart: not the writs already filled today.
-local function PlanToCart(p)
-  local items = {}
-  if p.containers then ContainerItems(p.containers, items) end
-  for _, it in ipairs(p.list) do
-    if not it.spent and not (it.e.done and it.day == 1) then EntryItems(it, items) end
-  end
-  local n = ns.CartAdd(items)
-  ns.Print(string.format("added %d to the cart.", n))
-end
-
--- The containers' buys: `step` "favor" = the crates to fill and their bundles, "crates" = the
--- empty crates; nil = both.
 local function ContainerItems(c, items, step, onlyPick)
   if (not step or step == "favor") and c.mix then
     -- each kind's crates and bundles: not the crates you hold or the materials in your bags
@@ -1722,6 +1711,19 @@ local function ContainerItems(c, items, step, onlyPick)
       items[#items + 1] = { id = id, name = "Waylaid Crate: " .. (names[id] or id), qty = n }
     end
   end
+end
+
+-- The whole plan's buys (not the writs already filled today), for review, then an Auctionator
+-- shopping list: each writ and its fill, the containers' favor crates and bundles, the empties.
+local function PlanShopping(p)
+  local items = {}
+  if p.containers then ContainerItems(p.containers, items) end
+  for _, it in ipairs(p.list) do
+    if not it.spent and not (it.e.done and it.day == 1) then EntryItems(it, items) end
+  end
+  local t = Target()
+  ns.ShowShoppingReview(items, "Rep plan" .. (t and (" to " .. STANDINGS[t][2]) or "") .. ": shopping list",
+    "CrateCost rep plan")
 end
 
 local function RowToCart(it)
@@ -2029,9 +2031,9 @@ function ns.ShowWritPlan()
     pf:SetScript("OnMouseWheel", function(_, delta) pf.offset = pf.offset - delta * 3 FillPlan() end)
     ns.UI.PlanFooter(pf, function()
       local p = CurrentPlan()
-      if p then PlanToCart(p) end
-    end, "The plan's writs to buy and their fills (the item, or its reagents when the plan crafts it), "
-      .. "and the containers' crates and bundles. Not the writs already filled today.", "rep")
+      if p then PlanShopping(p) end
+    end, "Every writ to buy and its fill (the item, or its reagents when the plan crafts it), the "
+      .. "containers' crates and bundles: review them, then make the Auctionator shopping list.", "rep")
     pf.total = pf.summary
     pf.cd = pf:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     pf.cd:SetPoint("BOTTOMRIGHT", -14, 16)

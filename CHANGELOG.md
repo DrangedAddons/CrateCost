@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.54.0
+- Plans: **Create shopping list** (was Add plan to cart, which didn't add anything: fixed) gathers the whole plan's buys, merged by item: each writ and its fill (less what's in your bags), the containers' favor crates and bundles, the empty crates; or the favor plan's crates and bundles. It opens a review, as in CraftRoute: untick items, change amounts, name the list, then **Create Shopping List** makes the Auctionator list. Your cart isn't touched.
+- The per-row cart buttons in the plans are gone: the plan is bought as a whole.
+
 ## 0.53.3
 - Rep checklist: the Shipping Label step sits indented under the first writ, as "Deliver its Shipping Label to Marcy Baker / Dokimi" with +2,000 rep beside it, since starting that writ is what gives you the label.
 

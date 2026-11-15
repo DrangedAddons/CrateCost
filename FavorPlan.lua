@@ -338,7 +338,7 @@ local function Fill()
         r.per:SetText(ns.Money(math.floor(pick.cost / (pick.n * c.favor) + 0.5)))
         -- what you pay for the crates and bundles; per favor is net of the turn-in silver
         r.cost:SetText((pick.guess and "|cffff9933~|r" or "") .. ns.Money(pick.upFront))
-        r.add:Show()
+        r.add:Hide()
       end
       r:Show()
     end
@@ -585,8 +585,9 @@ local function Build()
     if not plan then return end
     local items = {}
     for _, pick in ipairs(plan.picks) do PickItems(pick, items) end
-    ns.Print(string.format("added %d to the cart.", ns.CartAdd(items)))
-  end, "Every crate to buy and the bundle materials not in your bags.", "favor", LEFT_W / 2)
+    ns.ShowShoppingReview(items, "Favor plan to " .. Num(plan.target) .. ": shopping list", "CrateCost favor plan")
+  end, "Every crate to buy and the bundle materials not in your bags: review them, then make the "
+    .. "Auctionator shopping list.", "favor", LEFT_W / 2)
   f.total = f.summary
   BuildBrowser()
   -- bags, favor and hand-ins change what's left

@@ -214,10 +214,10 @@ function UI.PlanFooter(f, onAdd, tip, checklist, xoff)
   local add = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
   add:SetSize(260, 32)
   add:SetPoint("BOTTOM", xo, 12)
-  add:SetText("Add plan to cart")
+  add:SetText("Create shopping list")
   if add.GetFontString and add:GetFontString() then pcall(add.SetNormalFontObject, add, "GameFontNormalLarge") end
   add:SetScript("OnClick", onAdd)
-  UI.Tip(add, "Add plan to cart", tip)
+  UI.Tip(add, "Create shopping list", tip)
   f.add = add
   -- the step-by-step checklist popout, beside the cart button
   if checklist then

@@ -11,7 +11,8 @@ local _, ns = ...
 
 -- C_AuctionHouse, looked up when used (not when this file loads)
 local AH = setmetatable({}, { __index = function(_, k) return C_AuctionHouse and C_AuctionHouse[k] end })
-local W, ROW_H, ROWS = 300, 18, 14
+-- the panel is as tall as the AH window; the list takes what's left under the current item
+local W, ROW_H, MAX_ROWS, LIST_TOP, FOOT = 360, 18, 40, 224, 34
 local GREY, GREEN, RED, GOLD = "|cff8a8a8a", "|cff40ff40", "|cffff5050", "|cffffd100"
 local ICON_DONE = "Interface\\RaidFrame\\ReadyCheck-Ready"
 
@@ -130,9 +131,11 @@ local function OnCommodity(id)
     return
   end
   state = { phase = "price", id = id, kind = "commodity", need = need - left, estimate = total, short = left > 0 }
-  -- ask the AH for the exact price (the purchase itself still needs your click)
-  local ok = AH.StartCommoditiesPurchase and pcall(AH.StartCommoditiesPurchase, id, state.need)
-  if not ok then state.phase = "start" end   -- the quote needs a click first
+  -- ask the AH for the exact price (the purchase itself still needs your click); if it doesn't
+  -- answer, the button asks again on a click
+  local st = state
+  local ok = AH.StartCommoditiesPurchase and pcall(AH.StartCommoditiesPurchase, id, st.need)
+  if not ok and state == st and state.phase == "price" then state.phase = "start" end
   Refresh()
 end
 
@@ -172,8 +175,10 @@ end
 local function BuyClick()
   local it = Current()
   if not it then return end
-  if state.phase == "start" and state.kind == "commodity" then
-    if pcall(AH.StartCommoditiesPurchase, state.id, state.need) then state.phase = "price" end
+  if (state.phase == "start" or state.phase == "price") and state.kind == "commodity" then
+    -- waiting for the quote first: it may come straight back
+    state.phase = "price"
+    if not pcall(AH.StartCommoditiesPurchase, state.id, state.need) then state.phase = "start" end
     Refresh()
   elseif state.phase == "ready" and state.kind == "commodity" then
     if GetMoney and state.quote and GetMoney() < state.quote then
@@ -242,7 +247,7 @@ Refresh = function()
     local ph = state.phase
     if ph == "search" then lines[#lines + 1] = GREY .. "Searching the AH...|r"
     elseif ph == "price" then lines[#lines + 1] = "Now ~" .. ns.Money(state.estimate or 0) .. "  " .. Diff(state.estimate, pl)
-      lines[#lines + 1] = GREY .. "Getting the exact price...|r"
+      lines[#lines + 1] = GREY .. "Get price, then Buy.|r"
     elseif ph == "start" then lines[#lines + 1] = "Now ~" .. ns.Money(state.estimate or 0) .. "  " .. Diff(state.estimate, pl)
     elseif ph == "ready" and state.kind == "commodity" then
       lines[#lines + 1] = "Now " .. ns.Money(state.quote or 0) .. "  " .. Diff(state.quote, pl)
@@ -267,8 +272,9 @@ Refresh = function()
     panel.buy:SetText("Done") panel.buy:Disable()
   elseif ph == "ready" then
     panel.buy:SetText("Buy " .. (state.need or "") .. "  " .. ns.Money(state.quote or 0)) panel.buy:Enable()
-  elseif ph == "start" then
-    panel.buy:SetText("Get price") panel.buy:Enable()
+  elseif ph == "start" or ph == "price" then
+    -- the AH's exact price: it comes by itself on some clients, on others it needs a click
+    panel.buy:SetText("Get price  ~" .. ns.Money(state.estimate or 0)) panel.buy:Enable()
   elseif ph == "none" or ph == "idle" then
     panel.buy:SetText("Search again") panel.buy:Enable()
   else
@@ -277,10 +283,11 @@ Refresh = function()
   panel.skip:SetEnabled(it ~= nil)
   -- the list: done, current, to come
   local n = #l.items
-  panel.offset = math.max(0, math.min(panel.offset, n - ROWS))
-  if not panel.scrolled and idx then panel.offset = math.max(0, math.min(idx - 3, n - ROWS)) end
+  local rows = panel.visible or 14
+  panel.offset = math.max(0, math.min(panel.offset, n - rows))
+  if not panel.scrolled and idx then panel.offset = math.max(0, math.min(idx - 3, n - rows)) end
   for i, r in ipairs(panel.rows) do
-    local x = l.items[panel.offset + i]
+    local x = i <= rows and l.items[panel.offset + i]
     if not x then
       r:Hide()
     else
@@ -310,7 +317,7 @@ end
 local function Build()
   local p = CreateFrame("Frame", "CrateCostBuyPanel", UIParent, "BackdropTemplate")
   panel = p
-  p:SetSize(W, 470)
+  p:SetSize(W, 520)
   p:SetFrameStrata("HIGH")
   p:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
   p:SetBackdropColor(0.03, 0.03, 0.04, 0.94)
@@ -370,10 +377,10 @@ local function Build()
   lt:SetPoint("TOPLEFT", 12, -208)
   lt:SetText("The list")
   p.rows = {}
-  for i = 1, ROWS do
+  for i = 1, MAX_ROWS do
     local r = CreateFrame("Frame", nil, p)
     r:SetHeight(ROW_H)
-    r:SetPoint("TOPLEFT", 6, -224 - (i - 1) * ROW_H)
+    r:SetPoint("TOPLEFT", 6, -LIST_TOP - (i - 1) * ROW_H)
     r:SetPoint("RIGHT", p, "RIGHT", -6, 0)
     r.bg = r:CreateTexture(nil, "BACKGROUND")
     r.bg:SetAllPoints()
@@ -431,8 +438,10 @@ local function Dock()
   local ahf = _G.AuctionHouseFrame
   panel:ClearAllPoints()
   if ahf and ahf:IsShown() then
-    -- under the Shopping list button
+    -- under the Shopping list button, as tall as the AH
     panel:SetPoint("TOPLEFT", ahf, "TOPRIGHT", 4, -26)
+    local h = tonumber(ahf:GetHeight())
+    if h and h > 300 then panel:SetHeight(h - 26) end
   else
     panel:SetPoint("CENTER", UIParent, "CENTER", 300, 0)
   end
@@ -448,6 +457,9 @@ end
 function ns.ShowBuyPanel()
   if not panel then Build() end
   Dock()
+  -- the list's rows: what fits between the current item and the footer
+  local h = tonumber(panel:GetHeight()) or 520
+  panel.visible = math.max(4, math.min(MAX_ROWS, math.floor((h - LIST_TOP - FOOT) / ROW_H)))
   panel.scrolled = false
   panel:Show()
   local l = List()

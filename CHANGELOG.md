@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.55.2
+- Buy panel: as tall as the auction house window and wider, so more of the list shows; the list stops above Forget list instead of running under it.
+- Buy panel: the button never sits greyed out waiting for the AH's exact price. Where the price doesn't come by itself it reads **Get price ~(estimate)**: click it, then **Buy**.
+
 ## 0.55.1
 - Favor plan: each wanted recipe has a red X to take it off the list (Buy sits beside it at its vendor).
 - Auction house: a **Shopping list** button on the AH frame's right edge opens and closes the buy panel, which docks under it. The panel says when there's no list yet: lists made before it was installed aren't kept, so make them again.

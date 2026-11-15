@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.57.0
+- Fill crates: a Fill crates button on Home's Crates card (and `/crates fill`) lists every Waylaid Crate in your bags with the bundle that fills it and how many. Fill asks how many (all it can by default), then fills them, one click each.
+- Make containers: pick which empty crates get a Forged Delivery Receipt and how many (`/crates containers`, the fill window, the rep checklist's Make button).
+- Receipts: the receipt vendor asks how many Forged Delivery Receipts to buy, then buys them.
+- Hand in: talking to Dokimi / Marcy Baker asks which Sealed Crates and containers to hand in, all ticked by default, amounts editable; Hand in talks through every quest. It learns which quest takes which item.
+- Settings: both prompts can be turned off.
+
 ## 0.56.9
 - Shopping dock (ShoppingDock 0.6.0): Forget list deletes the list, from the dock and from Auctionator, after asking. Lists forgotten earlier are deleted too.
 

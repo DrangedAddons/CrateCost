@@ -68,6 +68,17 @@ The dock is [ShoppingDock](https://github.com/DrangedAddons/ShoppingDock), carri
 
 With a vendor open, the favor plan's wanted recipes and the checklists' steps that a vendor sells (each wanted recipe, the Forged Delivery Receipts) show a **Buy** button: it buys the right item, the amount the step still needs.
 
+## Filling, containers and hand-ins
+
+CrateCost can do the plan's steps in game, after you say how much:
+
+- **Fill crates** (the Crates card on Home, a checklist's **Fill** button, or `/crates fill`): every Waylaid Crate in your bags, how many you have, the bundle that fills it (the cheapest in your bags; hover a row for every bundle) and how many it fills. **Fill** asks how many (all it can, by default), then fills them. A bundle has to come from one stack that holds the whole amount.
+- **Make containers** (the fill window, the rep checklist's **Make** button, or `/crates containers`): pick which empty crates get a Forged Delivery Receipt and how many. Crates you can't fill go first, cheapest first.
+- **Receipts**: opening the receipt vendor (Kurvelk Shadowhoof / Dianne Softstep) asks how many to buy (what the rep plan still needs, else enough for your empty crates), then buys them.
+- **Hand in**: talking to Dokimi / Marcy Baker opens a list of your Sealed Crates and Notarized Shipping Containers, all ticked at the full amount. Untick or change amounts, then **Hand in** talks through every quest until they're all in. The first time it meets a quest it learns which item it takes; one that isn't yours closes the dialog, and talking to them again carries on. A quest with a reward choice waits for you to pick.
+
+Filling and receipts use an item, which the game only lets an addon do on a click: a small window's button does one item per click and works out the next each time. Buying and quest dialogs run on their own. Both prompts can be turned off in the settings.
+
 ## Closing
 
 Closing a view (its X or Escape) goes back to Home; closing Home closes the window.
@@ -168,6 +179,7 @@ The **Writs** button on the nav bar, `/crates writs`, or ctrl-click the minimap 
 
 - bundle prices on crate tooltips, cheapest first, gold highlight, the Merchant's Favor line, the rating
 - the writ rating on writ tooltips
+- asking what to hand in at Dokimi / Marcy Baker, and how many receipts to buy at their vendor
 - the minimap button (left-click: crate list, shift- or middle-click: merchant list, ctrl-click: writs, right-click: settings)
 
 ## Data

@@ -62,7 +62,7 @@ end
 
 local function Build()
   frame = CreateFrame("Frame", "CrateCostConfig", UIParent, "BackdropTemplate")
-  frame:SetSize(420, 408)
+  frame:SetSize(420, 488)
   frame:SetPoint("CENTER")
   frame:SetFrameStrata("DIALOG")
   frame:SetBackdrop({
@@ -123,9 +123,18 @@ local function Build()
     "The Shopping list button in the auction house window, and the dock that works through your shopping lists "
       .. "there one item at a time. Shared with every addon that carries ShoppingDock.")
 
+  Text(frame, "Doing the steps", "GameFontNormal"):SetPoint("TOPLEFT", L, -314)
+  get, set = Setting("handinPrompt")
+  Check(frame, "Ask what to hand in at " .. (UnitFactionGroup("player") == "Horde" and "Dokimi" or "Marcy Baker"),
+    get, set, L, -332,
+    "Talking to them opens a list of your Sealed Crates and containers; Hand in talks through every quest.")
+  get, set = Setting("receiptPrompt")
+  Check(frame, "Ask how many receipts to buy at their vendor", get, set, L, -358,
+    "Opening the Forged Delivery Receipt vendor asks how many to buy, then buys them.")
+
   local note = Text(frame, "Prices come from Auctionator. Hovering a crate in your bags saves its real "
     .. "bundle amounts for the crate list.", "GameFontDisableSmall")
-  note:SetPoint("TOPLEFT", L + 4, -314)
+  note:SetPoint("TOPLEFT", L + 4, -394)
   note:SetWidth(372)
   note:SetJustifyH("LEFT")
 

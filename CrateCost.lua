@@ -505,6 +505,12 @@ SlashCmdList.CRATECOST = function(msg)
     ns.ToggleRecipes()
   elseif msg == "writs" or msg == "writ" then
     ns.ToggleWrits()
+  elseif msg == "fill" then
+    ns.ShowFillCrates()
+  elseif msg == "containers" or msg == "receipts" then
+    ns.ShowContainers()
+  elseif msg == "handin" or msg == "hand in" then
+    ns.ShowHandIn()
   else
     Print("/crates - home: your favor, writs and rep at a glance")
     Print("/crates list - crate list sorted by cost per favor")
@@ -512,6 +518,9 @@ SlashCmdList.CRATECOST = function(msg)
     Print("/crates buy - the buy panel for your last shopping list (beside the AH)")
     Print("/crates merchant - everything Merchant's Favor buys")
     Print("/crates writs - Craftsman's Writs by cost per reputation")
+    Print("/crates fill - fill the Waylaid Crates in your bags")
+    Print("/crates containers - put receipts on empty crates")
+    Print("/crates handin - what to hand in (opens by itself at " .. (UnitFactionGroup("player") == "Horde" and "Dokimi" or "Marcy Baker") .. ")")
     Print("/writ and /writs work the same as /crates")
     Print("/cratecost config - settings")
     Print("/cratecost cart - the shopping cart")

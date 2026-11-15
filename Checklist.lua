@@ -181,7 +181,7 @@ local function RepSteps()
         toFill[pk.c.id] = (toFill[pk.c.id] or 0) + (pk.n - filled)
         earned = earned - filled * pk.c.favor
         Add({ id = "favor:" .. pk.c.name, text = "Fill " .. pk.c.name .. " crates, hand in", unit = "crates",
-          have = filled, need = pk.n, item = pk.c.id, verb = "Fill ",
+          have = filled, need = pk.n, item = pk.c.id, verb = "Fill ", act = { "Fill", function() ns.ShowFillCrates() end },
           sub = { item = pk.bundleID, name = pk.bundle, need = pk.crafted and 0 or pk.qty * (pk.n - filled),
             crafted = pk.crafted },
           tip = { "Earn favor for the receipts: " .. Num(pk.n * pk.c.favor) .. " from these.",
@@ -206,7 +206,7 @@ local function RepSteps()
       tip = { "The cheapest on the AH: any crate takes a receipt.",
         "Counted in your bags (any Waylaid Crate), with the containers made and handed in." } })
     Add({ id = "handin", text = "Hand in containers", unit = "",
-      have = handed, need = c.n,
+      have = handed, need = c.n, act = { "Make", function() ns.ShowContainers() end },
       tip = { "Use a receipt on each empty crate, hand them to " .. (Horde() and "Dokimi" or "Marcy Baker") .. ".",
         "50 rep each: counted from your rep since the plan was made." } })
   end
@@ -363,6 +363,7 @@ local function Fill(w)
     r.step = s or false
     r.sub = (ln and ln.sub) or false
     r.buy:Hide()
+    r.act:Hide()
     if ln and ln.sub then
       -- the fill: icon, name in its colour, how many you have of what's still needed
       local sub = ln.sub
@@ -436,6 +437,12 @@ local function Fill(w)
       end
       -- at the vendor that sells it: Buy, in place of the count
       if s.buy and not s.done and s.buy.n and s.buy.n > 0 and ns.UI.SetBuy(r.buy, s.buy.match, s.buy.n) then
+        r.count:SetText("")
+      elseif s.act and not s.done and s.live ~= false then
+        -- a step CrateCost can do for you: its button in place of the count
+        r.act:SetText(s.act[1])
+        r.act.fn = s.act[2]
+        r.act:Show()
         r.count:SetText("")
       end
       -- a step with a count fills as it goes
@@ -630,6 +637,11 @@ local function Build(kind)
     r.count:SetPoint("RIGHT", -6, 0)
     r.buy = ns.UI.BuyButton(r)
     r.buy:SetPoint("RIGHT", -2, 0)
+    r.act = CreateFrame("Button", nil, r, "UIPanelButtonTemplate")
+    r.act:SetSize(44, 17)
+    r.act:SetPoint("RIGHT", -2, 0)
+    r.act:SetScript("OnClick", function(self) if self.fn then self.fn() end end)
+    r.act:Hide()
     r.count:SetJustifyH("RIGHT")
     r.text = r:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     r.text:SetPoint("LEFT", r.icon, "RIGHT", 6, 0)

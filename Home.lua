@@ -303,6 +303,14 @@ local function Build()
       function() ns.ShowFavorPlan() end),
     Tile(3, "writs", "Writs", "Open writs", "Every Craftsman's Writ by cost per rep.", function() ns.ToggleWrits() end),
   }
+  -- the crates tile: the list, and filling the crates in your bags
+  local ct = tiles[1]
+  ct.button:SetWidth(103)
+  ct.button:ClearAllPoints()
+  ct.button:SetPoint("BOTTOMLEFT", 12, 10)
+  local fill = Button(ct, "Fill crates", "Pick a crate in your bags, see what fills it, and fill as many as you like.",
+    function() if ns.ShowFillCrates then ns.ShowFillCrates() end end, 103, 22)
+  fill:SetPoint("LEFT", ct.button, "RIGHT", 4, 0)
   -- the favor target, the same one the favor plan uses: a box on the favor tile's second line
   local ft = tiles[2]
   -- the favor tile's bottom: its plan, the plan's checklist, and the Merchant (what favor buys)

@@ -298,6 +298,7 @@ local function Fill()
     else
       r.add:Hide()
       r.buy:Hide()
+      r.remove:SetShown(ln.want and true or false)
       r.per:SetText("")
       if ln.head then
         r.name:SetText("|cffffd100" .. ln.head .. "|r")
@@ -513,8 +514,17 @@ local function Build()
     end)
     UI.Tip(add, "Add to cart", "The crates to buy (not the ones you hold) and the bundle materials not in your bags.")
     r.add = add
+    -- a wanted recipe's remove (red X) at the end of the row, Buy beside it at its vendor
+    r.remove = CreateFrame("Button", nil, r, "UIPanelCloseButton")
+    r.remove:SetSize(20, 20)
+    r.remove:SetPoint("RIGHT", 2, 0)
+    r.remove:SetScript("OnClick", function()
+      if r.want and ns.UnwantRecipe then ns.UnwantRecipe(r.want.key) end
+    end)
+    UI.Tip(r.remove, "Remove", "Take this recipe off your wanted list.")
+    r.remove:Hide()
     r.buy = UI.BuyButton(r)
-    r.buy:SetPoint("RIGHT", 0, 0)
+    r.buy:SetPoint("RIGHT", r.remove, "LEFT", -2, 0)
     r.cost = Text(110, "RIGHT")
     r.cost:SetPoint("RIGHT", add, "LEFT", -6, 0)
     r.per = Text(80, "RIGHT")
@@ -531,7 +541,7 @@ local function Build()
         GameTooltip:AddDoubleLine("Favor", Num(w.cost), 1, 1, 1, 1, 1, 1)
         local rep = ns.WantedRepName and ns.WantedRepName(w.rep) or ""
         if rep ~= "" then GameTooltip:AddDoubleLine("Needs", rep, 1, 1, 1, 1, 1, 1) end
-        GameTooltip:AddLine(w.done and "Learned." or "Buy it with Buy while its vendor is open. Right-click to drop it.",
+        GameTooltip:AddLine(w.done and "Learned." or "Buy it with Buy while its vendor is open. The red X takes it off the list.",
           0.6, 0.8, 1, true)
         GameTooltip:Show()
         return

@@ -211,7 +211,8 @@ Refresh = function()
   local it, idx = Current()
   if not l or #l.items == 0 then
     panel.title:SetText("Shopping")
-    panel.summary:SetText(GREY .. "No shopping list yet: make one from a plan (Create shopping list).|r")
+    panel.summary:SetText(GREY .. "No shopping list yet: make one with a plan's Create shopping list (or the "
+      .. "cart's). Lists made before the buy panel was installed aren't kept: make them again.|r")
     panel.item:SetText("") panel.itemInfo:SetText("") panel.icon:Hide()
     panel.buy:Disable() panel.buy:SetText("Buy") panel.skip:Disable()
     for _, r in ipairs(panel.rows) do r:Hide() end
@@ -407,11 +408,31 @@ local function Build()
   p:Hide()
 end
 
+-- the Shopping list button on the AH frame's right edge: opens and closes the panel
+local tab
+local function Tab()
+  local ahf = _G.AuctionHouseFrame
+  if not ahf then return end
+  if not tab then
+    tab = CreateFrame("Button", nil, ahf, "UIPanelButtonTemplate")
+    tab:SetSize(120, 22)
+    tab:SetPoint("TOPLEFT", ahf, "TOPRIGHT", 4, 0)
+    tab:SetText("Shopping list")
+    tab:SetScript("OnClick", function()
+      if panel and panel:IsShown() then panel:Hide() else ns.ShowBuyPanel() end
+    end)
+    ns.UI.Tip(tab, "Shopping list", "CrateCost's buy panel: works through your last shopping list one item at a "
+      .. "time, with the live price against the plan.")
+  end
+  tab:Show()
+end
+
 local function Dock()
   local ahf = _G.AuctionHouseFrame
   panel:ClearAllPoints()
   if ahf and ahf:IsShown() then
-    panel:SetPoint("TOPLEFT", ahf, "TOPRIGHT", 4, 0)
+    -- under the Shopping list button
+    panel:SetPoint("TOPLEFT", ahf, "TOPRIGHT", 4, -26)
   else
     panel:SetPoint("CENTER", UIParent, "CENTER", 300, 0)
   end
@@ -444,6 +465,7 @@ for _, e in ipairs({ "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED", "AUCTION_HOUS
 end
 ev:SetScript("OnEvent", function(_, e, a, b)
   if e == "AUCTION_HOUSE_SHOW" then
+    C_Timer.After(0.3, Tab)
     -- a list still to buy: the panel opens beside the AH
     local l = List()
     if l and Current() then C_Timer.After(0.5, ns.ShowBuyPanel) end

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.55.1
+- Favor plan: each wanted recipe has a red X to take it off the list (Buy sits beside it at its vendor).
+- Auction house: a **Shopping list** button on the AH frame's right edge opens and closes the buy panel, which docks under it. The panel says when there's no list yet: lists made before it was installed aren't kept, so make them again.
+
 ## 0.55.0
 - **Buy panel** beside the auction house: works through the last shopping list CrateCost made, one item at a time. It searches the item, shows what the rest of it costs now against the plan (over / under), and **Buy** buys the whole amount in one purchase (or an auction at a time, for items sold as separate auctions), then moves on. A running total shows what you've spent against what those items were planned to cost, and what's left. Skip, and Forget list. Opens with the AH while a list is unfinished, when a list is made at the AH, or with `/crates buy`. One click per item: the game only allows a purchase from a click.
 - New file (BuyPanel.lua): restart the game client, /reload isn't enough.

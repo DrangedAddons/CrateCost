@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.36.2
+- Writ plan rows show the writ's full tooltip (ratings, cost lines, reagents, who to deliver to), as on the writ list, plus its day, route, cost, cost per rep and whether it's on cooldown.
+
 ## 0.36.1
 - Writ plan: Today / Next day are gone. The plan ignores cooldowns and marks writs done today **(on CD today)**; **Show writs on CD** (per character, on by default) hides them. The summary line counts them.
 - The plan is kept as made until **Regenerate** (or a new target), so it doesn't shift as you hand writs in. Days are numbered Day 1, Day 2, and each day's writs are sorted best value first (lowest cost per rep). **Add day 1 to cart** skips hidden writs.

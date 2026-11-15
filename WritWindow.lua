@@ -1357,14 +1357,22 @@ function ns.ShowWritPlan()
       r.cost = Text(90, "RIGHT")
       r.cost:SetPoint("RIGHT", 0, 0)
       r:EnableMouse(true)
+      -- the writ's full tooltip, as on the writ list, then its place in the plan
       r:SetScript("OnEnter", function(self)
-        if not self.it then return end
-        local e = self.it.e
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine(e.name)
-        if e.recipient ~= "" then GameTooltip:AddLine("Hand in: " .. e.recipient, 1, 1, 1) end
-        GameTooltip:AddLine(e.prof .. ", " .. e.rank, 0.6, 0.6, 0.6)
+        local it = self.it
+        if not it then return end
+        local e = it.e
+        self.entry = e
+        ShowRowTooltip(self)
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("In the plan: Day " .. it.day, 1, 0.82, 0)
+        GameTooltip:AddDoubleLine((it.owned and "Have writ" or "Buy writ") .. " + "
+          .. (it.crafted and "craft" or "buy") .. " " .. (e.qty > 1 and (e.qty .. "x ") or "") .. "item",
+          ns.Money(it.cost), 1, 1, 1, 1, 1, 1)
+        GameTooltip:AddDoubleLine("Per rep", ns.Money(math.floor(it.cost / e.rep + 0.5)), 1, 1, 1, 1, 1, 1)
+        if e.done then GameTooltip:AddLine("Done today: on cooldown until the daily reset.", 1, 0.5, 0.25) end
         GameTooltip:Show()
+        ns.AlignTitleRating(GameTooltip)
       end)
       r:SetScript("OnLeave", function() GameTooltip:Hide() end)
       r:EnableMouseWheel(true)

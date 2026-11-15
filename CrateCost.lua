@@ -496,7 +496,7 @@ SlashCmdList.CRATECOST = function(msg)
   elseif msg == "plan" or msg == "rep" then
     ns.ShowWritPlan()
   elseif msg == "buy" or msg == "shop" then
-    if ns.ShowBuyPanel then ns.ShowBuyPanel() end
+    if ShoppingDock then ShoppingDock.Show() end
   elseif msg == "config" or msg == "options" or msg == "settings" then
     ns.ToggleConfig()
   elseif msg == "cart" then

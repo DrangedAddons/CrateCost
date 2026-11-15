@@ -60,7 +60,9 @@ The bar on every view: **Home** (the way between views), **Cart** and **Refresh*
 
 ## Buying at the auction house
 
-When CrateCost makes a shopping list (a plan's **Create shopping list**, or the cart's), the **buy panel** opens docked beside the auction house (or `/crates buy`). It works through the list one item at a time: it searches the AH, shows what buying the rest of that item costs right now against what the plan expected (over or under), and **Buy** buys it: a commodity in one purchase for the whole amount, an auction one at a time. Then it moves to the next. The summary keeps a running total: planned, spent so far and how that compares with what those items were planned to cost, and what's left. **Skip** moves past an item; **Forget list** drops it. The game only allows a purchase from a click, so it's one click per item.
+When CrateCost makes a shopping list (a plan's **Create shopping list**, or the cart's), the **shopping dock** opens beside the auction house (or `/crates buy`, or the **Shopping list** button on the AH's right edge). It works through the list one item at a time: it searches the AH, shows what buying the rest of that item costs now against what CrateCost planned (over or under), and **Buy now** then **Confirm** buys a commodity in one purchase for the whole amount; an auction is bought a stack at a time. Then it moves to the next. **Skip**, an amount box, **Rescan item**, **Rescan list** (every item's price now on its row), and a menu on the list name to switch to any other Auctionator shopping list. The game only allows a purchase from a click.
+
+The dock is [ShoppingDock](https://github.com/DrangedAddons/ShoppingDock), carried inside CrateCost (`ShoppingDock.lua`). Other addons that carry it (CraftRoute) share the same single dock and its *Show shopping list dock* setting.
 
 ## Buying at the vendor
 

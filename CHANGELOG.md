@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.56.0
+- The buy panel is replaced by **ShoppingDock** (carried inside CrateCost as `ShoppingDock.lua`): the same dock beside the auction house, plus a menu on the list name to pick any Auctionator shopping list, **Rescan item**, and **Rescan list** (what each item costs now, on its row). The cart and rep plan lists still carry CrateCost's planned prices into it. With CraftRoute (or ShoppingDock) installed too, there's still one dock.
+- Options: **Show shopping list dock** (on by default).
+- Progress on a list bought with the old buy panel isn't carried over; the list itself is still in Auctionator.
+- New file (ShoppingDock.lua): restart the game client, /reload isn't enough.
+
 ## 0.55.4
 - Rep plan's shopping list follows the plan's steps: the writs to Friendly (each writ, then its fill), the favor crates and bundles, the empty crates, then the writs after Friendly. Buying from the top never gets ahead of a step you haven't reached.
 

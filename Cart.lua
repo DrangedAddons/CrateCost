@@ -239,13 +239,13 @@ local function Build()
       if it.on and it.qty > 0 then chosen[#chosen + 1] = it end
     end
     if CreateList(name, f.suggested, chosen) then
-      -- the list, with what each item was planned to cost, for the buy panel at the AH
-      if ns.SetBuyList then
+      -- what each item was planned to cost, for the shopping dock at the AH (ShoppingDock.lua)
+      if ShoppingDock then
         local planned = {}
         for _, it in ipairs(chosen) do
           planned[#planned + 1] = { id = it.id, name = ItemName(it.id, it.name), qty = it.qty, planned = (Cost(it)) }
         end
-        ns.SetBuyList(name, planned)
+        ShoppingDock.SetListPlan(name, planned)
       end
       if review then
         -- a plan's list: done with it, the cart stays as it was

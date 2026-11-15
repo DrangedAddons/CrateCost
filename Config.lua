@@ -62,7 +62,7 @@ end
 
 local function Build()
   frame = CreateFrame("Frame", "CrateCostConfig", UIParent, "BackdropTemplate")
-  frame:SetSize(420, 382)
+  frame:SetSize(420, 408)
   frame:SetPoint("CENTER")
   frame:SetFrameStrata("DIALOG")
   frame:SetBackdrop({
@@ -117,10 +117,15 @@ local function Build()
   Check(frame, "Show minimap button",
     function() return not (CrateCostDB.minimap and CrateCostDB.minimap.hide) end,
     function(on) ns.SetMinimapShown(on) end, L, -252)
+  Check(frame, "Show shopping list dock",
+    function() return ShoppingDock and ShoppingDock.IsEnabled() end,
+    function(on) if ShoppingDock then ShoppingDock.SetEnabled(on) end end, L, -278,
+    "The Shopping list button beside the auction house, and the dock that works through your shopping lists "
+      .. "there one item at a time. Shared with every addon that carries ShoppingDock.")
 
   local note = Text(frame, "Prices come from Auctionator. Hovering a crate in your bags saves its real "
     .. "bundle amounts for the crate list.", "GameFontDisableSmall")
-  note:SetPoint("TOPLEFT", L + 4, -288)
+  note:SetPoint("TOPLEFT", L + 4, -314)
   note:SetWidth(372)
   note:SetJustifyH("LEFT")
 

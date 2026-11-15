@@ -140,14 +140,13 @@ end
 
 -- { target, have, sealed, sealedFavor, label (favor or nil), need, favor (planned), cost, guess,
 -- short, picks = { { c, n, cost, bundle, held, guess }, ... } }
-local function MakePlan(target)
-  local have = FavorHave()
-  local sealedN, sealedFavor, sealedPay = Sealed()
-  if not ns.PlanUseOwned() then sealedN, sealedFavor, sealedPay = 0, 0, 0 end
-  local label = not LabelDone() and LABEL_FAVOR or nil
-  local p = { target = target, have = have, sealed = sealedN, sealedFavor = sealedFavor, sealedPay = sealedPay,
-    label = label, favor = 0, cost = 0, pay = 0, picks = {} }
-  p.need = math.max(0, target - have - sealedFavor - (label or 0))
+-- The cheapest crates for `need` favor, one crate at a time from a snapshot of the AH listings:
+-- each next crate is the one with the lowest extra cost per favor (so a kind is dropped for
+-- another once its cheap crates or bundles run out); near the end, a crate that finishes it for
+-- less wins. { picks = { { c, n, cost, pay, upFront, bundle, qty, bundleID, held, guess, crafted } },
+-- favor, cost (net), pay, upFront, guess, short }
+local function Mix(need)
+  local m = { picks = {}, favor = 0, cost = 0, pay = 0, upFront = 0 }
   local level = UnitLevel and UnitLevel("player") or 60
   local kinds = {}
   for _, c in ipairs(ns.CrateEntries and ns.CrateEntries() or {}) do
@@ -155,8 +154,8 @@ local function MakePlan(target)
   end
   local counts, spent = {}, {}
   local got = 0
-  while got < p.need do
-    local left = p.need - got
+  while got < need do
+    local left = need - got
     local rateK, rate, finK, fin
     for i, k in ipairs(kinds) do
       local n = (counts[i] or 0) + 1
@@ -176,22 +175,37 @@ local function MakePlan(target)
     spent[pick] = kinds[pick].Cost(counts[pick])
     got = got + kinds[pick].c.favor
   end
-  p.short = got < p.need
+  m.short = got < need
   for i, n in pairs(counts) do
     local k = kinds[i]
     local cost, bi, guess, upFront = k.Cost(n)
     local b = k.c.bundles[bi]
     local pay = (k.c.pay1 or 0) * n
     local crafted = k.madeBundle and k.madeBundle[n] or false
-    table.insert(p.picks, { c = k.c, n = n, cost = cost, pay = pay, upFront = upFront, bundle = b[1], qty = b[2],
+    table.insert(m.picks, { c = k.c, n = n, cost = cost, pay = pay, upFront = upFront, bundle = b[1], qty = b[2],
       bundleID = ns.ItemIDs[b[1]], held = math.min(n, k.held), guess = guess, crafted = crafted })
-    p.pay = p.pay + pay
-    p.upFront = (p.upFront or 0) + upFront
-    p.cost = p.cost + cost
-    p.favor = p.favor + n * k.c.favor
-    if guess then p.guess = true end
+    m.pay = m.pay + pay
+    m.upFront = m.upFront + upFront
+    m.cost = m.cost + cost
+    m.favor = m.favor + n * k.c.favor
+    if guess then m.guess = true end
   end
-  table.sort(p.picks, function(a, b) return a.cost / (a.n * a.c.favor) < b.cost / (b.n * b.c.favor) end)
+  table.sort(m.picks, function(a, b) return a.cost / (a.n * a.c.favor) < b.cost / (b.n * b.c.favor) end)
+  return m
+end
+-- for the rep plan's container favor
+ns.FavorMix = Mix
+
+local function MakePlan(target)
+  local have = FavorHave()
+  local sealedN, sealedFavor, sealedPay = Sealed()
+  if not ns.PlanUseOwned() then sealedN, sealedFavor, sealedPay = 0, 0, 0 end
+  local label = not LabelDone() and LABEL_FAVOR or nil
+  local p = { target = target, have = have, sealed = sealedN, sealedFavor = sealedFavor, sealedPay = sealedPay,
+    label = label }
+  p.need = math.max(0, target - have - sealedFavor - (label or 0))
+  local m = Mix(p.need)
+  p.picks, p.favor, p.cost, p.pay, p.upFront, p.guess, p.short = m.picks, m.favor, m.cost, m.pay, m.upFront, m.guess, m.short
   return p
 end
 

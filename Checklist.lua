@@ -151,17 +151,22 @@ local function RepSteps()
     local receipts = CountByName(RECEIPT)
     local empty = 0
     for _, id in pairs(ns.CrateIDs or {}) do empty = empty + Count(id) end
-    if c.src then
-      -- favor earned since the plan: what you have now, plus what the receipts cost you
+    if c.mix then
+      -- favor earned since the plan (what you have now, plus what the receipts cost you), given
+      -- to the crate kinds in the plan's order
       local labelFavor = (p.label and st.seen.label and not start.label) and LABEL_FAVOR or 0
       local earned = FavorHave() - start.favor - labelFavor + RECEIPT_FAVOR * (receipts + notarized + handed)
-      local filled = math.max(0, math.min(c.src.n, math.floor(earned / c.src.favor)))
-      Add({ id = "favor", text = "Fill " .. c.src.name .. " crates, hand in", unit = "crates",
-        have = earned / c.src.favor, need = c.src.n, item = c.src.id, verb = "Fill ",
-        sub = { item = c.src.bundleID, name = c.src.bundle, need = c.src.qty * (c.src.n - filled) },
-        tip = { "Earn " .. Num(c.earn) .. " Merchant's Favor for the receipts.",
-          "Buy " .. c.src.n .. " Waylaid Crate: " .. c.src.name .. ", fill each with " .. c.src.qty .. " "
-            .. c.src.bundle .. ", hand them in (" .. c.src.favor .. " favor each)." } })
+      for _, pk in ipairs(c.mix.picks) do
+        local filled = math.max(0, math.min(pk.n, math.floor(earned / pk.c.favor)))
+        earned = earned - filled * pk.c.favor
+        Add({ id = "favor:" .. pk.c.name, text = "Fill " .. pk.c.name .. " crates, hand in", unit = "crates",
+          have = filled, need = pk.n, item = pk.c.id, verb = "Fill ",
+          sub = { item = pk.bundleID, name = pk.bundle, need = pk.crafted and 0 or pk.qty * (pk.n - filled),
+            crafted = pk.crafted },
+          tip = { "Earn favor for the receipts: " .. Num(pk.n * pk.c.favor) .. " from these.",
+            "Buy " .. pk.n .. " Waylaid Crate: " .. pk.c.name .. ", fill each with " .. pk.qty .. " "
+              .. pk.bundle .. ", hand them in (" .. pk.c.favor .. " favor each)." } })
+      end
     end
     Add({ id = "receipts", text = "Buy Forged Delivery Receipts", unit = "",
       have = receipts + notarized + handed, need = c.n,
@@ -528,9 +533,24 @@ local function Build(kind)
   -- the wheel scrolls; Ctrl + wheel scales the window
   local function Wheel(_, d)
     if IsControlKeyDown and IsControlKeyDown() then
-      local sc = math.max(SCALE_MIN, math.min(SCALE_MAX, (tonumber(w:GetScale()) or 1) + d * 0.05))
+      local old = tonumber(w:GetScale()) or 1
+      local sc = math.max(SCALE_MIN, math.min(SCALE_MAX, old + d * 0.05))
+      if sc == old then return end
+      -- keep the point under the cursor where it is: work in screen pixels
+      local eff = tonumber(w:GetEffectiveScale()) or 1
+      local cx, cy = GetCursorPosition()
+      local left, top = tonumber(w:GetLeft()), tonumber(w:GetTop())
       w:SetScale(sc)
-      if type(CrateCostDB) == "table" then CrateCostDB["checklistScale" .. kind] = sc end
+      if left and top and cx then
+        local eff2 = eff * sc / old
+        local rx, ry = (cx - left * eff) / eff, (top * eff - cy) / eff   -- cursor inside the window
+        w:ClearAllPoints()
+        w:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", (cx - rx * eff2) / eff2, (cy + ry * eff2) / eff2)
+      end
+      if type(CrateCostDB) == "table" then
+        CrateCostDB["checklistScale" .. kind] = sc
+        if w:GetLeft() then CrateCostDB[posKey] = { x = w:GetLeft(), y = w:GetTop() } end
+      end
       return
     end
     w.offset = w.offset - d * 3

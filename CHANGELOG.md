@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.52.0
+- Rep plan: the containers' favor is planned crate by crate from the scanned listings, as the favor plan does: each next crate is the cheapest per favor, so a crate kind is dropped for another once its cheap crates or bundles run out. Step 1 is a row per kind ("Fill 24x Journeyman Fabrics", "Fill 34x Journeyman Ingots"), each with its favor, per favor, up-front cost and cart. The empty crates (step 3) come from what those leave of each kind's listings, so nothing is priced twice. The checklist follows, one step per kind.
+- Checklist: Ctrl + mouse wheel scales around the cursor, so the window stays under it.
+
 ## 0.51.2
 - Checklist: a scrollbar when there are more steps than fit, a resize grip (bottom right; the rows follow the height), and Ctrl + mouse wheel over it to scale it. Size and scale are kept per checklist.
 

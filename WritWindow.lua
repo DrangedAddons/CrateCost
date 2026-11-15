@@ -552,20 +552,27 @@ local FRIENDLY = 3000   -- absolute standing where Friendly starts (STANDINGS[5]
 
 -- { crates[k] = k empty crates, cum[k] = that + the favor to earn, ids[k], guess[k] } for up to
 -- `kmax` containers. Listings read only part way go on at their dearest price read, as a guess.
-local function ContainerPricing(kmax, pf, have)
+local function ContainerPricing(kmax, pf, have, used)
   local rows = {}
   for _, id in pairs(ns.CrateIDs or {}) do
     local listed, full, total
     if ns.Depth and ns.Depth.Rows then listed, full, total = ns.Depth.Rows(id) end
     if listed then
+      -- `used`: crates of this kind the favor step buys first, cheapest listings first
+      local skip = used and used[id] or 0
       local units = 0
       for _, x in ipairs(listed) do
-        rows[#rows + 1] = { x[1], x[2], id }
+        local take = x[2]
         units = units + x[2]
+        if skip > 0 then
+          local cut = math.min(skip, take)
+          take, skip = take - cut, skip - cut
+        end
+        if take > 0 then rows[#rows + 1] = { x[1], take, id } end
       end
       local last = listed[#listed]
       if not full and last then
-        local more = total and (total - units) or math.huge
+        local more = (total and (total - units) or math.huge) - skip
         if more > 0 then rows[#rows + 1] = { last[1], more, id, true } end
       end
     else
@@ -642,15 +649,23 @@ local function MakePlan(need)
   local gate = math.max(0, math.min(after, FRIENDLY - ((standing and standing.value) or 0) - (label and label.rep or 0)))
   -- past Friendly: the cheapest mix of writs and containers. Favor is priced at the cheapest
   -- crate first, then again at what earning that much really costs (crates up the listings).
-  local nCont, cont, src = 0, nil, nil
+  local nCont, cont, mix = 0, nil, nil
   local have = FavorHave()
   local pf = FavorPrice()
+  -- crates the favor step buys, by kind (so the empty crates come from what's left)
+  local function Used(m)
+    local u = {}
+    for _, pk in ipairs(m and m.picks or {}) do
+      u[pk.c.id] = (u[pk.c.id] or 0) + math.max(0, pk.n - (pk.held or 0))
+    end
+    return u
+  end
   if after > gate and pf then
     local kmax = math.ceil((after - gate) / CONTAINER_REP)
     local best, N = WritCosts((Copies(1, profs, true)), after)
     local gu = math.ceil(gate / 25)
-    local function Pick(price)
-      cont = ContainerPricing(kmax, price, have)
+    local function Pick(price, used)
+      cont = ContainerPricing(kmax, price, have, used)
       local bestTotal, pick = nil, 0
       for k = 0, kmax do
         local cc = cont.cum[k]
@@ -662,14 +677,20 @@ local function MakePlan(need)
       end
       return pick
     end
+    -- a first guess at the favor's price, then the real one: the crates for that much favor
+    -- picked one at a time from the listings (ns.FavorMix), and once more for the final amount
     nCont = Pick(pf)
     local earn = math.max(0, nCont * CONTAINER_FAVOR - have)
-    src = earn > 0 and ns.FavorSource and ns.FavorSource(earn) or nil
-    if src then
-      nCont = Pick(src.total / earn)
+    mix = earn > 0 and ns.FavorMix and ns.FavorMix(earn) or nil
+    if mix and #mix.picks > 0 then
+      nCont = Pick(mix.cost / earn, Used(mix))
       earn = math.max(0, nCont * CONTAINER_FAVOR - have)
-      src = earn > 0 and ns.FavorSource(earn) or nil
+      mix = earn > 0 and ns.FavorMix(earn) or nil
+      if nCont > 0 then
+        cont = ContainerPricing(kmax, earn > 0 and mix and mix.cost / earn or pf, have, Used(mix))
+      end
     end
+    if mix and #mix.picks == 0 then mix = nil end
   end
   local writNeed = nCont > 0 and math.max(gate, after - nCont * CONTAINER_REP) or after
   local plan
@@ -688,15 +709,15 @@ local function MakePlan(need)
     for k = 1, nCont do byId[cont.ids[k]] = (byId[cont.ids[k]] or 0) + 1 end
     local favor = nCont * CONTAINER_FAVOR
     local earn = math.max(0, favor - have)
-    -- favor to earn: the crates to fill (src); without one, at the first guess per favor
-    local favorCost = src and src.total or earn * pf
-    plan.containers = { n = nCont, favor = favor, have = have, earn = earn, src = src,
+    -- favor to earn: the crates to fill (mix); without them, at the first guess per favor
+    local favorCost = mix and mix.cost or earn * pf
+    plan.containers = { n = nCont, favor = favor, have = have, earn = earn, mix = mix,
       crateCost = cont.crates[nCont], favorCost = favorCost, cost = cont.crates[nCont] + favorCost, byId = byId,
       -- the favor crates' turn-in silver: paid back after you've bought everything; upFront =
       -- what the empty crates, favor crates and bundles cost to buy
-      pay = src and src.pay or 0,
-      upFront = cont.crates[nCont] + (src and (src.crateCost + src.bundleCost) or favorCost),
-      crateGuess = cont.guess[nCont], favorGuess = (not src and earn > 0) or (src and (src.guess or not src.scanned)) or false }
+      pay = mix and mix.pay or 0,
+      upFront = cont.crates[nCont] + (mix and mix.upFront or favorCost),
+      crateGuess = cont.guess[nCont], favorGuess = (not mix and earn > 0) or (mix and (mix.guess or mix.short)) or false }
     plan.cost = plan.cost + plan.containers.cost
     plan.rep = plan.rep + nCont * CONTAINER_REP
     -- the target's reached with containers, whatever the writs alone could do
@@ -1484,8 +1505,14 @@ local function PlanLines(p)
   end
   if p.containers then
     -- the containers step by step: earn the favor, buy the receipts, buy the crates, hand them in
-    for _, step in ipairs({ "favor", "receipts", "crates", "handin" }) do
-      lines[#lines + 1] = { cont = p.containers, step = step }
+    local c = p.containers
+    if c.mix then
+      for _, pk in ipairs(c.mix.picks) do lines[#lines + 1] = { cont = c, step = "favor", pick = pk } end
+    else
+      lines[#lines + 1] = { cont = c, step = "favor" }
+    end
+    for _, step in ipairs({ "receipts", "crates", "handin" }) do
+      lines[#lines + 1] = { cont = c, step = step }
     end
   end
   Writs(2)
@@ -1502,6 +1529,7 @@ local function FillPlan()
     r.label = (ln and ln.label) or false
     r.cont = (ln and ln.cont) or false
     r.step = (ln and ln.step) or false
+    r.mixPick = (ln and ln.pick) or false
     if not ln then
       r:Hide()
     elseif ln.head then
@@ -1521,13 +1549,15 @@ local function FillPlan()
       r.per:SetText("")
       r.addBtn:Hide()
       if step == "favor" then
-        if c.src then
-          r.name:SetText("   1. Fill " .. c.src.n .. "x " .. c.src.name .. ", hand in")
-          r.how:SetText(GREY .. (c.src.crafted and "craft " or "") .. c.src.qty .. " " .. c.src.bundle .. " each|r")
+        local pk = ln.pick
+        if pk then
+          r.name:SetText("   1. Fill " .. pk.n .. "x " .. pk.c.name .. ", hand in")
+          r.how:SetText(GREY .. (pk.crafted and "craft " or "") .. pk.qty .. " " .. pk.bundle .. " each|r")
           -- the favor it earns, in the rep column for neatness: grey with the favor icon, not rep
-          r.rep:SetText(GREY .. "+" .. Num(c.src.n * c.src.favor) .. "|r" .. (ns.FavorIcon and ns.FavorIcon() or ""))
+          r.rep:SetText(GREY .. "+" .. Num(pk.n * pk.c.favor) .. "|r" .. (ns.FavorIcon and ns.FavorIcon() or ""))
+          r.per:SetText(ns.Money(math.floor(pk.cost / (pk.n * pk.c.favor) + 0.5)))
           -- what you pay for the crates and bundles; the turn-in silver comes back later
-          r.cost:SetText((c.favorGuess and "~" or "") .. ns.Money(c.src.crateCost + c.src.bundleCost))
+          r.cost:SetText((pk.guess and "~" or "") .. ns.Money(pk.upFront))
           r.addBtn:Show()
         elseif c.earn == 0 then
           r.name:SetText("   1. Favor: you have " .. Num(c.have))
@@ -1673,14 +1703,17 @@ end
 
 -- The containers' buys: `step` "favor" = the crates to fill and their bundles, "crates" = the
 -- empty crates; nil = both.
-local function ContainerItems(c, items, step)
-  if (not step or step == "favor") and c.src then
-    -- not the crates you hold or the materials in your bags (when the plan uses them)
-    local src = c.src
-    local crates = src.n - (src.held or 0)
-    local mats = src.crafted and 0 or math.max(0, src.n * src.qty - (ns.PlanUseMats() and Count(src.bundleID) or 0))
-    if crates > 0 then items[#items + 1] = { id = src.id, name = "Waylaid Crate: " .. src.name, qty = crates } end
-    if mats > 0 then items[#items + 1] = { id = src.bundleID, name = src.bundle, qty = mats } end
+local function ContainerItems(c, items, step, onlyPick)
+  if (not step or step == "favor") and c.mix then
+    -- each kind's crates and bundles: not the crates you hold or the materials in your bags
+    for _, pk in ipairs(c.mix.picks) do
+      if not onlyPick or onlyPick == pk then
+        local crates = pk.n - (pk.held or 0)
+        local mats = pk.crafted and 0 or math.max(0, pk.n * pk.qty - (ns.PlanUseMats() and Count(pk.bundleID) or 0))
+        if crates > 0 then items[#items + 1] = { id = pk.c.id, name = "Waylaid Crate: " .. pk.c.name, qty = crates } end
+        if mats > 0 then items[#items + 1] = { id = pk.bundleID, name = pk.bundle, qty = mats } end
+      end
+    end
   end
   if not step or step == "crates" then
     local names = {}
@@ -1874,7 +1907,7 @@ function ns.ShowWritPlan()
       add:SetScript("OnClick", function()
         if r.cont then
           local items = {}
-          ContainerItems(r.cont, items, r.step)
+          ContainerItems(r.cont, items, r.step, r.mixPick or nil)
           ns.CartAdd(items)
           ns.Print(r.step == "favor" and "added the crates and bundles for the favor to the cart."
             or string.format("added %d empty crates to the cart.", r.cont.n))
@@ -1923,19 +1956,23 @@ function ns.ShowWritPlan()
             GameTooltip:AddDoubleLine("Receipts need", Num(c.favor), 1, 1, 1, 1, 1, 1)
             GameTooltip:AddDoubleLine("You have", Num(c.have), 1, 1, 1, 1, 1, 1)
             GameTooltip:AddDoubleLine("To earn", Num(c.earn), 1, 1, 1, 1, 1, 1)
-            local src = c.src
-            if src then
+            local pk = self.mixPick
+            if pk then
               GameTooltip:AddLine(" ")
-              GameTooltip:AddLine("Cheapest way, from the AH listings: buy " .. src.n .. " Waylaid Crate: " .. src.name
-                .. ", fill each with " .. src.qty .. " " .. src.bundle .. ", and turn them in ("
-                .. src.favor .. " favor each).", 1, 1, 1, true)
-              GameTooltip:AddDoubleLine(src.n .. " crates", ns.Money(src.crateCost), 1, 1, 1, 1, 1, 1)
-              GameTooltip:AddDoubleLine(src.n * src.qty .. " " .. src.bundle, ns.Money(src.bundleCost), 1, 1, 1, 1, 1, 1)
-              if src.pay > 0 then
-                GameTooltip:AddDoubleLine("Turn-in silver back", "-" .. ns.Money(src.pay), 1, 1, 1, 0.25, 1, 0.25)
+              GameTooltip:AddLine("Buy " .. pk.n .. " Waylaid Crate: " .. pk.c.name .. (pk.held > 0 and (" (" .. pk.held
+                .. " you have)") or "") .. ", fill each with " .. pk.qty .. " " .. pk.bundle .. ", hand them in ("
+                .. pk.c.favor .. " favor each): " .. Num(pk.n * pk.c.favor) .. " favor.", 1, 1, 1, true)
+              GameTooltip:AddDoubleLine("You pay", ns.Money(pk.upFront), 1, 1, 1, 1, 1, 1)
+              if pk.pay > 0 then
+                GameTooltip:AddDoubleLine("Turn-in silver back", "-" .. ns.Money(pk.pay), 1, 1, 1, 0.25, 1, 0.25)
               end
-              GameTooltip:AddDoubleLine("Total", ns.Money(src.total), 1, 0.82, 0, 1, 1, 1)
-              GameTooltip:AddLine("[+cart] adds the crates and bundles. Scan AH for prices up the listings.", 0.6, 0.6, 0.6, true)
+              GameTooltip:AddDoubleLine("Net", ns.Money(pk.cost), 1, 0.82, 0, 1, 1, 1)
+              if c.mix and #c.mix.picks > 1 then
+                GameTooltip:AddLine("The favor is split over " .. #c.mix.picks .. " crate kinds: each next crate is the "
+                  .. "cheapest per favor in the scanned listings, so a kind is dropped once its cheap crates or "
+                  .. "bundles run out.", 0.6, 0.6, 0.6, true)
+              end
+              GameTooltip:AddLine("[+cart] adds this kind's crates and bundles.", 0.6, 0.6, 0.6, true)
             end
           elseif step == "receipts" then
             GameTooltip:AddLine("Forged Delivery Receipts")

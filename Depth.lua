@@ -45,6 +45,13 @@ local function Fresh(id)
   if it and it.t and time() - it.t < Depth.TTL then return it end
 end
 
+-- The fresh scanned listings for `id` ({ {unit price, units}, ... } cheapest first) and whether
+-- that's all of them; nil without a fresh scan.
+function Depth.Rows(id)
+  local it = Fresh(id)
+  if it then return it.rows, it.full end
+end
+
 -- Cost of `n` units of `id`, and how it was priced:
 --   { depth = true } walked the scanned listings, cheapest first;
 --     .short = fewer listed than needed (the rest priced at the dearest listing),

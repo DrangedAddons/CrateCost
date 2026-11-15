@@ -529,11 +529,100 @@ local function LabelStep()
   return { rep = LABEL_REP, have = Count(LABEL_ITEM) > 0 }
 end
 
+-- Notarized Shipping Containers: from Friendly, a Forged Delivery Receipt (15 Merchant's Favor
+-- from the camp's scribe) turns an empty Waylaid Crate into a container worth 50 rep, with no
+-- daily limit. Its cost: the cheapest empty crate on the AH (up the scanned listings of every
+-- crate, else Auctionator's price) + 15 favor at the cheapest favor the crate list can buy
+-- (crate + bundle - turn-in silver, per favor). wow-professions.com and other Forever guides.
+local CONTAINER_REP, CONTAINER_FAVOR = 50, 15
+local FRIENDLY = 3000   -- absolute standing where Friendly starts (STANDINGS[5])
+
+-- { pf, crate (name of the cheapest favor crate), cum[k] = cost of k containers, ids[k] } for up
+-- to `kmax` containers, or nil when there's no favor or crate price.
+local function ContainerPricing(kmax)
+  local pf, crate
+  for name, r in pairs(ns.CrateRatings and ns.CrateRatings() or {}) do
+    if r.per and not r.noCrate and not r.unrated and (not pf or r.per < pf) then pf, crate = r.per, name end
+  end
+  if not pf then return nil end
+  local rows = {}
+  for _, id in pairs(ns.CrateIDs or {}) do
+    local listed = ns.Depth and ns.Depth.Rows and ns.Depth.Rows(id)
+    if listed then
+      for _, x in ipairs(listed) do rows[#rows + 1] = { x[1], x[2], id } end
+    else
+      local price = ns.Price(id)
+      if price then rows[#rows + 1] = { price, math.huge, id } end
+    end
+  end
+  table.sort(rows, function(a, b) return a[1] < b[1] end)
+  local cum, ids = { [0] = 0 }, {}
+  local k = 0
+  for _, r in ipairs(rows) do
+    local left = r[2]
+    while left > 0 and k < kmax do
+      k = k + 1
+      cum[k] = cum[k - 1] + r[1] + CONTAINER_FAVOR * pf
+      ids[k] = r[3]
+      left = left - 1
+    end
+    if k >= kmax then break end
+  end
+  return { pf = pf, crate = crate, cum = cum, ids = ids }
+end
+
+-- best[u] = the least writs (one each, not done today) cost for at least u * 25 rep, u up to
+-- ceil(need / 25): a knapsack over every writ copy.
+local function WritCosts(groups, need)
+  local N = math.ceil(need / 25)
+  local dp = { [0] = 0 }
+  for rep, g in pairs(groups) do
+    local w = rep / 25
+    for _, c in ipairs(g) do
+      for y = N, 0, -1 do
+        local base = dp[y]
+        if base then
+          local z = math.min(N, y + w)
+          if not dp[z] or base + c.cost < dp[z] then dp[z] = base + c.cost end
+        end
+      end
+    end
+  end
+  local best, run = {}, nil
+  for u = N, 0, -1 do
+    if dp[u] and (not run or dp[u] < run) then run = dp[u] end
+    best[u] = run
+  end
+  return best, N
+end
+
 local function MakePlan(need)
   local profs = MyProfessions()
-  -- the Shipping Label first: it covers the first 2,000 rep for nothing
+  -- the Shipping Label first: it covers the first 2,000 rep for nothing (assumed done)
   local label = LabelStep()
-  local writNeed = label and math.max(0, need - label.rep) or need
+  local after = label and math.max(0, need - label.rep) or need
+  -- writs only until Friendly: containers need Friendly
+  local gate = math.max(0, math.min(after, FRIENDLY - ((standing and standing.value) or 0) - (label and label.rep or 0)))
+  -- past Friendly: the cheapest mix of writs and containers
+  local nCont, cont = 0, nil
+  if after > gate then
+    local kmax = math.ceil((after - gate) / CONTAINER_REP)
+    cont = ContainerPricing(kmax)
+    if cont then
+      local best, N = WritCosts((Copies(1, profs, true)), after)
+      local gu = math.ceil(gate / 25)
+      local bestTotal
+      for k = 0, kmax do
+        local cc = cont.cum[k]
+        if not cc then break end
+        local wu = k == 0 and N or math.max(gu, N - k * CONTAINER_REP / 25)
+        wu = math.max(0, math.ceil(wu))
+        local w = best[wu]
+        if w and (not bestTotal or w + cc < bestTotal) then bestTotal, nCont = w + cc, k end
+      end
+    end
+  end
+  local writNeed = nCont > 0 and math.max(gate, after - nCont * CONTAINER_REP) or after
   local plan
   if writNeed == 0 then
     plan = { need = need, days = 1, cost = 0, rep = 0, short = false, list = {} }
@@ -543,7 +632,18 @@ local function MakePlan(need)
   end
   plan.need = need
   plan.label = label
+  plan.gate = gate
   if label then plan.rep = plan.rep + label.rep end
+  if nCont > 0 then
+    local byId = {}
+    for k = 1, nCont do byId[cont.ids[k]] = (byId[cont.ids[k]] or 0) + 1 end
+    plan.containers = { n = nCont, cost = cont.cum[nCont], favor = nCont * CONTAINER_FAVOR, pf = cont.pf,
+      crate = cont.crate, byId = byId }
+    plan.cost = plan.cost + plan.containers.cost
+    plan.rep = plan.rep + nCont * CONTAINER_REP
+    -- the target's reached with containers, whatever the writs alone could do
+    plan.short = plan.rep < need
+  end
   local ideal = writNeed > 0 and BuildPlan(writNeed, profs, false) or nil
   plan.spent = 0
   for _, it in ipairs(ideal and ideal.list or {}) do
@@ -554,6 +654,12 @@ local function MakePlan(need)
     end
   end
   SortPlan(plan.list)
+  -- stage per writ: best value first, the ones that get you to Friendly, then the rest
+  local got = 0
+  for _, it in ipairs(plan.list) do
+    it.stage = got < gate and 1 or 2
+    if not it.spent then got = got + it.e.rep end
+  end
   return plan
 end
 
@@ -1058,7 +1164,8 @@ function ns.RefreshWrits()
     local p = CurrentPlan()
     if p then
       plan = plan .. string.format("Plan: %s%d writs, %s%s%s.",
-        p.label and ("|cffffd100Shipping Label quest (+" .. Num(p.label.rep) .. ")|r, then ") or "",
+        (p.label and ("|cffffd100Shipping Label quest (+" .. Num(p.label.rep) .. ")|r, then ") or "")
+          .. (p.containers and (p.containers.n .. " containers + ") or ""),
         PlanCount(p), ns.Money(p.cost),
         (p.spent or 0) > 0 and string.format(", |cffff4040%d of the best already done today|r", p.spent) or "",
         p.short and (" |cffff4040- gets " .. Num(p.rep) .. " rep; regenerate tomorrow for the rest|r") or "")
@@ -1285,12 +1392,29 @@ end
 
 -- The plan's rows, best value first. Writs done today show only when ShowCD(); the footer has
 -- the totals.
+-- Label, the writs to Friendly, then Friendly onwards (containers, then the other writs). The
+-- stage headings only when the plan has stages.
 local function PlanLines(p)
   local lines = {}
-  if p.label then lines[1] = { label = p.label } end
-  for _, it in ipairs(p.list) do
-    if ShowCD() or not it.e.done then lines[#lines + 1] = { it = it } end
+  -- stages only when the plan goes past Friendly
+  local past = false
+  for _, it in ipairs(p.list) do if it.stage == 2 and not it.spent then past = true end end
+  local staged = (p.gate or 0) > 0 and (p.containers or past)
+  if p.label then lines[#lines + 1] = { label = p.label } end
+  local function Writs(stage)
+    for _, it in ipairs(p.list) do
+      if (it.stage or 2) == stage and (ShowCD() or not it.e.done) then lines[#lines + 1] = { it = it } end
+    end
   end
+  if staged then
+    lines[#lines + 1] = { head = "To Friendly: " .. Num(p.gate) .. " rep in writs (containers unlock at Friendly)" }
+    Writs(1)
+    lines[#lines + 1] = { head = "Friendly onwards" }
+  else
+    Writs(1)
+  end
+  if p.containers then lines[#lines + 1] = { cont = p.containers } end
+  Writs(2)
   return lines
 end
 
@@ -1300,10 +1424,29 @@ local function FillPlan()
   pf.offset = math.max(0, math.min(pf.offset, #lines - PROWS))
   for i = 1, PROWS do
     local r, ln = pf.rows[i], lines[pf.offset + i]
-    r.it = ln and ln.it
+    r.it = (ln and ln.it) or false
     r.label = (ln and ln.label) or false
+    r.cont = (ln and ln.cont) or false
     if not ln then
       r:Hide()
+    elseif ln.head then
+      r.name:SetText("|cffffd100" .. ln.head .. "|r")
+      r.how:SetText("")
+      r.rep:SetText("")
+      r.per:SetText("")
+      r.cost:SetText("")
+      r.addBtn:Hide()
+      r:Show()
+    elseif ln.cont then
+      -- Notarized Shipping Containers: empty crates + favor, 50 rep each
+      local c = ln.cont
+      r.name:SetText("   |cffffd100Notarized Shipping Container x" .. c.n .. "|r")
+      r.how:SetText(GREY .. c.n .. " empty crates + " .. Num(c.favor) .. " favor|r")
+      r.rep:SetText(Num(c.n * CONTAINER_REP))
+      r.per:SetText(ns.Money(math.floor(c.cost / (c.n * CONTAINER_REP) + 0.5)))
+      r.cost:SetText(ns.Money(c.cost))
+      r.addBtn:Show()
+      r:Show()
     elseif ln.label then
       -- the one-time Shipping Label quest, before any writ
       r.name:SetText("   |cffffd100Shipping Label quest (one time)|r")
@@ -1372,11 +1515,21 @@ end
 -- Adds the whole plan's buys to the cart: not the writs already filled today.
 local function PlanToCart(p)
   local items = {}
+  if p.containers then ContainerItems(p.containers, items) end
   for _, it in ipairs(p.list) do
     if not it.spent and not (it.e.done and it.day == 1) then EntryItems(it, items) end
   end
   local n = ns.CartAdd(items)
   ns.Print(string.format("added %d to the cart.", n))
+end
+
+-- The empty crates for the containers, by crate (the cheapest ones the plan priced).
+local function ContainerItems(c, items)
+  local names = {}
+  for name, id in pairs(ns.CrateIDs or {}) do names[id] = name end
+  for id, n in pairs(c.byId) do
+    items[#items + 1] = { id = id, name = "Waylaid Crate: " .. (names[id] or id), qty = n }
+  end
 end
 
 local function RowToCart(it)
@@ -1513,7 +1666,16 @@ function ns.ShowWritPlan()
       else
         icon:SetTexture("Interface\\AddOns\\CrateCost\\cart")
       end
-      add:SetScript("OnClick", function() if r.it then RowToCart(r.it) end end)
+      add:SetScript("OnClick", function()
+        if r.cont then
+          local items = {}
+          ContainerItems(r.cont, items)
+          ns.CartAdd(items)
+          ns.Print(string.format("added %d empty crates to the cart.", r.cont.n))
+        elseif r.it then
+          RowToCart(r.it)
+        end
+      end)
       add:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine("Add to cart", 1, 1, 1)
@@ -1538,6 +1700,27 @@ function ns.ShowWritPlan()
             or "Marcy Baker at the Azeroth Commerce Authority") .. " for 2,000 reputation and 50 Merchant's "
             .. "Favor. Once per character, so do it first: the plan's writs cover the rest.", 1, 1, 1, true)
           if self.label.have then GameTooltip:AddLine("You have the label: deliver it.", 0.25, 1, 0.25) end
+          GameTooltip:Show()
+          return
+        end
+        if self.cont then
+          local c = self.cont
+          local horde = UnitFactionGroup and UnitFactionGroup("player") == "Horde"
+          GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+          GameTooltip:AddLine("Notarized Shipping Container x" .. c.n)
+          GameTooltip:AddLine("From Friendly: buy a Forged Delivery Receipt for 15 Merchant's Favor from "
+            .. (horde and "Kurvelk Shadowhoof" or "Dianne Softstep") .. ", use it on an empty Waylaid Crate, "
+            .. "and hand the container in at the camp for 50 rep. No daily limit.", 1, 1, 1, true)
+          GameTooltip:AddLine(" ")
+          GameTooltip:AddDoubleLine("Empty crates (cheapest on the AH)", c.n, 1, 1, 1, 1, 1, 1)
+          GameTooltip:AddDoubleLine("Merchant's Favor", Num(c.favor), 1, 1, 1, 1, 1, 1)
+          GameTooltip:AddDoubleLine("Favor priced at", ns.Money(math.floor(c.pf + 0.5)) .. " each", 1, 1, 1, 1, 1, 1)
+          if c.crate then
+            GameTooltip:AddLine("Cheapest favor: buy and fill " .. c.crate .. " crates (crate + bundle, less the "
+              .. "turn-in silver). Favor you already have counts at the same price.", 0.6, 0.6, 0.6, true)
+          end
+          GameTooltip:AddDoubleLine("Per rep", ns.Money(math.floor(c.cost / (c.n * CONTAINER_REP) + 0.5)), 1, 1, 1, 1, 1, 1)
+          GameTooltip:AddDoubleLine("Total", ns.Money(c.cost), 1, 1, 1, 1, 1, 1)
           GameTooltip:Show()
           return
         end

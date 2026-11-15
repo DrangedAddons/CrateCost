@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.41.0
+- Writ plan: guides you to Friendly, then onwards. After the Shipping Label quest (assumed done), **To Friendly** is writs only; **Friendly onwards** is the cheapest mix of writs and **Notarized Shipping Containers** (empty crate + 15 Merchant's Favor = 50 rep, no daily limit).
+- A container costs the cheapest empty crate on the AH (scanned listings, else Auctionator) plus 15 favor at the crate list's cheapest favor (crate + bundle - turn-in silver, per favor). The plan picks how many containers against how many writs for the lowest total.
+- The container row shows the count, empty crates, favor, per rep and cost; its tooltip names your camp's scribe and the cheapest favor crate. [+cart] and Add plan to cart add the empty crates.
+
 ## 0.40.0
 - Writ plan: if this character hasn't done the one-time Shipping Label quest (2,000 rep, 50 Merchant's Favor; quests 98247 / 98248), it's the plan's first step and the writs cover only the rest. Its row says to fill a crate or start a writ, or to deliver the label you already have; the tooltip names your camp's NPC.
 

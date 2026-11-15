@@ -159,7 +159,7 @@ local function CrateList()
                         pay1 = pay, payEst = payEst,
                         id = (s and s.id) or db.ids[name] or ns.CrateIDs[name],
                         favor = favor, favorEst = est,
-                        prices = {}, owned = {}, allowed = {}, req = {}, units = {} }
+                        prices = {}, owned = {}, allowed = {}, req = {}, units = {}, short = {} }
     seen[name] = true
   end
   for _, c in ipairs(ns.Crates) do
@@ -189,29 +189,43 @@ local function Evaluate(c, mine)
     c.n = (target and c.favor) and math.ceil(target / c.favor) or 1
     c.nUnknown = target and not c.favor
   end
-  wipe(c.prices) wipe(c.owned) wipe(c.allowed) wipe(c.req) wipe(c.units)
+  wipe(c.prices) wipe(c.owned) wipe(c.allowed) wipe(c.req) wipe(c.units) wipe(c.short)
   c.best = nil
   local prof = view.filter and view.filter.group == "prof" and view.filter.value
   for i, b in ipairs(c.bundles) do
     c.allowed[i] = not prof or ns.MatProf[b[1]] == prof
     local id = ns.ItemIDs[b[1]]
-    local unit
-    if c.crafting then unit = id and ns.ItemCraftCost(id) else unit = id and ns.Price(id) end
     c.req[i] = b[2] * c.n
     local need = c.req[i]
     if mine then
       c.owned[i] = Owned(id)
       need = math.max(0, c.req[i] - c.owned[i])
     end
-    local total = need == 0 and 0 or (unit and unit * need)
+    local unit, total
+    if c.crafting then
+      unit = id and ns.ItemCraftCost(id)
+      total = need == 0 and 0 or (unit and unit * need)
+    else
+      -- up the scanned AH listings for exactly what's needed (Depth.lua); unit = the average paid
+      local how
+      total, how = ns.FillCost(id, need)
+      c.short[i] = how.short
+      if need > 0 then unit = total and total / need else unit = (ns.FillCost(id, 1)) end
+    end
     c.prices[i] = total
     c.units[i] = unit
-    if c.allowed[i] and total and (not c.best or total < c.prices[c.best]) then c.best = i end
+    -- a bundle the AH can fully supply beats one it's short of, whatever the price
+    if c.allowed[i] and total then
+      local b = c.best
+      if not b or (c.short[b] and not c.short[i])
+        or ((not c.short[i]) == (not c.short[b]) and total < c.prices[b]) then c.best = i end
+    end
   end
-  c.crate = c.id and ns.Price(c.id)
+  c.crate = c.id and (ns.FillCost(c.id, 1))
   c.crateNeed = mine and 0 or c.n
   c.ownCrate = mine
-  local crateCost = c.crateNeed == 0 and 0 or (c.crate and c.crate * c.crateNeed)
+  -- several crates: up the crate's listings too
+  local crateCost = c.crateNeed == 0 and 0 or (c.id and (ns.FillCost(c.id, c.crateNeed)))
   c.crateCost = crateCost
   c.crateUnknown = crateCost == nil
   local bundle = c.best and c.prices[c.best]
@@ -265,13 +279,17 @@ function ns.CrateRatings()
   local rated, fills, crafts = {}, {}, {}
   for _, c in ipairs(CrateList()) do
     local favor = c.favor
-    local bundle
+    local bundle, bundleShort
     for _, b in ipairs(c.bundles) do
       local id = ns.ItemIDs[b[1]]
-      local unit = id and ns.Price(id)
-      if unit and (not bundle or unit * b[2] < bundle) then bundle = unit * b[2] end
+      local cost, how
+      if id then cost, how = ns.FillCost(id, b[2]) end
+      local short = how and how.short
+      if cost and (not bundle or (bundleShort and not short) or ((not short) == (not bundleShort) and cost < bundle)) then
+        bundle, bundleShort = cost, short
+      end
     end
-    local crate = c.id and ns.Price(c.id)
+    local crate = c.id and (ns.FillCost(c.id, 1))
     -- the turn-in silver comes off every way of getting the favor
     local pay = c.pay1 or 0
     if favor and bundle then
@@ -1075,6 +1093,61 @@ local function SetMoney(row, key, copper, color, text)
   end
 end
 
+-- "45s", "12m", "3h"
+local function AgeText(s)
+  if s < 60 then return s .. "s" end
+  if s < 3600 then return math.floor(s / 60) .. "m" end
+  return math.floor(s / 3600) .. "h"
+end
+
+-- Footer: where bundle prices come from.
+local function DepthNote()
+  local age = ns.Depth and ns.Depth.Age()
+  if age and age < ns.Depth.TTL then
+    return "Prices: AH listings scanned " .. AgeText(age) .. " ago, |cffff4040red|r|cff808080 = not enough listed."
+  end
+  return "Prices: Auctionator's lowest x amount; Scan AH at the auction house for the real listings."
+end
+
+local function UpdateScanButton()
+  local b = frame and frame.scanBtn
+  if not (b and ns.Depth) then return end
+  local d = ns.Depth
+  if d.state == "running" then
+    b:SetText(string.format("Stop scan %d/%d", d.done, math.max(d.total, d.done)))
+    b:Enable()
+  else
+    b:SetText("Scan AH")
+    b:SetEnabled(d.atAH and true or false)
+  end
+end
+
+-- Units to read per item for a scan: the crates the list wants (target / owned / one each),
+-- their bundles' amounts for that many with 25% to spare, at least Depth.FLOOR.
+function ns.DepthWants()
+  local wants = {}
+  local mine = Mode() == "owned"
+  local target = Target()
+  for _, c in ipairs(CrateList()) do
+    local n = 1
+    if mine then n = math.max(1, c.id and (ns.OwnedWhere and (ns.OwnedWhere(c.id)) or Owned(c.id)) or 1)
+    elseif target and c.favor then n = math.ceil(target / c.favor) end
+    if c.id then wants[c.id] = math.max(wants[c.id] or 0, n) end
+    for _, b in ipairs(c.bundles) do
+      local id = ns.ItemIDs[b[1]]
+      if id then
+        wants[id] = math.max(wants[id] or 0, ns.Depth.FLOOR, math.ceil(b[2] * n * 1.25))
+      end
+    end
+  end
+  return wants
+end
+
+function ns.OnDepthChanged()
+  UpdateScanButton()
+  if ns.Depth.state == "idle" and frame and frame:IsShown() then ns.RefreshWindow() end
+end
+
 local function UpdateHeaders()
   for _, h in ipairs(headers) do
     local title = (Mode() == "owned" and h.col.ownedTitle) or (CraftBundles() and h.col.craftTitle) or h.col.title
@@ -1126,7 +1199,7 @@ function ns.RefreshWindow()
         or ("|cffaaaaaax" .. req .. "|r"))
       SetMoney(row, "unit", c.units[c.best], "|cffffffff", "|cff808080?|r")
       -- orange = crate price unknown, so the total is the bundle alone
-      SetMoney(row, "bundle", c.bundleCost)
+      SetMoney(row, "bundle", c.bundleCost, c.short[c.best] and "|cffff4040" or nil)
       SetMoney(row, "cost", c.cost, c.crateUnknown and "|cffff9933" or nil)
     else
       cl.best:SetText("|cff808080no prices|r")
@@ -1161,6 +1234,7 @@ function ns.RefreshWindow()
   frame.empty:SetShown(#list == 0)
   frame.viewToggle:Refresh()
   frame.bundleToggle:Refresh()
+  UpdateScanButton()
   ns.UI.Relayout(rows, headers, COLS, mine)
   frame.count:SetText(string.format("%d of %d crates", #list, #all))
   local fi = C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo and C_CurrencyInfo.GetCurrencyInfo(3402)
@@ -1170,7 +1244,7 @@ function ns.RefreshWindow()
       and "Owned: crates on this character, its bank, the warband bank and alts (as of their last login). "
         .. "Cost = filling them all, less the turn-in silver; materials on this character are subtracted."
       or "Buy: crate + cheapest bundle at Auctionator prices, less the turn-in silver.")
-    .. "  |cffff9933Orange|r|cff808080 total = crate not priced yet."
+    .. "  |cffff9933Orange|r|cff808080 total = crate not priced yet. " .. DepthNote()
     .. (anyGuide and "  * = guide amounts until you hover that crate." or "") .. "|r")
   UpdateHeaders()
 end
@@ -1244,6 +1318,28 @@ local function Build()
     view.filter = v
     ns.RefreshWindow()
   end)
+
+  -- Scan AH: real listings for every crate and bundle material (Depth.lua)
+  local scan = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+  scan:SetSize(130, 20)
+  scan:SetPoint("LEFT", fb, "RIGHT", 12, 0)
+  frame.scanBtn = scan
+  scan:SetScript("OnClick", function()
+    if ns.Depth.state == "running" then ns.Depth.Stop() else ns.Depth.Start(ns.DepthWants()) end
+  end)
+  scan:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+    GameTooltip:AddLine("Scan AH")
+    GameTooltip:AddLine("Reads the auction house listings for every crate and bundle material, deep "
+      .. "enough for what the list needs, so fills are priced up the listings instead of the "
+      .. "cheapest price x amount.", 1, 1, 1, true)
+    local age = ns.Depth.Age()
+    GameTooltip:AddLine(age and string.format("Last scan: %s ago%s.", AgeText(age),
+      age >= ns.Depth.TTL and " (too old, Auctionator prices in use)" or "") or "Not scanned yet.", 0.6, 0.6, 0.6, true)
+    if not ns.Depth.atAH then GameTooltip:AddLine("Open the auction house to scan.", 1, 0.5, 0.25) end
+    GameTooltip:Show()
+  end)
+  scan:SetScript("OnLeave", GameTooltip_Hide)
 
   local function CharDB()
     if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end

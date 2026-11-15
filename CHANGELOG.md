@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.33.0
+- **Scan AH** button on /crates (at the auction house). Reads the real listings for every crate and bundle material, deep enough for the list (bundle amount x crates + 25%, at least 100 units), so fills are priced up the listings instead of the cheapest price x amount. The list, crate tooltips and ratings all use it.
+- Red bundle cost = not enough listed; a bundle the AH can fully supply wins over one it's short of.
+- Listings are kept per realm for 30 minutes, then prices fall back to Auctionator's. The footer says which is in use.
+- New file (Depth.lua): restart the game client, /reload isn't enough.
+
 ## 0.32.1
 - Fixed owned counts doubling with Syndicator (Baganator) on Forever: Syndicator saves the realm as the ruleset name ("PvP"), so this character wasn't recognised and was counted twice, live and as an alt. It now asks Syndicator which character is current.
 

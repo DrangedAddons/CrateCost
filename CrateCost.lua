@@ -264,8 +264,14 @@ local function Process(tooltip, itemID)
         local qty, item = Strip(seg):match("^%s*%-%s*(%d+)%s+(.-)%s*$")
         if qty then
           local id = ns.ItemIDs[item]
-          local unit = id and Price(id)
-          local b = { item = item, qty = tonumber(qty), id = id, total = unit and unit * tonumber(qty) }
+          -- up the scanned AH listings when there are any, else Auctionator's lowest x amount
+          local total
+          if id and ns.FillCost then total = ns.FillCost(id, tonumber(qty))
+          else
+            local unit = id and Price(id)
+            total = unit and unit * tonumber(qty)
+          end
+          local b = { item = item, qty = tonumber(qty), id = id, total = total }
           bundles[#bundles + 1] = b
           if b.total and (not best or b.total < best.total) then best = b end
         end

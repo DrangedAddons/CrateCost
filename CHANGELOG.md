@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.46.1
+- Home: reputation across the top (the camp's name, a standing bar, target, Shipping Label quest, the rep plan and its cost, Open the rep plan), then three narrower tiles below: Crates, Merchant's Favor, Writs. Narrower window; the art shows through more (lighter shade and panels).
+
 ## 0.46.0
 - Plans' totals: **Up front** (what you pay to buy everything), **Turn-ins pay back** (the crates' turn-in silver, and the Sealed Crates' in your bags, which come after you've bought it all) and **Net** (or Net profit). Crate rows show what you pay up front; per favor / per rep stay net.
 - Plans' footer: the summary, the money a size up and a big **Add plan to cart** button, centred.

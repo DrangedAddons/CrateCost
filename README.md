@@ -48,12 +48,11 @@ Hovering a crate also saves its real bundle amounts for the crate list. The beta
 
 ## Home: `/crates`, `/crate`, `/writs`, `/writ` (or the minimap button)
 
-The landing view: four cards with where you stand and a button into each view.
+The landing view: your **reputation** across the top (the camp, a standing bar, target and rep to go, the Shipping Label quest, the rep plan's writs, containers and cost, **Open the rep plan**), then three tiles:
 
-- **Crates**: your Merchant's Favor, crates you have (every character), Sealed Crates waiting to be handed in (and their favor), the cheapest favor crate and the AH scan's age. **Open crates**.
-- **Merchant's Favor**: favor (and favor waiting in Sealed Crates), your favor target and what's left, and the favor plan's crates, cost and best crate. **Open the favor plan**.
+- **Crates**: crates you have (every character), Sealed Crates waiting to be handed in (and their favor), the cheapest favor crate and the AH scan's age. **Open crates**.
+- **Merchant's Favor**: favor you have, your favor target and what's left, the favor plan's crates and cost. **Open the favor plan**.
 - **Writs**: writs done today, writs you have, the cheapest rep writ. **Open writs**.
-- **Rep**: standing, target and rep to go, the Shipping Label quest, and the rep plan's writs, containers and cost. **Open the rep plan**.
 
 **Open the plan with the AH** (Home and both plans, per character, on by default): opening the auction house opens the plan you used last.
 

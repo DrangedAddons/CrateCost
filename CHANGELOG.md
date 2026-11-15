@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.44.0
+- **Home**: a landing view with three cards (Crates, Writs, Rep), each with where you stand and a button into its view. `/crates` and the minimap button open it; `/crates list` opens the crate list, `/crates plan` the plan.
+- The plan is a full view of the window (Plan on the nav bar), with its own Target picker and standing line, instead of a popup.
+- Nav bar: Home, Crates, Writs, Plan, Merchant, Cart, Refresh.
+- New file (Home.lua): restart the game client, /reload isn't enough.
+
 ## 0.43.0
 - Writ plan costs are scan-accurate. Writs Scan AH now also reads every crate and bundle deep enough for the plan's containers (the crates to fill for the favor, and the empty crates), then remakes the plan with what it read.
 - Costs priced past what the scan read, or not scanned at all, are marked **~** with a note to Scan AH. A crate the scan only surveyed is no longer priced as if every listed one cost the lowest price; asking for more than the survey saw listed counts as short.

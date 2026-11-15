@@ -1424,7 +1424,7 @@ end
 ---------------------------------------------------------------------------------------------
 -- The plan's window: day by day, each writ, how to get it and its item, rep and cost.
 
-local PROWS, PROW_H, PTOP, PFOOT = 22, 18, 58, 70
+local PROWS, PROW_H, PTOP, PFOOT = 26, 18, 84, 70
 local pf, ShowCD
 -- Show the writs already done today in the plan window (per character, default on).
 ShowCD = function()
@@ -1583,13 +1583,25 @@ local function FillPlan()
   local cd = p and p.spent or 0
   pf.cd:SetText(cd > 0 and string.format("|cffff4040%d of the best already filled today|r%s", cd,
     ShowCD() and "" or " (hidden)") or "")
+  local t = Target()
+  pf.targetBtn.text:SetText(t and (STANDINGS[t][4] .. STANDINGS[t][2] .. "|r") or "No target")
+  local st = standing
+  if st then
+    local txt = "Standing: " .. st.color .. st.label .. "|r"
+    if st.max then txt = txt .. string.format("  %s / %s", Num(st.value - st.min), Num(st.max - st.min)) end
+    if t then
+      txt = txt .. "   " .. (needRep and (Num(needRep) .. " rep to " .. STANDINGS[t][2])
+        or ("|cff40ff40" .. STANDINGS[t][2] .. " reached|r"))
+    end
+    pf.standing:SetText(txt)
+  end
   if p then
-    pf.title:SetText(string.format("Plan to %s: %s rep", STANDINGS[Target()][2], Num(p.need)))
+    pf.title:SetText("Rep plan")
     pf.total:SetText(string.format("%d writs, %s rep%s   Total %s", PlanCount(p), Num(p.rep),
       p.short and " |cffff4040(short of the target: regenerate tomorrow)|r" or "", ns.Money(p.cost)))
   else
-    pf.title:SetText("Plan")
-    pf.total:SetText(needRep and "No writ has a price yet." or "Pick a target standing first.")
+    pf.title:SetText("Rep plan")
+    pf.total:SetText(needRep and "No writ has a price yet." or (t and "Target reached." or "Pick a target standing."))
   end
 end
 
@@ -1663,6 +1675,26 @@ function ns.WritDepthWants()
   return wants
 end
 
+-- For the Home view: { done, total (writs), held, best (cheapest writ entry not done today),
+-- standing, standingText, target, targetName, need, labelDone, plan }.
+function ns.WritStatus()
+  Calc() Live() UpdateNeed()
+  local st = { done = 0, total = #Entries(), held = 0, standing = standing, target = Target(),
+    need = needRep, labelDone = LabelStep() == nil }
+  for _, e in ipairs(Entries()) do
+    if e.done then st.done = st.done + 1 end
+    st.held = st.held + (e.haveWrit or 0)
+    if e.per and not e.done and (not st.best or e.per < st.best.per) then st.best = e end
+  end
+  st.targetName = st.target and STANDINGS[st.target][2]
+  local s = standing
+  st.standingText = s.color .. s.label .. "|r"
+    .. (s.max and string.format("  %s / %s", Num(s.value - s.min), Num(s.max - s.min)) or "")
+  st.plan = CurrentPlan()
+  st.planCount = st.plan and PlanCount(st.plan) or 0
+  return st
+end
+
 local function UpdateWritScan()
   local b = frame and frame.scanBtn
   if not (b and ns.Depth) then return end
@@ -1688,29 +1720,37 @@ end
 
 function ns.ShowWritPlan()
   if not pf then
-    pf = CreateFrame("Frame", "CrateCostWritPlan", UIParent, "BackdropTemplate")
-    pf:SetSize(720, PTOP + PROWS * PROW_H + PFOOT)
-    pf:SetPoint("CENTER", 0, 80)
-    pf:SetFrameStrata("FULLSCREEN_DIALOG")
-    pf:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-    pf:SetBackdropColor(0.05, 0.05, 0.07, 0.97)
-    pf:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-    pf:EnableMouse(true)
-    pf:SetMovable(true)
-    pf:SetClampedToScreen(true)
-    pf:RegisterForDrag("LeftButton")
-    pf:SetScript("OnDragStart", pf.StartMoving)
-    pf:SetScript("OnDragStop", pf.StopMovingOrSizing)
-    tinsert(UISpecialFrames, "CrateCostWritPlan")
-    pf.title = pf:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    pf.title:SetPoint("TOPLEFT", 14, -12)
-    local close = CreateFrame("Button", nil, pf, "UIPanelCloseButton")
-    close:SetScript("OnClick", function() pf:Hide() end)
-    close:SetPoint("TOPRIGHT", 2, 2)
+    -- a view of the one window, like Crates and Writs
+    local UI = ns.UI
+    pf = UI.Window("CrateCostWritPlan", "Rep plan", UI.WIDTH, PTOP + PROWS * PROW_H + PFOOT, UI.POS_KEY)
+    pf:Hide()
+    UI.NavBar(pf, "plan", function()
+      ns.InvalidateWrits()
+      ns.RegenerateWritPlan()
+      pf.offset = 0
+      FillPlan()
+    end)
+    pf.standing = pf:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    pf.standing:SetPoint("LEFT", pf.title, "RIGHT", 24, 0)
+    -- filter row: the target standing, then the done-today check and Regenerate on the right
+    local tl = pf:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    tl:SetPoint("TOPLEFT", 18, UI.FILTER_Y - 3)
+    tl:SetText("Target:")
+    local tb = UI.DropButton(pf, 110, tl, 10)
+    pf.targetBtn = tb
+    local choices = { { "No target", nil }, "-" }
+    for i = 5, 8 do choices[#choices + 1] = { STANDINGS[i][4] .. STANDINGS[i][2] .. "|r", i } end
+    UI.Menu(pf, tb, choices, 110, function(v)
+      SetTarget(v)
+      Calc() Live() UpdateNeed()
+      pf.offset = 0
+      FillPlan()
+      if frame and frame:IsShown() then ns.RefreshWrits() end
+    end)
     -- Regenerate: a new plan from your rep, writs and prices as they are now
     local regen = CreateFrame("Button", nil, pf, "UIPanelButtonTemplate")
     regen:SetSize(90, 20)
-    regen:SetPoint("TOPRIGHT", -30, -8)
+    regen:SetPoint("TOPRIGHT", -18, ns.UI.FILTER_Y)
     regen:SetText("Regenerate")
     regen:SetScript("OnClick", function()
       ns.RegenerateWritPlan()
@@ -1756,9 +1796,9 @@ function ns.ShowWritPlan()
       end
       -- name and route from the left; the numbers from the right, each in its own slot, so a
       -- long amount ("100g 11s 21c") can't run into the next column
-      r.name = Text(240, "LEFT")
+      r.name = Text(380, "LEFT")
       r.name:SetPoint("LEFT", 0, 0)
-      r.how = Text(150, "LEFT")
+      r.how = Text(320, "LEFT")
       r.how:SetPoint("LEFT", r.name, "RIGHT", 6, 0)
       r.cost = Text(110, "RIGHT")
       r.per = Text(80, "RIGHT")
@@ -1922,7 +1962,7 @@ function ns.ShowWritPlan()
   if frame and frame:IsShown() then ns.RefreshWrits() else Calc() Live() UpdateNeed() end
   pf.offset = 0
   FillPlan()
-  pf:Show()
+  ns.UI.Open(pf)
 end
 
 function ns.ToggleWrits()

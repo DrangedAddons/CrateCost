@@ -179,5 +179,5 @@ function CrateCost_OnCompartmentClick(_, button)
   if button == "RightButton" then ns.ToggleConfig()
   elseif IsControlKeyDown() then ns.ToggleWrits()
   elseif button == "MiddleButton" or IsShiftKeyDown() then ns.ToggleRecipes()
-  else ns.ToggleWindow() end
+  else ns.ToggleHome() end
 end

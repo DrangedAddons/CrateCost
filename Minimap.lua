@@ -27,11 +27,11 @@ loader:SetScript("OnEvent", function()
       if button == "RightButton" then ns.ToggleConfig()
       elseif IsControlKeyDown() then ns.ToggleWrits()
       elseif button == "MiddleButton" or IsShiftKeyDown() then ns.ToggleRecipes()
-      else ns.ToggleWindow() end
+      else ns.ToggleHome() end
     end,
     OnTooltipShow = function(tt)
       tt:AddLine("CrateCost")
-      tt:AddLine("|cffffd100Left-click|r: crate list", 1, 1, 1)
+      tt:AddLine("|cffffd100Left-click|r: home", 1, 1, 1)
       tt:AddLine("|cffffd100Shift-click|r or |cffffd100middle-click|r: merchant (what Merchant's Favor buys)", 1, 1, 1)
       tt:AddLine("|cffffd100Ctrl-click|r: Craftsman's Writs", 1, 1, 1)
       tt:AddLine("|cffffd100Right-click|r: settings", 1, 1, 1)

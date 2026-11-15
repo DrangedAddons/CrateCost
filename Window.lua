@@ -275,6 +275,32 @@ function ns.InvalidateRatings() ratingCache = nil end
 -- favor elsewhere? Both are the same for everyone (a linked crate reads the same in any chat).
 -- The buy rating is the entry itself, the fill rating is its .fill.
 
+-- For the Home view: { favor, owned (crates, every character), sealed (Sealed Crates in your
+-- bags), sealedFavor, best (cheapest favor crate), bestPer, scanAge }.
+function ns.CrateStatus()
+  local st = { owned = 0, sealed = 0, sealedFavor = 0 }
+  local fi = C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo and C_CurrencyInfo.GetCurrencyInfo(3402)
+  st.favor = (fi and fi.quantity) or 0
+  for _, c in ipairs(CrateList()) do
+    if c.id then st.owned = st.owned + ((ns.OwnedWhere and (ns.OwnedWhere(c.id))) or Owned(c.id)) end
+  end
+  for id, sc in pairs(ns.SealedCrates or {}) do
+    local ok, n = pcall(C_Item.GetItemCount, id, true)
+    n = ok and n or 0
+    if n > 0 then
+      st.sealed = st.sealed + n
+      st.sealedFavor = st.sealedFavor + n * (ns.FavorFor(sc[1], sc[2] == "crafted" and "Fabrics" or "Ore") or 0)
+    end
+  end
+  for name, r in pairs(ns.CrateRatings()) do
+    if r.per and not r.noCrate and not r.unrated and (not st.bestPer or r.per < st.bestPer) then
+      st.best, st.bestPer = name, r.per
+    end
+  end
+  st.scanAge = ns.Depth and ns.Depth.Age()
+  return st
+end
+
 -- Units a writ-plan scan should read so the containers' favor is priced right: for every crate,
 -- the crates (and bundles, 25% spare) it would take to earn `favor`; every crate also `empty`
 -- deep, as the containers' empty crates can be any of them.

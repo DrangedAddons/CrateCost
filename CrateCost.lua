@@ -490,7 +490,11 @@ SlashCmdList.CRATECOST = function(msg)
     debugNext = true
     Print("hover a Waylaid Crate: its tooltip lines will be printed once.")
   elseif msg == "" then
+    ns.ToggleHome()
+  elseif msg == "list" or msg == "crates" then
     ns.ToggleWindow()
+  elseif msg == "plan" or msg == "rep" then
+    ns.ShowWritPlan()
   elseif msg == "config" or msg == "options" or msg == "settings" then
     ns.ToggleConfig()
   elseif msg == "cart" then
@@ -500,7 +504,9 @@ SlashCmdList.CRATECOST = function(msg)
   elseif msg == "writs" or msg == "writ" then
     ns.ToggleWrits()
   else
-    Print("/crates - crate list sorted by cost per favor")
+    Print("/crates - home: your favor, writs and rep at a glance")
+    Print("/crates list - crate list sorted by cost per favor")
+    Print("/crates plan - the plan to your rep target")
     Print("/crates merchant - everything Merchant's Favor buys")
     Print("/writs (or /crates writs) - Craftsman's Writs by cost per reputation")
     Print("/cratecost config - settings")

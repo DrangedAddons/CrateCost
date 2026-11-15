@@ -46,7 +46,17 @@ The **to Fill** rating is for a crate you already have: `cheapest bundle / favor
 
 Hovering a crate also saves its real bundle amounts for the crate list. The beta guides don't always match the live game (Journeyman Textiles wants 20 Wool Cloth, not 40).
 
-## Crate list: `/crates` (or `/crate`)
+## Home: `/crates` (or the minimap button)
+
+The landing view: three cards with where you stand and a button into each view.
+
+- **Crates**: your Merchant's Favor, crates you have (every character), Sealed Crates waiting to be handed in (and their favor), the cheapest favor crate and the AH scan's age. **Open crates**.
+- **Writs**: writs done today, writs you have, the cheapest rep writ. **Open writs**.
+- **Rep**: standing, target and rep to go, the Shipping Label quest, and the plan's writs, containers and cost. **Open the plan**.
+
+The nav bar on every view: **Home, Crates, Writs, Plan, Merchant, Cart, Refresh**. `/crates list` opens the crate list, `/crates plan` the plan. The plan is a view of the window now, with its own **Target** picker and standing line.
+
+## Crate list: `/crates list` (or Crates on the nav bar)
 
 Every Waylaid Crate, sorted by the cheapest Merchant's Favor:
 

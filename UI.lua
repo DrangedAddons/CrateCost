@@ -104,13 +104,15 @@ function UI.Place(f, posKey)
   end
 end
 
--- The nav bar at the top right, the same on every window: Crates, Writs, Merchant, Cart (n),
--- Refresh. The window's own button is greyed out. Returns the leftmost button (for the count).
+-- The nav bar at the top right, the same on every window: Home, Crates, Writs, Plan, Merchant,
+-- Cart (n), Refresh. The window's own button is greyed out. Returns the leftmost button.
 local cartButtons = {}
 function UI.NavBar(f, current, onRefresh)
   local items = {
+    { "home", "Home", 58, function() ns.ToggleHome() end, "Your favor, writs and rep at a glance" },
     { "crates", "Crates", 66, function() ns.ToggleWindow() end, "Waylaid Crates by cost per favor" },
     { "writs", "Writs", 60, function() ns.ToggleWrits() end, "Craftsman's Writs by cost per reputation" },
+    { "plan", "Plan", 54, function() ns.ShowWritPlan() end, "The cheapest way to your rep target" },
     { "merchant", "Merchant", 76, function() ns.ToggleRecipes() end, "Every recipe sold for Merchant's Favor" },
     { "cart", "Cart", 72, function() ns.ShowCart() end, "The shopping list from the crate list's [+] buttons" },
     { "refresh", "Refresh", 66, onRefresh, "Read prices again" },

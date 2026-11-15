@@ -115,6 +115,16 @@ local function FavorFor(rank, kind)
   if est then return est, true end
 end
 
+-- Copper the crate's Sealed Crate pays at turn-in, and true when it's an estimate
+-- (ns.SealedMoneyEstimate). Same raw / crafted split as the favor.
+local function TurnInPay(rank, kind)
+  if not rank or not kind then return nil end
+  local key = ns.CraftedKinds[kind] and "crafted" or "raw"
+  if ns.SealedMoney[key][rank] then return ns.SealedMoney[key][rank], false end
+  local est = ns.SealedMoneyEstimate and ns.SealedMoneyEstimate[key][rank]
+  if est then return est, true end
+end
+
 local function LeftLines(tooltip)
   local name = tooltip:GetName()
   local i = 1
@@ -199,8 +209,9 @@ local function SealedLines(tooltip, itemID, sealed)
   if not On("favorLine") then return end
   local rank, key = sealed[1], sealed[2]
   local favor, est = FavorFor(rank, key == "crafted" and "Fabrics" or "Ore")
-  local money = ns.SealedMoney[key][rank]
-  local moneyEst = not money and ns.SealedMoneyEstimate[key][rank]
+  local pay, payEst = TurnInPay(rank, key == "crafted" and "Fabrics" or "Ore")
+  local money = not payEst and pay or nil
+  local moneyEst = payEst and pay or nil
   local icon = FavorIcon()
   tooltip:AddLine(" ")
   if key == "crafted" then
@@ -371,6 +382,12 @@ local function Process(tooltip, itemID)
     else
       tooltip:AddDoubleLine("Merchant's Favor", "unknown yet", 0.4, 0.8, 1, 0.5, 0.5, 0.5)
     end
+    -- the silver its Sealed Crate pays back; costs and ratings already have it taken off
+    local pay, payEst = TurnInPay(rank, kind)
+    if pay then
+      tooltip:AddDoubleLine(payEst and "Turn-in pays (estimate)" or "Turn-in pays",
+        (payEst and "~" or "") .. Money(pay), 0.4, 0.8, 1, 1, 1, 1)
+    end
   end
   -- how this crate's favor price compares with every other crate's (Window.lua)
   -- the rating label sits under the name, above the prices; the detail line goes below
@@ -492,6 +509,7 @@ SLASH_CRATECOSTWRITS2 = "/writ"
 SlashCmdList.CRATECOSTWRITS = function() ns.ToggleWrits() end
 
 -- shared with Window.lua
+ns.TurnInPay = TurnInPay
 ns.Price, ns.Money, ns.FavorFor, ns.FavorIcon, ns.ParseCrate = Price, Money, FavorFor, FavorIcon, ParseCrate
 ns.MeasureWidth = MeasureWidth
 ns.BEST, ns.Print, ns.VendorPrice = BEST, Print, VendorPrice

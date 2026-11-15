@@ -16,11 +16,13 @@ local COLS = {
   { key = "crate",  title = "Crate cost",  ownedTitle = "Who", x = 235, ownedX = 10, ownedJustify = "LEFT", w = 92, justify = "RIGHT", desc = false, money = true },
   { key = "best",   title = "Best bundle", craftTitle = "Cheapest to craft", x = 345, w = 240, justify = "LEFT"  },
   { key = "bundle", title = "Bundle cost", craftTitle = "Craft cost", x = 590, w = 92, justify = "RIGHT", desc = false, money = true },
-  { key = "cost",   title = "Total cost",  x = 687, w = 96,  justify = "RIGHT", desc = false, money = true },
-  { key = "favor",  title = "Favor",       x = 801, w = 50,  justify = "RIGHT", desc = true  },
-  { key = "per",    title = "Per favor",   x = 856, w = 92,  justify = "RIGHT", desc = false, money = true },
-  { key = "rating", title = "Rating",      x = 953, w = 55,  justify = "RIGHT", desc = true  },
-  { key = "have",   title = "Have",        x = 1026, w = 36,  justify = "RIGHT", desc = true  },
+  -- silver the Sealed Crates pay back at turn-in; Total cost and Per favor have it taken off
+  { key = "pay",    title = "Turn-in",     x = 687, w = 70,  justify = "RIGHT", desc = true,  money = true },
+  { key = "cost",   title = "Total cost",  x = 762, w = 96,  justify = "RIGHT", desc = false, money = true },
+  { key = "favor",  title = "Favor",       x = 876, w = 50,  justify = "RIGHT", desc = true  },
+  { key = "per",    title = "Per favor",   x = 931, w = 92,  justify = "RIGHT", desc = false, money = true },
+  { key = "rating", title = "Rating",      x = 1028, w = 55,  justify = "RIGHT", desc = true  },
+  { key = "have",   title = "Have",        x = 1101, w = 36,  justify = "RIGHT", desc = true  },
 }
 local TYPES = { "Textiles", "Ore", "Herbs", "Curiosities", "Fabrics", "Ingots", "Parts" }
 local RANK_ORDER = { Apprentice = 1, Journeyman = 2, Expert = 3, Artisan = 4 }
@@ -152,7 +154,9 @@ local function CrateList()
     local rank, kind = ns.ParseCrate("Waylaid Crate: " .. name)
     local s = db.crates[name]
     local favor, est = ns.FavorFor(rank, kind)
+    local pay, payEst = ns.TurnInPay(rank, kind)
     list[#list + 1] = { name = name, rank = rank, kind = kind, bundles = bundles, live = live,
+                        pay1 = pay, payEst = payEst,
                         id = (s and s.id) or db.ids[name] or ns.CrateIDs[name],
                         favor = favor, favorEst = est,
                         prices = {}, owned = {}, allowed = {}, req = {}, units = {} }
@@ -212,7 +216,9 @@ local function Evaluate(c, mine)
   c.crateUnknown = crateCost == nil
   local bundle = c.best and c.prices[c.best]
   c.bundleCost = bundle
-  c.cost = bundle and (bundle + (crateCost or 0))
+  -- every crate filled is turned in, so each pays its silver back
+  c.pay = c.pay1 and c.pay1 * c.n
+  c.cost = bundle and math.max(0, bundle + (crateCost or 0) - (c.pay or 0))
   c.per = c.cost and c.favor and c.cost / (c.favor * c.n)
   c.bestName = c.best and c.bundles[c.best][1]
 end
@@ -266,14 +272,16 @@ function ns.CrateRatings()
       if unit and (not bundle or unit * b[2] < bundle) then bundle = unit * b[2] end
     end
     local crate = c.id and ns.Price(c.id)
+    -- the turn-in silver comes off every way of getting the favor
+    local pay = c.pay1 or 0
     if favor and bundle then
-      rated[#rated + 1] = { name = c.name, per = (bundle + (crate or 0)) / favor, noCrate = crate == nil }
-      fills[#fills + 1] = { name = c.name, per = bundle / favor }
+      rated[#rated + 1] = { name = c.name, per = math.max(0, bundle + (crate or 0) - pay) / favor, noCrate = crate == nil }
+      fills[#fills + 1] = { name = c.name, per = math.max(0, bundle - pay) / favor }
     end
     -- crafted crates (Fabrics, Ingots, Parts): the bundle that's cheapest to make. Also for a
     -- crate whose bundles aren't on the AH (engineering parts often aren't).
     if favor and ns.CraftedKinds[c.kind] then
-      local cr = { crate = crate, favor = favor }
+      local cr = { crate = crate, favor = favor, pay = pay }
       for _, b in ipairs(c.bundles) do
         local id = ns.ItemIDs[b[1]]
         local unit = id and ns.ItemCraftCost and ns.ItemCraftCost(id)
@@ -303,8 +311,8 @@ function ns.CrateRatings()
     if r then
       r.crafted = cr
       if cr.cost then
-        cr.have = ns.RateFill(cr.cost / cr.favor, best)
-        if cr.crate then cr.buy = ns.RateFill((cr.cost + cr.crate) / cr.favor, best) end
+        cr.have = ns.RateFill(math.max(0, cr.cost - cr.pay) / cr.favor, best)
+        if cr.crate then cr.buy = ns.RateFill(math.max(0, cr.cost + cr.crate - cr.pay) / cr.favor, best) end
       end
     end
   end
@@ -1135,6 +1143,8 @@ function ns.RefreshWindow()
     end
     cl.n:SetText(c.nUnknown and "|cff808080?|r" or ((c.n > 1 and "|cffffffff" or "|cff808080") .. c.n .. "|r"))
     cl.favor:SetText(c.favor and ((c.favorEst and "~" or "") .. c.favor .. icon) or "|cff808080?|r")
+    -- green: money coming back. "~" Artisan is an estimate
+    SetMoney(row, "pay", c.pay, c.payEst and "|cff40c040" or "|cff40ff40", "|cff808080?|r")
     SetMoney(row, "per", c.per, ns.BEST, "")
     if c.rating then
       local color, label = ns.RatingText(c.rating)
@@ -1158,8 +1168,8 @@ function ns.RefreshWindow()
   frame.targetBox:SetShown(not mine)
   frame.footer:SetText("|cff808080" .. (mine
       and "Owned: crates on this character, its bank, the warband bank and alts (as of their last login). "
-        .. "Cost = filling them all; materials on this character are subtracted."
-      or "Buy: crate + cheapest bundle at Auctionator prices.")
+        .. "Cost = filling them all, less the turn-in silver; materials on this character are subtracted."
+      or "Buy: crate + cheapest bundle at Auctionator prices, less the turn-in silver.")
     .. "  |cffff9933Orange|r|cff808080 total = crate not priced yet."
     .. (anyGuide and "  * = guide amounts until you hover that crate." or "") .. "|r")
   UpdateHeaders()

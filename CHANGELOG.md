@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.32.0
+- The turn-in silver each Sealed Crate pays back (2s 50c a rank for white, double for green; Artisan estimated) now comes off the crate's cost. /crates has a green **Turn-in** column; Total cost, Per favor and every rating (to Buy, to Fill, the craft lines) are net of it.
+- Waylaid Crate tooltips show a "Turn-in pays" line under Merchant's Favor.
+
 ## 0.31.0
 - Sealed Crate tooltips. Each rank has a white and a green Sealed Crate with the same name; the tooltip says which one it is (raw or crafted crate), the Merchant's Favor and silver its turn-in pays, and the total for a stack in your bags. Artisan values are estimates, marked "~".
 

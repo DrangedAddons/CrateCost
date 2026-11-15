@@ -336,19 +336,27 @@ function ns.FavorSource(favor)
       -- the plan options: crates you hold, materials in your bags and bank
       local held = (ns.PlanUseOwned and ns.PlanUseOwned()) and Owned(c.id) or 0
       local mats = ns.PlanUseMats and ns.PlanUseMats()
+      -- Craft mode: a bundle your profession makes, at its reagents' cost when cheaper
+      local craftProfs = (ns.PlanCraft and ns.PlanCraft() and ns.MyProfessions) and ns.MyProfessions() or nil
       local crateCost, how = 0, {}
       if n > held then crateCost, how = ns.FillCost(c.id, n - held) end
       if crateCost and not how.short then
-        local bCost, bName, bQty, bID, bGuess
+        local bCost, bName, bQty, bID, bGuess, bMade
         for _, b in ipairs(c.bundles) do
           local id = ns.ItemIDs[b[1]]
           local cost, bh
           local need = id and math.max(0, b[2] * n - (mats and Owned(id) or 0))
           if id then
             if need > 0 then cost, bh = ns.FillCost(id, need) else cost, bh = 0, {} end
+            if bh and bh.short then cost = nil end
+            local r = craftProfs and need > 0 and ns.Crafts and ns.Crafts[id]
+            if r and craftProfs[r[2]] and ns.ItemCraftCost then
+              local unit = ns.ItemCraftCost(id)
+              if unit and (not cost or unit * need < cost) then cost, bh = unit * need, { depth = true, made = true } end
+            end
           end
           if cost and not bh.short and (not bCost or cost < bCost) then
-            bCost, bName, bQty, bID, bGuess = cost, b[1], b[2], id, bh.guess
+            bCost, bName, bQty, bID, bGuess, bMade = cost, b[1], b[2], id, bh.guess, bh.made
           end
         end
         if bCost then
@@ -359,7 +367,7 @@ function ns.FavorSource(favor)
             best = { name = c.name, id = c.id, n = n, favor = c.favor, bundle = bName, qty = bQty,
               bundleID = bID, crateCost = crateCost, bundleCost = bCost, pay = pay, total = total,
               guess = (how.guess or bGuess) and true or false, scanned = (how.depth or n <= held) and true or false,
-              held = math.min(n, held) }
+              held = math.min(n, held), crafted = bMade and true or false }
           end
         end
       end

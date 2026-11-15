@@ -276,6 +276,29 @@ local function Opt(key)
   return not (type(CrateCostCharDB) == "table" and CrateCostCharDB[key] == false)
 end
 function ns.PlanUseOwned() return Opt("planUseOwned") end
+-- Buy | Craft (per character, shared, Craft by default): Craft makes what your professions can
+-- (a writ's item at its skill, a crafted crate's bundle) when that's cheaper; Buy buys it all.
+function ns.PlanCraft() return Opt("planCraft") end
+
+local craftToggles = {}
+-- The Buy | Craft switch, left of `anchor` in a plan's filter row; `onChange` remakes that plan.
+function UI.CraftToggle(f, anchor, onChange)
+  local g = UI.Toggle(f, {
+    { false, "Buy", "Buy everything on the AH: no crafting." },
+    { true, "Craft", "Craft what your professions can make (a writ's item at its skill, Fabrics, Ingots "
+      .. "and Parts bundles) when that's cheaper; the rest is bought." },
+  }, 54, ns.PlanCraft, function(v)
+    if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
+    CrateCostCharDB.planCraft = v and true or false
+    for _, t in ipairs(craftToggles) do t:Refresh() end
+    onChange()
+  end)
+  for _, b in ipairs(g.buttons) do b:ClearAllPoints() end
+  g.last:SetPoint("RIGHT", anchor, "LEFT", -12, 0)
+  for i = #g.buttons - 1, 1, -1 do g.buttons[i]:SetPoint("RIGHT", g.buttons[i + 1], "LEFT", 1, 0) end
+  craftToggles[#craftToggles + 1] = g
+  return g
+end
 function ns.PlanUseMats() return Opt("planUseMats") end
 
 local optChecks = {}

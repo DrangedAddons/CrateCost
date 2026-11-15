@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.51.0
+- Plans: a **Buy | Craft** switch (per character, shared, Craft by default). Buy buys everything, no crafting. Craft makes what your professions can (a writ's item at its skill, crafted crates' bundles) when it's cheaper, and buys the rest. Crafted rows say so and the cart leaves them out.
+
 ## 0.50.0
 - Favor plan: the target follows your **wanted recipes** (the Merchant view's stars; **Add recipes** opens it), with what you have counted; untick **Target = wanted recipes** or type a number for your own. The wanted recipes are listed under the crates, with Buy while their vendor is open and right-click to drop one.
 - Favor checklist: after reaching the target, a **Buy** step per wanted recipe, done when learned (or owned).

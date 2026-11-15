@@ -93,6 +93,8 @@ end
 local function Kind(c)
   -- the plan options: crates you hold, materials in your bags (ns.PlanUseOwned / PlanUseMats)
   local mats = ns.PlanUseMats()
+  -- Craft mode: a bundle your profession makes, at its reagents' cost when that's cheaper
+  local craft = ns.PlanCraft() and (ns.MyProfessions and ns.MyProfessions() or {}) or nil
   local k = { c = c, held = ns.PlanUseOwned() and Count(c.id) or 0, memo = {} }
   function k.Cost(n)
     local m = k.memo[n]
@@ -112,8 +114,17 @@ local function Kind(c)
         local need = math.max(0, b[2] * n - (mats and Count(id) or 0))
         local bc, bh = 0, {}
         if need > 0 then bc, bh = ns.FillCost(id, need) end
-        if bc and not bh.short and (not best or bc < best) then
-          best, bi, bguess = bc, i, need > 0 and (bh.guess or not bh.depth) or false
+        if bh.short then bc = nil end
+        local made = false
+        local r = craft and need > 0 and ns.Crafts and ns.Crafts[id]
+        if r and craft[r[2]] and ns.ItemCraftCost then
+          local unit = ns.ItemCraftCost(id)
+          if unit and (not bc or unit * need < bc) then bc, made, bh = unit * need, true, { depth = true } end
+        end
+        if bc and (not best or bc < best) then
+          best, bi, bguess = bc, i, need > 0 and not made and (bh.guess or not bh.depth) or false
+          k.madeBundle = k.madeBundle or {}
+          k.madeBundle[n] = made
         end
       end
     end
@@ -171,8 +182,9 @@ local function MakePlan(target)
     local cost, bi, guess, upFront = k.Cost(n)
     local b = k.c.bundles[bi]
     local pay = (k.c.pay1 or 0) * n
+    local crafted = k.madeBundle and k.madeBundle[n] or false
     table.insert(p.picks, { c = k.c, n = n, cost = cost, pay = pay, upFront = upFront, bundle = b[1], qty = b[2],
-      bundleID = ns.ItemIDs[b[1]], held = math.min(n, k.held), guess = guess })
+      bundleID = ns.ItemIDs[b[1]], held = math.min(n, k.held), guess = guess, crafted = crafted })
     p.pay = p.pay + pay
     p.upFront = (p.upFront or 0) + upFront
     p.cost = p.cost + cost
@@ -229,7 +241,7 @@ local function PickItems(pick, items)
   local c = pick.c
   local buy = pick.n - pick.held
   if buy > 0 then items[#items + 1] = { id = c.id, name = "Waylaid Crate: " .. c.name, qty = buy } end
-  local need = math.max(0, pick.qty * pick.n - (ns.PlanUseMats() and Count(pick.bundleID) or 0))
+  local need = pick.crafted and 0 or math.max(0, pick.qty * pick.n - (ns.PlanUseMats() and Count(pick.bundleID) or 0))
   if need > 0 then items[#items + 1] = { id = pick.bundleID, name = pick.bundle, qty = need } end
 end
 
@@ -295,7 +307,7 @@ local function Fill()
         local c = pick.c
         r.name:SetText("   Buy + fill " .. pick.n .. "x " .. c.name
           .. (pick.held > 0 and (GREY .. "  (" .. pick.held .. " you have)|r") or ""))
-        r.how:SetText(GREY .. pick.qty .. " " .. pick.bundle .. " each|r")
+        r.how:SetText(GREY .. (pick.crafted and "craft " or "") .. pick.qty .. " " .. pick.bundle .. " each|r")
         r.favor:SetText(Num(pick.n * c.favor))
         r.per:SetText(ns.Money(math.floor(pick.cost / (pick.n * c.favor) + 0.5)))
         -- what you pay for the crates and bundles; per favor is net of the turn-in silver
@@ -436,6 +448,13 @@ local function Build()
     Fill()
   end)
   UI.Tip(regen, "Regenerate", "Make the plan again from your favor, crates, bags and prices as they are now.")
+  -- Buy | Craft (shared with the rep plan)
+  f.craftToggle = UI.CraftToggle(f, regen, function()
+    if ns.InvalidateCrates then ns.InvalidateCrates() end
+    Regenerate()
+    f.offset = 0
+    Fill()
+  end)
   local ah = UI.PlanAtAHCheck(f, regen)
   ah:ClearAllPoints()
   ah:SetPoint("BOTTOMLEFT", 14, 12)

@@ -70,6 +70,8 @@ Closing a view (its X or Escape) goes back to Home; closing Home closes the wind
 
 Two tickboxes in both plans (per character, shared, on by default):
 
+**Buy | Craft** (top right of both plans, per character, shared, Craft by default): **Buy** buys everything on the AH, no crafting. **Craft** makes what your professions can, a writ's item when you have the profession at its skill, and Fabrics, Ingots and Parts bundles, when that's cheaper than buying; everything else is bought. Crafted rows say "craft", and the cart leaves crafted items out.
+
 - **Use writs/crates you have**: writs you hold (any character) are free in the rep plan; crates you hold and the Sealed Crates in your bags count in the favor plan and for the rep plan's container favor. They're used where they're worth it: a writ you hold costs nothing, so it's picked first among writs worth the same rep. Untick to plan as if you had none.
 - **Use materials in bags & bank**: items and bundle materials you already have count, and the cart leaves them out. Untick to buy everything on the AH.
 

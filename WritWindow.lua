@@ -368,12 +368,22 @@ local function MyProfessions()
   local ok, a, b, c, d, e = pcall(GetProfessions)
   if not ok then return set end
   for _, idx in pairs({ a, b, c, d, e }) do
-    local name = idx and GetProfessionInfo and select(1, GetProfessionInfo(idx))
-    if name then set[name] = true end
+    if idx and GetProfessionInfo then
+      local name, _, rank = GetProfessionInfo(idx)
+      if name then set[name] = tonumber(rank) or true end
+    end
   end
   return set
 end
 ns.MyProfessions = MyProfessions
+
+-- The plans' Craft mode: you can make this writ's item (the profession, at the item's skill).
+local function PlanCanCraft(e, profs)
+  if not ns.PlanCraft() then return false end
+  local lvl = profs[e.prof]
+  if not lvl then return false end
+  return lvl == true or lvl >= (e.skill or 0)
+end
 
 
 ---------------------------------------------------------------------------------------------
@@ -423,7 +433,7 @@ local function Copies(days, profs, cd)
     local m = days - ((cd and e.done) and 1 or 0)
     local prev = 0
     for k = 1, m do
-      local cum = CopiesCost(e, k, profs[e.prof])
+      local cum = CopiesCost(e, k, PlanCanCraft(e, profs))
       if not cum then break end
       groups[e.rep] = groups[e.rep] or {}
       table.insert(groups[e.rep], { e = e, k = k, cost = cum - prev })
@@ -503,7 +513,7 @@ local function BuildPlan(need, profs, cd)
       local c = groups[r][i]
       local e = c.e
       local day = 1
-      local _, crafted = CopiesCost(e, c.k, profs[e.prof])
+      local _, crafted = CopiesCost(e, c.k, PlanCanCraft(e, profs))
       table.insert(plan.list, { day = day, e = e, cost = c.cost, crafted = crafted,
         owned = ns.PlanUseOwned() and c.k <= (e.haveWrit or 0) })
       plan.rep = plan.rep + e.rep
@@ -1513,7 +1523,7 @@ local function FillPlan()
       if step == "favor" then
         if c.src then
           r.name:SetText("   1. Fill " .. c.src.n .. "x " .. c.src.name .. ", hand in")
-          r.how:SetText(GREY .. c.src.qty .. " " .. c.src.bundle .. " each|r")
+          r.how:SetText(GREY .. (c.src.crafted and "craft " or "") .. c.src.qty .. " " .. c.src.bundle .. " each|r")
           -- the favor it earns, in the rep column for neatness: grey with the favor icon, not rep
           r.rep:SetText(GREY .. "+" .. Num(c.src.n * c.src.favor) .. "|r" .. (ns.FavorIcon and ns.FavorIcon() or ""))
           -- what you pay for the crates and bundles; the turn-in silver comes back later
@@ -1668,7 +1678,7 @@ local function ContainerItems(c, items, step)
     -- not the crates you hold or the materials in your bags (when the plan uses them)
     local src = c.src
     local crates = src.n - (src.held or 0)
-    local mats = math.max(0, src.n * src.qty - (ns.PlanUseMats() and Count(src.bundleID) or 0))
+    local mats = src.crafted and 0 or math.max(0, src.n * src.qty - (ns.PlanUseMats() and Count(src.bundleID) or 0))
     if crates > 0 then items[#items + 1] = { id = src.id, name = "Waylaid Crate: " .. src.name, qty = crates } end
     if mats > 0 then items[#items + 1] = { id = src.bundleID, name = src.bundle, qty = mats } end
   end
@@ -1803,6 +1813,13 @@ function ns.ShowWritPlan()
     end)
     ns.UI.Tip(regen, "Regenerate", "Make the plan again from your rep, writs and prices as they are now. "
       .. "The plan otherwise stays as it was made.")
+    -- Buy | Craft (shared with the favor plan)
+    pf.craftToggle = ns.UI.CraftToggle(pf, regen, function()
+      ns.InvalidateWrits()
+      ns.RegenerateWritPlan()
+      pf.offset = 0
+      FillPlan()
+    end)
     -- show / hide writs on cooldown (done today)
     local cb = CreateFrame("CheckButton", nil, pf, "UICheckButtonTemplate")
     cb:SetSize(22, 22)

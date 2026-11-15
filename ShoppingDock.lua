@@ -19,7 +19,7 @@
 -- Buying needs a click (the game only allows a purchase from one). A commodity is two clicks:
 -- Buy now asks the AH for the exact price (StartCommoditiesPurchase), then Confirm buys at it.
 
-local MINOR = 9
+local MINOR = 10
 
 local _, NS = ...
 NS = type(NS) == "table" and NS or {}
@@ -1290,7 +1290,8 @@ end
 -- The Shopping List button in the auction house window's title bar, left of the close button,
 -- the same spot on every tab: bag icon, "Shopping List", how many items are left, and an arrow
 -- pointing right to where the dock opens.
--- It's there only while the dock is closed and there's at least one shopping list.
+-- It's there while there's at least one shopping list, pressed in while the dock is open;
+-- a click opens or closes the dock.
 local ahButton
 
 -- items still to buy on the dock's list (nil: no list picked)
@@ -1309,13 +1310,17 @@ local function BuildAHButton(ahf)
   b:SetHeight(18)
   b:SetFrameLevel(ahf:GetFrameLevel() + 20)
   -- a dark pill with a thin gold edge, so it reads as a button on the title bar
-  local edge = b:CreateTexture(nil, "BACKGROUND")
-  edge:SetAllPoints()
-  edge:SetColorTexture(0.85, 0.68, 0.2, 0.6)
-  local fill = b:CreateTexture(nil, "BORDER")
-  fill:SetPoint("TOPLEFT", 1, -1)
-  fill:SetPoint("BOTTOMRIGHT", -1, 1)
-  fill:SetColorTexture(0.05, 0.05, 0.06, 0.9)
+  b.edge = b:CreateTexture(nil, "BACKGROUND")
+  b.edge:SetAllPoints()
+  b.fill = b:CreateTexture(nil, "BORDER")
+  b.fill:SetPoint("TOPLEFT", 1, -1)
+  b.fill:SetPoint("BOTTOMRIGHT", -1, 1)
+  -- pressed in (the dock is open): a shadow along the top inside edge
+  b.shade = b:CreateTexture(nil, "BORDER", nil, 1)
+  b.shade:SetPoint("TOPLEFT", 1, -1)
+  b.shade:SetPoint("TOPRIGHT", -1, -1)
+  b.shade:SetHeight(3)
+  b.shade:SetColorTexture(0, 0, 0, 0.8)
   local hl = b:CreateTexture(nil, "HIGHLIGHT")
   hl:SetPoint("TOPLEFT", 1, -1)
   hl:SetPoint("BOTTOMRIGHT", -1, 1)
@@ -1332,11 +1337,28 @@ local function BuildAHButton(ahf)
   b.arrow:SetSize(12, 12)
   b.arrow:SetPoint("LEFT", b.label, "RIGHT", 4, 0)
   b.arrow:SetTexture("Interface\\ChatFrame\\ChatFrameExpandArrow")
-  b:SetScript("OnMouseDown", function(self) self.label:SetPoint("LEFT", self.icon, "RIGHT", 5, -1) end)
-  b:SetScript("OnMouseUp", function(self) self.label:SetPoint("LEFT", self.icon, "RIGHT", 4, 0) end)
+  -- up: dark with a soft gold edge, arrow pointing right (open). Down: the dock is open, so it
+  -- sits pressed in, gold-lit, nudged down a pixel, arrow pointing back left (close).
+  function b:SetDown(down)
+    self.down = down
+    if down then
+      self.edge:SetColorTexture(1, 0.82, 0, 1)
+      self.fill:SetColorTexture(0.22, 0.17, 0.04, 0.95)
+      self.arrow:SetTexCoord(1, 0, 0, 1)
+    else
+      self.edge:SetColorTexture(0.85, 0.68, 0.2, 0.6)
+      self.fill:SetColorTexture(0.05, 0.05, 0.06, 0.9)
+      self.arrow:SetTexCoord(0, 1, 0, 1)
+    end
+    self.shade:SetShown(down and true or false)
+    local d = down and 1 or 0
+    self.icon:SetPoint("LEFT", 3 + d, -d)
+  end
+  b:SetScript("OnMouseDown", function(self) self.icon:SetPoint("LEFT", 4, -1) end)
+  b:SetScript("OnMouseUp", function(self) self:SetDown(self.down) end)
   b:SetScript("OnClick", function()
     GameTooltip:Hide()
-    ShowDock()
+    SD.Toggle()
   end)
   b:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
@@ -1349,7 +1371,8 @@ local function BuildAHButton(ahf)
     end
     local n = #RawLists()
     GameTooltip:AddLine(n .. " shopping list" .. (n == 1 and "" or "s"), 0.7, 0.7, 0.7)
-    GameTooltip:AddLine("|cffffd100Click|r to open the dock beside the auction house", 1, 1, 1)
+    GameTooltip:AddLine(self.down and "|cffffd100Click|r to close the dock"
+      or "|cffffd100Click|r to open the dock beside the auction house", 1, 1, 1)
     GameTooltip:Show()
   end)
   b:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -1358,6 +1381,7 @@ local function BuildAHButton(ahf)
   else
     b:SetPoint("TOPRIGHT", ahf, "TOPRIGHT", -30, -3)
   end
+  b:SetDown(false)
   b:Hide()
   ahButton = b
 end
@@ -1367,9 +1391,12 @@ UpdateButton = function()
   local ahf = _G.AuctionHouseFrame
   if not ahf then return end
   if not ahButton then BuildAHButton(ahf) end
-  local show = SD.IsEnabled() and #RawLists() > 0 and not (panel and panel:IsShown())
+  -- shown while there's a list, open or not; pressed in while the dock is open
+  local open = panel and panel:IsShown() and true or false
+  local show = open or (SD.IsEnabled() and #RawLists() > 0)
   ahButton:SetShown(show and true or false)
   if not show then return end
+  ahButton:SetDown(open)
   local left = LeftOnActive()
   ahButton.label:SetText("Shopping List" .. (left and left > 0 and ("  |cffffffff" .. left .. "|r") or ""))
   local w = 3 + 14 + 4 + (tonumber(ahButton.label:GetStringWidth()) or 80) + 4

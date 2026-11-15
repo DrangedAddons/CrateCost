@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.56.8
+- Shopping dock (ShoppingDock 0.5.5): the Shopping List button stays in the AH title bar while the dock is open, pressed in; click it to close the dock.
+
 ## 0.56.7
 - Shopping dock (ShoppingDock 0.5.3): The plan has a scrollbar when it has more items than fit.
 

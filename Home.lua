@@ -5,7 +5,7 @@ local _, ns = ...
 -- each with a few lines on where you stand and a button into its view.
 -- /crates and the minimap button open it; the nav bar's Home button comes back to it.
 
-local TILE_W, TILE_H, HERO_H, GAP, TOP = 228, 156, 128, 12, 40
+local TILE_W, TILE_H, HERO_H, GAP, TOP = 228, 156, 152, 12, 40
 local LINE_H, LINES = 18, 5
 local WIDTH = 3 * TILE_W + 4 * GAP
 local GREY = "|cff808080"
@@ -126,8 +126,9 @@ local function Hero()
   c:SetPoint("TOPLEFT", frame, "TOPLEFT", GAP, -TOP)
   c.title:SetText("Reputation")
   local b = Button(c, "Open the rep plan", "The cheapest way to your rep target, step by step.",
-    function() ns.ShowWritPlan() end, 190, 24)
-  b:SetPoint("TOPRIGHT", -10, -8)
+    function() ns.ShowWritPlan() end, 220, 24)
+  -- bottom centre, like the tiles' buttons
+  b:SetPoint("BOTTOM", 0, 10)
   c.button = b
   -- standing bar
   local bar = CreateFrame("StatusBar", nil, c)

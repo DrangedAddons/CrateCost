@@ -5,7 +5,7 @@ local _, ns = ...
 -- each with a few lines on where you stand and a button into its view.
 -- /crates and the minimap button open it; the nav bar's Home button comes back to it.
 
-local TILE_W, TILE_H, HERO_H, GAP, TOP = 228, 156, 152, 12, 40
+local TILE_W, TILE_H, HERO_H, GAP, TOP = 234, 156, 152, 6, 32
 local LINE_H, LINES = 18, 5
 local WIDTH = 3 * TILE_W + 4 * GAP
 local GREY = "|cff808080"
@@ -264,7 +264,8 @@ end
 
 local function Build()
   local UI = ns.UI
-  frame = UI.Window("CrateCostHome", "CrateCost", WIDTH, TOP + HERO_H + GAP + TILE_H + 40, UI.POS_KEY)
+  -- tight: the cards fill the window, the header bar holds the rest
+  frame = UI.Window("CrateCostHome", "CrateCost", WIDTH, TOP + HERO_H + GAP + TILE_H + GAP, UI.POS_KEY)
   frame:Hide()
   -- see-through enough for the stone to read
   frame:SetBackdropColor(0.05, 0.05, 0.07, 0.4)
@@ -283,7 +284,13 @@ local function Build()
   pcall(glow.SetVertTile, glow, true)
   pcall(glow.SetBlendMode, glow, "ADD")
   glow:SetAlpha(0.2)
-  UI.NavBar(frame, "home", function()
+  -- the version, small and grey, after the title
+  local ver = frame:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+  ver:SetPoint("LEFT", frame.title, "RIGHT", 6, -1)
+  local getMeta = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+  local okV, v = pcall(getMeta, "CrateCost", "Version")
+  ver:SetText((okV and v) and ("v" .. v) or "")
+  local navLeft = UI.NavBar(frame, "home", function()
     if ns.InvalidateCrates then ns.InvalidateCrates() end
     if ns.InvalidateWrits then ns.InvalidateWrits() end
     ns.RefreshHome()
@@ -323,12 +330,10 @@ local function Build()
   box:SetScript("OnEscapePressed", function(self) self:ClearFocus() ns.RefreshHome() end)
   UI.Tip(box, "Favor target", "How much Merchant's Favor you want in all (what you have counts). Enter to plan.")
   ft.targetBox = box
+  -- in the header bar, left of the buttons
   local ah = UI.PlanAtAHCheck(frame, frame)
   ah:ClearAllPoints()
-  ah:SetPoint("BOTTOMRIGHT", -180, 10)
-  local foot = frame:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-  foot:SetPoint("BOTTOMLEFT", 16, 14)
-  foot:SetText("Merchant is on the favor card; Cart in the bar at the top.")
+  ah:SetPoint("RIGHT", navLeft, "LEFT", -160, 0)
   frame:SetScript("OnShow", function() ns.RefreshHome() end)
   -- keep the numbers current while it's open
   for _, ev in ipairs({ "BAG_UPDATE_DELAYED", "CURRENCY_DISPLAY_UPDATE", "QUEST_TURNED_IN", "UPDATE_FACTION" }) do

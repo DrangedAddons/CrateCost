@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.49.2
+- Home is tighter: less padding around and between the cards, no footer. "Open the plan with the AH" sits in the header bar by the buttons, and the version shows small and grey after the title.
+
 ## 0.49.1
 - Checklist: steps about an item (writs, crates) show it as the game does, its icon and its name in its quality colour, and hovering shows the item's own tooltip. Under each writ and crate step not yet done, its fill: the item's icon and name, and how many you have of what the step still needs (green when you have enough). Darker: near-opaque panel, the stone only a hint, quieter highlights, grey and yellow dots for steps to come and the one you're on.
 

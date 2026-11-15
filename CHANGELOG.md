@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.50.0
+- Favor plan: the target follows your **wanted recipes** (the Merchant view's stars; **Add recipes** opens it), with what you have counted; untick **Target = wanted recipes** or type a number for your own. The wanted recipes are listed under the crates, with Buy while their vendor is open and right-click to drop one.
+- Favor checklist: after reaching the target, a **Buy** step per wanted recipe, done when learned (or owned).
+- **Buy** at the vendor: with a vendor open, the plan and checklist steps it sells (wanted recipes, Forged Delivery Receipts) get a Buy button that buys the right item, as many as the step still needs.
+- Closing a view goes back to Home; closing Home closes the window.
+
 ## 0.49.2
 - Home is tighter: less padding around and between the cards, no footer. "Open the plan with the AH" sits in the header bar by the buttons, and the version shows small and grey after the title.
 

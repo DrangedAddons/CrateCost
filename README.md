@@ -58,6 +58,14 @@ The landing view: your **reputation** across the top (the camp, a standing bar, 
 
 The bar on every view: **Home** (the way between views), **Cart** and **Refresh**. Merchant is on the favor card. `/crates list` opens the crate list, `/crates plan` the rep plan. The rep plan has its own **Target** picker, **Scan AH** and standing line.
 
+## Buying at the vendor
+
+With a vendor open, the favor plan's wanted recipes and the checklists' steps that a vendor sells (each wanted recipe, the Forged Delivery Receipts) show a **Buy** button: it buys the right item, the amount the step still needs.
+
+## Closing
+
+Closing a view (its X or Escape) goes back to Home; closing Home closes the window.
+
 ## Plan options
 
 Two tickboxes in both plans (per character, shared, on by default):
@@ -90,7 +98,7 @@ Two tickboxes in both plans (per character, shared, on by default):
 
 ## Favor plan
 
-The cheapest way to a Merchant's Favor target (type it in; per character). Favor you have and Sealed Crates in your bags count first, then the one-time Shipping Label quest (50 favor), then crates: each next crate is the one with the lowest extra cost per favor (near the target, one that finishes it for less wins), crates you hold and bundle materials in your bags first, the rest bought up the AH listings, less the turn-in silver. Only crates your level can fill. Each row: buy + fill N of a crate, with which bundle, favor, per favor and cost, a [+cart] for the crates to buy and the materials not in your bags; hover for the breakdown. **Scan AH** reads every crate and bundle deep enough for what's left, then remakes the plan; costs past what it read are marked **~**.
+The cheapest way to a Merchant's Favor target. The target follows your **wanted recipes** (the stars in the Merchant view; **Add recipes** opens it): what they cost together, with the favor you have counted. Untick **Target = wanted recipes** or type a number to set your own (per character). The wanted recipes are listed under the crates with their favor and reputation; **Buy** shows on each while its vendor is open, right-click drops one. Favor you have and Sealed Crates in your bags count first, then the one-time Shipping Label quest (50 favor), then crates: each next crate is the one with the lowest extra cost per favor (near the target, one that finishes it for less wins), crates you hold and bundle materials in your bags first, the rest bought up the AH listings, less the turn-in silver. Only crates your level can fill. Each row: buy + fill N of a crate, with which bundle, favor, per favor and cost, a [+cart] for the crates to buy and the materials not in your bags; hover for the breakdown. **Scan AH** reads every crate and bundle deep enough for what's left, then remakes the plan; costs past what it read are marked **~**.
 
 Both plans' footers show **Up front** (everything you'll buy), **Turn-ins pay back** (the crates' turn-in silver, and your Sealed Crates', which come back after you've bought it all) and **Net**, with a big **Add plan to cart** under them.
 

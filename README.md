@@ -54,7 +54,7 @@ The landing view: three cards with where you stand and a button into each view.
 - **Writs**: writs done today, writs you have, the cheapest rep writ. **Open writs**.
 - **Rep**: standing, target and rep to go, the Shipping Label quest, and the plan's writs, containers and cost. **Open the plan**.
 
-The nav bar on every view: **Home, Crates, Writs, Plan, Merchant, Cart, Refresh**. `/crates list` opens the crate list, `/crates plan` the plan. The plan is a view of the window now, with its own **Target** picker and standing line.
+The nav bar on every view: **Home, Crates, Writs, Plan, Merchant, Cart, Refresh**. `/crates list` opens the crate list, `/crates plan` the plan. The plan is a view of the window now, with its own **Target** picker, **Scan AH** (the same scan as the writs view: deep enough for the plan, then it's made again) and standing line.
 
 ## Crate list: `/crates list` (or Crates on the nav bar)
 

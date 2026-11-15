@@ -1228,6 +1228,33 @@ end
 ---------------------------------------------------------------------------------------------
 -- Window
 
+-- The Scan AH button (writs and plan views): every writ and its item, and with containers in
+-- the plan, every crate and bundle they need (ns.WritDepthWants). Click again to stop.
+local function ScanButton(parent, anchor, x)
+  local scan = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+  scan:SetSize(130, 20)
+  scan:SetPoint("LEFT", anchor, "RIGHT", x, 0)
+  scan:SetScript("OnClick", function()
+    if ns.Depth.state == "running" then ns.Depth.Stop() else ns.Depth.Start(ns.WritDepthWants()) end
+  end)
+  scan:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+    GameTooltip:AddLine("Scan AH")
+    GameTooltip:AddLine("Reads the auction house listings for every writ and the item it wants, and every "
+      .. "crate and bundle the plan's containers need, deep enough for the plan. Then the plan is made "
+      .. "again with the real listings.", 1, 1, 1, true)
+    local age = ns.Depth.Age()
+    GameTooltip:AddLine(age and string.format("Last scan: %dm ago%s.", math.floor(age / 60),
+      age >= ns.Depth.TTL and " (too old, Auctionator prices in use)" or "") or "Not scanned yet.", 0.6, 0.6, 0.6, true)
+    if not ns.Depth.atAH then GameTooltip:AddLine("Open the auction house to scan.", 1, 0.5, 0.25) end
+    GameTooltip:Show()
+  end)
+  scan:SetScript("OnLeave", GameTooltip_Hide)
+  scan:SetText("Scan AH")
+  scan:SetEnabled(ns.Depth and ns.Depth.atAH and true or false)
+  return scan
+end
+
 local function Build()
   local UI = ns.UI
   frame = UI.Window("CrateCostWrits", "Craftsman's Writs - cheapest reputation", WIDTH,
@@ -1303,26 +1330,7 @@ local function Build()
   local l2 = UI.Check(frame, "Hide done today", l1, 8, "Each writ is a daily quest.", g3, s3)
 
   -- Scan AH: the writs' and their items' listings (Depth.lua, shared with /crates)
-  local scan = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-  scan:SetSize(130, 20)
-  scan:SetPoint("LEFT", l2, "RIGHT", 14, 0)
-  frame.scanBtn = scan
-  scan:SetScript("OnClick", function()
-    if ns.Depth.state == "running" then ns.Depth.Stop() else ns.Depth.Start(ns.WritDepthWants()) end
-  end)
-  scan:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-    GameTooltip:AddLine("Scan AH")
-    GameTooltip:AddLine("Reads the auction house listings for every writ and the item it wants, deep "
-      .. "enough for the plan, so prices and the plan use the real listings instead of the cheapest "
-      .. "price x amount.", 1, 1, 1, true)
-    local age = ns.Depth.Age()
-    GameTooltip:AddLine(age and string.format("Last scan: %dm ago%s.", math.floor(age / 60),
-      age >= ns.Depth.TTL and " (too old, Auctionator prices in use)" or "") or "Not scanned yet.", 0.6, 0.6, 0.6, true)
-    if not ns.Depth.atAH then GameTooltip:AddLine("Open the auction house to scan.", 1, 0.5, 0.25) end
-    GameTooltip:Show()
-  end)
-  scan:SetScript("OnLeave", GameTooltip_Hide)
+  frame.scanBtn = ScanButton(frame, l2, 14)
 
   -- Buy | Craft: which way the list gets the item (per character)
   frame.routeToggle = UI.Toggle(frame, {
@@ -1696,15 +1704,18 @@ function ns.WritStatus()
 end
 
 local function UpdateWritScan()
-  local b = frame and frame.scanBtn
-  if not (b and ns.Depth) then return end
   local dp = ns.Depth
-  if dp.state == "running" then
-    b:SetText(string.format("Stop scan %d/%d", dp.done, math.max(dp.total, dp.done)))
-    b:Enable()
-  else
-    b:SetText("Scan AH")
-    b:SetEnabled(dp.atAH and true or false)
+  if not dp then return end
+  for _, b in ipairs({ frame and frame.scanBtn or false, pf and pf.scanBtn or false }) do
+    if b then
+      if dp.state == "running" then
+        b:SetText(string.format("Stop scan %d/%d", dp.done, math.max(dp.total, dp.done)))
+        b:Enable()
+      else
+        b:SetText("Scan AH")
+        b:SetEnabled(dp.atAH and true or false)
+      end
+    end
   end
 end
 ns.OnDepthChangedWrits = function()
@@ -1747,6 +1758,8 @@ function ns.ShowWritPlan()
       FillPlan()
       if frame and frame:IsShown() then ns.RefreshWrits() end
     end)
+    -- Scan AH, as on the writs view: deep enough for this plan, then it's made again
+    pf.scanBtn = ScanButton(pf, tb, 14)
     -- Regenerate: a new plan from your rep, writs and prices as they are now
     local regen = CreateFrame("Button", nil, pf, "UIPanelButtonTemplate")
     regen:SetSize(90, 20)
@@ -1962,6 +1975,7 @@ function ns.ShowWritPlan()
   if frame and frame:IsShown() then ns.RefreshWrits() else Calc() Live() UpdateNeed() end
   pf.offset = 0
   FillPlan()
+  UpdateWritScan()
   ns.UI.Open(pf)
 end
 

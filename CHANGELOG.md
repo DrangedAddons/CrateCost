@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.44.2
+- Plan view: **Scan AH** button next to the target, the same scan as the writs view (writs, items, and the crates and bundles the plan's containers need), then the plan is made again.
+
 ## 0.44.1
 - `/crate`, `/crates`, `/cratecost`, `/writ` and `/writs` on their own all open Home. The words after them work the same on all of them (`list`, `writs`, `plan`, `merchant`, `cart`, `config`).
 

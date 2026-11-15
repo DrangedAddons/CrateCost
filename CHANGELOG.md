@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.35.0
+- Writ plan: **Today | Next day** buttons. Next day plans from tomorrow, with every writ off cooldown again (rep as it is now); Today leaves out writs done today. The choice also drives the summary line under the envelopes.
+- Writs done today are marked **(on CD today)** in the plan, and the window counts how many are on cooldown. The cart button adds the plan's first day (today or tomorrow).
+
 ## 0.34.0
 - Writs: **Plan** button. The cheapest writs that reach your rep target in the fewest days: all today when today's writs can reach it, else the fewest days it takes, cheapest writs within them. Each writ once a day, not ones done today. Writs you hold are free, items in your bags count, items are crafted when you have the profession and it's cheaper, the rest is bought up the AH listings (Scan AH) or at Auctionator's price.
 - The plan window lists each day's writs by hand-in NPC with rep and cost. **Add today to cart** adds today's writs and items to buy.

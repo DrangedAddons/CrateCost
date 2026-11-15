@@ -85,13 +85,6 @@ Two tickboxes in both plans (per character, shared, on by default):
 
 Writ and crate steps show the item with its icon and quality colour (hover for its tooltip), and under them the fill with how many you have of what's still needed. The step you're on is highlighted gold, done steps green, and a step with a count fills as it goes. Hover a step for its details. It drags anywhere, scrolls to where you're up to, reopens after a reload, and starts again with a new plan.
 
-## Plan options
-
-Two tickboxes in both plans (per character, shared, on by default):
-
-- **Use writs/crates you have**: writs you hold (any character) are free in the rep plan; crates you hold and the Sealed Crates in your bags count in the favor plan and for the rep plan's container favor. They're used where they're worth it: a writ you hold costs nothing, so it's picked first among writs worth the same rep. Untick to plan as if you had none.
-- **Use materials in bags & bank**: items and bundle materials you already have count, and the cart leaves them out. Untick to buy everything on the AH.
-
 ## Checklists
 
 **Checklist** (on Home and in each plan's footer) pops out a small window with just the plan's steps: do the Shipping Label quest, fulfil this writ, hand in these Sealed Crates, buy + fill these crates, buy 120 receipts, buy 120 empty crates, hand in the containers, reach the target. Steps the game can see tick themselves (quests and writs handed in, Sealed Crates gone, favor or the target reached); the rest you tick by clicking. Hover a step for its details. It opens at the first step not done, scrolls, can be dragged anywhere, and reopens after a reload if it was open. A new plan (Regenerate, another target) starts the list fresh.

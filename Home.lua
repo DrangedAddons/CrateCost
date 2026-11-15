@@ -127,8 +127,11 @@ local function Hero()
   c.title:SetText("Reputation")
   local b = Button(c, "Open the rep plan", "The cheapest way to your rep target, step by step.",
     function() ns.ShowWritPlan() end, 220, 24)
-  -- bottom centre, like the tiles' buttons
-  b:SetPoint("BOTTOM", 0, 10)
+  -- bottom centre, like the tiles' buttons, with the checklist popout beside it
+  b:SetPoint("BOTTOM", -60, 10)
+  local cl = Button(c, "Checklist", "A small window with just the rep plan's steps, ticked as you do them.",
+    function() if ns.ToggleChecklist then ns.ToggleChecklist("rep") end end, 110, 24)
+  cl:SetPoint("LEFT", b, "RIGHT", 8, 0)
   c.button = b
   -- the rep target, the same one the rep plan uses
   local tb = ns.UI.DropButton(c, 110, c, 0)
@@ -276,6 +279,13 @@ local function Build()
   }
   -- the favor target, the same one the favor plan uses: a box on the favor tile's second line
   local ft = tiles[2]
+  -- the favor plan's button shares the bottom with its checklist popout
+  ft.button:SetWidth(TILE_W - 24 - 78)
+  ft.button:ClearAllPoints()
+  ft.button:SetPoint("BOTTOMLEFT", 12, 10)
+  local fcl = Button(ft, "Checklist", "A small window with just the favor plan's steps, ticked as you do them.",
+    function() if ns.ToggleChecklist then ns.ToggleChecklist("favor") end end, 72, 22)
+  fcl:SetPoint("LEFT", ft.button, "RIGHT", 6, 0)
   local box = CreateFrame("EditBox", nil, ft, "InputBoxTemplate")
   box:SetSize(64, 18)
   box:SetPoint("TOPRIGHT", -12, -36 - LINE_H + 2)

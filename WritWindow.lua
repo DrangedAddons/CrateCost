@@ -720,7 +720,10 @@ local function CurrentPlan()
   return planMemo or nil
 end
 ns.WritPlan = function() return CurrentPlan() end
-ns.RegenerateWritPlan = function() Calc() Live() UpdateNeed() RegeneratePlan() end
+ns.RegenerateWritPlan = function()
+  Calc() Live() UpdateNeed() RegeneratePlan()
+  if ns.RefreshChecklists then ns.RefreshChecklists() end
+end
 
 -- The plan's writs that count: not the spent ones (done before the plan was made).
 local function PlanCount(p)
@@ -1970,7 +1973,7 @@ function ns.ShowWritPlan()
       local p = CurrentPlan()
       if p then PlanToCart(p) end
     end, "The plan's writs to buy and their fills (the item, or its reagents when the plan crafts it), "
-      .. "and the containers' crates and bundles. Not the writs already filled today.")
+      .. "and the containers' crates and bundles. Not the writs already filled today.", "rep")
     pf.total = pf.summary
     pf.cd = pf:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     pf.cd:SetPoint("BOTTOMRIGHT", -14, 16)
@@ -2016,6 +2019,7 @@ end
 function ns.SetWritTarget(v)
   SetTarget(v)
   Calc() Live() UpdateNeed()
+  if ns.RefreshChecklists then C_Timer.After(0, ns.RefreshChecklists) end
   if frame and frame:IsShown() then ns.RefreshWrits() end
   if pf and pf:IsShown() then pf.offset = 0 FillPlan() end
 end

@@ -161,6 +161,7 @@ end
 local function Regenerate()
   local t = Target()
   plan = t and MakePlan(t) or nil
+  if ns.RefreshChecklists then ns.RefreshChecklists() end
 end
 
 -- For the Home view.
@@ -452,7 +453,7 @@ local function Build()
     local items = {}
     for _, pick in ipairs(plan.picks) do PickItems(pick, items) end
     ns.Print(string.format("added %d to the cart.", ns.CartAdd(items)))
-  end, "Every crate to buy and the bundle materials not in your bags.")
+  end, "Every crate to buy and the bundle materials not in your bags.", "favor")
   f.total = f.summary
   -- bags, favor and hand-ins change what's left
   for _, ev in ipairs({ "BAG_UPDATE_DELAYED", "CURRENCY_DISPLAY_UPDATE" }) do

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.47.0
+- **Checklists**: a small pop-out per plan (rep, favor) with just the steps, ticked as you go: quests, writs and Sealed Crates handed in, favor and the target reached tick themselves; buying receipts and crates you tick by clicking. Hover a step for details. Opens at the first open step, drags anywhere, reopens after a reload, starts fresh with a new plan. **Checklist** buttons on Home (rep header, favor tile) and in both plans' footers.
+- New file (Checklist.lua): restart the game client, /reload isn't enough.
+
 ## 0.46.3
 - Plans' money as a sum, top to bottom: Up front, Turn-ins pay back (-), a rule, then Net (or Net profit). Just Total when nothing comes back.
 

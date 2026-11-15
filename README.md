@@ -58,6 +58,10 @@ The landing view: your **reputation** across the top (the camp, a standing bar, 
 
 The nav bar on every view: **Home, Crates, Writs, Rep plan, Favor plan, Merchant, Cart, Refresh**. `/crates list` opens the crate list, `/crates plan` the rep plan. The rep plan has its own **Target** picker, **Scan AH** and standing line.
 
+## Checklists
+
+**Checklist** (on Home and in each plan's footer) pops out a small window with just the plan's steps: do the Shipping Label quest, fulfil this writ, hand in these Sealed Crates, buy + fill these crates, buy 120 receipts, buy 120 empty crates, hand in the containers, reach the target. Steps the game can see tick themselves (quests and writs handed in, Sealed Crates gone, favor or the target reached); the rest you tick by clicking. Hover a step for its details. It opens at the first step not done, scrolls, can be dragged anywhere, and reopens after a reload if it was open. A new plan (Regenerate, another target) starts the list fresh.
+
 ## Favor plan
 
 The cheapest way to a Merchant's Favor target (type it in; per character). Favor you have and Sealed Crates in your bags count first, then the one-time Shipping Label quest (50 favor), then crates: each next crate is the one with the lowest extra cost per favor (near the target, one that finishes it for less wins), crates you hold and bundle materials in your bags first, the rest bought up the AH listings, less the turn-in silver. Only crates your level can fill. Each row: buy + fill N of a crate, with which bundle, favor, per favor and cost, a [+cart] for the crates to buy and the materials not in your bags; hover for the breakdown. **Scan AH** reads every crate and bundle deep enough for what's left, then remakes the plan; costs past what it read are marked **~**.

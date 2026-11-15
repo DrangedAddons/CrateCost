@@ -183,7 +183,7 @@ end)
 -- note sits at the bottom left. Fills f.summary, f.moneyL/R (3 rows), f.add, f.note.
 UI.PLAN_FOOT = 150
 local SUM_W = 300   -- the sum's width: labels on the left, amounts right-aligned
-function UI.PlanFooter(f, onAdd, tip)
+function UI.PlanFooter(f, onAdd, tip, checklist)
   f.summary = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
   f.summary:SetPoint("BOTTOM", 0, 124)
   f.moneyL, f.moneyR = {}, {}
@@ -211,6 +211,16 @@ function UI.PlanFooter(f, onAdd, tip)
   add:SetScript("OnClick", onAdd)
   UI.Tip(add, "Add plan to cart", tip)
   f.add = add
+  -- the step-by-step checklist popout, beside the cart button
+  if checklist then
+    local cl = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    cl:SetSize(110, 26)
+    cl:SetPoint("LEFT", add, "RIGHT", 10, 0)
+    cl:SetText("Checklist")
+    cl:SetScript("OnClick", function() if ns.ToggleChecklist then ns.ToggleChecklist(checklist) end end)
+    UI.Tip(cl, "Checklist", "A small window with just the plan's steps, ticked as you do them. Hover a step for details.")
+    f.checklistBtn = cl
+  end
   f.note = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
   f.note:SetPoint("BOTTOMLEFT", 14, 14)
   f.note:SetPoint("RIGHT", add, "LEFT", -20, 0)

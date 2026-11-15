@@ -48,13 +48,24 @@ local function FromSyndicator(id)
   if not api then return nil end
   local ok, info = pcall(api, id, false, false)
   if not (ok and type(info) == "table") then return nil end
-  local me = UnitName("player")
-  local myRealm = GetNormalizedRealmName and GetNormalizedRealmName()
+  -- This character as Syndicator saved it. Its realm isn't always GetNormalizedRealmName():
+  -- with regional unique names (Forever) it's the ruleset name ("PvP"), so comparing with the
+  -- client's realm missed and counted this character twice (live + as an alt).
+  local me, myRealm = UnitName("player"), nil
+  local api2 = Syndicator.API
+  local okCur, cur = pcall(function()
+    local full = api2.GetCurrentCharacter and api2.GetCurrentCharacter()
+    local rec = full and api2.GetByCharacterFullName and api2.GetByCharacterFullName(full)
+    return rec and rec.details
+  end)
+  if okCur and type(cur) == "table" and cur.character then
+    me, myRealm = cur.character, cur.realmNormalized
+  end
   local here = Count(id)   -- this character live (bags change between Syndicator saves)
   local total, where, sawMe = 0, {}, false
   for _, c in ipairs(info.characters or {}) do
     local n = (c.bags or 0) + (c.bank or 0) + (c.mail or 0)
-    local isMe = c.character == me and (not myRealm or c.realmNormalized == myRealm)
+    local isMe = c.character == me and (myRealm == nil or c.realmNormalized == myRealm)
     if isMe then
       sawMe = true
       -- live bags + bank, plus mail (and Syndicator's bank count, if the client's is lower)

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.32.1
+- Fixed owned counts doubling with Syndicator (Baganator) on Forever: Syndicator saves the realm as the ruleset name ("PvP"), so this character wasn't recognised and was counted twice, live and as an alt. It now asks Syndicator which character is current.
+
 ## 0.32.0
 - The turn-in silver each Sealed Crate pays back (2s 50c a rank for white, double for green; Artisan estimated) now comes off the crate's cost. /crates has a green **Turn-in** column; Total cost, Per favor and every rating (to Buy, to Fill, the craft lines) are net of it.
 - Waylaid Crate tooltips show a "Turn-in pays" line under Merchant's Favor.

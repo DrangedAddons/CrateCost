@@ -1204,7 +1204,7 @@ end
 ---------------------------------------------------------------------------------------------
 -- The plan's window: day by day, each writ, how to get it and its item, rep and cost.
 
-local PROWS, PROW_H, PTOP, PFOOT = 22, 18, 40, 70
+local PROWS, PROW_H, PTOP, PFOOT = 22, 18, 58, 70
 local pf, ShowCD
 -- Show writs on cooldown in the plan window (per character, default on).
 ShowCD = function()
@@ -1216,9 +1216,11 @@ local function PlanLines(p)
   for _, it in ipairs(p.list) do
     if it.day ~= day then
       day = it.day
-      local n, cost = 0, 0
-      for _, x in ipairs(p.list) do if x.day == day then n, cost = n + 1, cost + x.cost end end
-      lines[#lines + 1] = { head = "Day " .. day .. string.format("  -  %d writs", n), cost = cost }
+      local n, cost, rep = 0, 0, 0
+      for _, x in ipairs(p.list) do
+        if x.day == day then n, cost, rep = n + 1, cost + x.cost, rep + x.e.rep end
+      end
+      lines[#lines + 1] = { head = "Day " .. day .. string.format("  -  %d writs", n), cost = cost, rep = rep }
     end
     if ShowCD() or not it.e.done then lines[#lines + 1] = { it = it } end
   end
@@ -1237,7 +1239,8 @@ local function FillPlan()
     elseif ln.head then
       r.name:SetText("|cffffd100" .. ln.head .. "|r")
       r.how:SetText("")
-      r.rep:SetText("")
+      r.rep:SetText("|cffffd100" .. Num(ln.rep) .. "|r")
+      r.per:SetText("|cffffd100" .. ns.Money(math.floor(ln.cost / ln.rep + 0.5)) .. "|r")
       r.cost:SetText("|cffffd100" .. ns.Money(ln.cost) .. "|r")
       r:Show()
     else
@@ -1248,6 +1251,7 @@ local function FillPlan()
       r.how:SetText(GREY .. (it.owned and "have writ" or "buy writ") .. " + "
         .. (it.crafted and "craft" or "buy") .. " " .. (e.qty > 1 and (e.qty .. "x ") or "") .. "item|r")
       r.rep:SetText(e.rep)
+      r.per:SetText(ns.Money(math.floor(it.cost / e.rep + 0.5)))
       r.cost:SetText(ns.Money(it.cost))
       r:Show()
     end
@@ -1283,7 +1287,7 @@ end
 function ns.ShowWritPlan()
   if not pf then
     pf = CreateFrame("Frame", "CrateCostWritPlan", UIParent, "BackdropTemplate")
-    pf:SetSize(560, PTOP + PROWS * PROW_H + PFOOT)
+    pf:SetSize(640, PTOP + PROWS * PROW_H + PFOOT)
     pf:SetPoint("CENTER", 0, 80)
     pf:SetFrameStrata("FULLSCREEN_DIALOG")
     pf:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
@@ -1352,8 +1356,10 @@ function ns.ShowWritPlan()
       r.name:SetPoint("LEFT", 0, 0)
       r.how = Text(170, "LEFT")
       r.how:SetPoint("LEFT", r.name, "RIGHT", 6, 0)
-      r.rep = Text(30, "RIGHT")
+      r.rep = Text(40, "RIGHT")
       r.rep:SetPoint("LEFT", r.how, "RIGHT", 4, 0)
+      r.per = Text(80, "RIGHT")
+      r.per:SetPoint("LEFT", r.rep, "RIGHT", 6, 0)
       r.cost = Text(90, "RIGHT")
       r.cost:SetPoint("RIGHT", 0, 0)
       r:EnableMouse(true)
@@ -1378,6 +1384,15 @@ function ns.ShowWritPlan()
       r:EnableMouseWheel(true)
       r:SetScript("OnMouseWheel", function(_, delta) pf.offset = pf.offset - delta * 3 FillPlan() end)
       pf.rows[i] = r
+    end
+    local r1 = pf.rows[1]
+    for _, h in ipairs({ { r1.name, "Writ", "LEFT" }, { r1.how, "Writ + item", "LEFT" }, { r1.rep, "Rep", "RIGHT" },
+      { r1.per, "Per rep", "RIGHT" }, { r1.cost, "Cost", "RIGHT" } }) do
+      local fs = pf:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      fs:SetPoint("BOTTOMLEFT", h[1], "TOPLEFT", 0, 4)
+      fs:SetPoint("BOTTOMRIGHT", h[1], "TOPRIGHT", 0, 4)
+      fs:SetJustifyH(h[3])
+      fs:SetText(h[2])
     end
     pf:EnableMouseWheel(true)
     pf:SetScript("OnMouseWheel", function(_, delta) pf.offset = pf.offset - delta * 3 FillPlan() end)

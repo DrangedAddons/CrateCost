@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.36.3
+- Writ plan: a **Per rep** column (each writ, and each day's total) and column headings.
+
 ## 0.36.2
 - Writ plan rows show the writ's full tooltip (ratings, cost lines, reagents, who to deliver to), as on the writ list, plus its day, route, cost, cost per rep and whether it's on cooldown.
 

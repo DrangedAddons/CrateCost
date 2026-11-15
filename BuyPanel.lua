@@ -247,10 +247,11 @@ Refresh = function()
     local ph = state.phase
     if ph == "search" then lines[#lines + 1] = GREY .. "Searching the AH...|r"
     elseif ph == "price" then lines[#lines + 1] = "Now ~" .. ns.Money(state.estimate or 0) .. "  " .. Diff(state.estimate, pl)
-      lines[#lines + 1] = GREY .. "Get price, then Buy.|r"
+      lines[#lines + 1] = GREY .. "Buy now, then Confirm at the AH's exact price.|r"
     elseif ph == "start" then lines[#lines + 1] = "Now ~" .. ns.Money(state.estimate or 0) .. "  " .. Diff(state.estimate, pl)
     elseif ph == "ready" and state.kind == "commodity" then
-      lines[#lines + 1] = "Now " .. ns.Money(state.quote or 0) .. "  " .. Diff(state.quote, pl)
+      lines[#lines + 1] = "Exact " .. ns.Money(state.quote or 0) .. "  " .. Diff(state.quote, pl)
+      lines[#lines + 1] = GREY .. "Confirm to buy at this price.|r"
       if state.short then lines[#lines + 1] = RED .. "Only " .. state.need .. " on the AH.|r" end
     elseif ph == "ready" and state.kind == "item" then
       local per = state.auction and state.auction.per or 0
@@ -270,11 +271,15 @@ Refresh = function()
   local ph = state.phase
   if not it then
     panel.buy:SetText("Done") panel.buy:Disable()
+  elseif ph == "ready" and state.kind == "commodity" then
+    -- the AH's exact price is in: this click buys at it
+    panel.buy:SetText("Confirm  " .. ns.Money(state.quote or 0)) panel.buy:Enable()
   elseif ph == "ready" then
     panel.buy:SetText("Buy " .. (state.need or "") .. "  " .. ns.Money(state.quote or 0)) panel.buy:Enable()
   elseif ph == "start" or ph == "price" then
-    -- the AH's exact price: it comes by itself on some clients, on others it needs a click
-    panel.buy:SetText("Get price  ~" .. ns.Money(state.estimate or 0)) panel.buy:Enable()
+    -- the first half of a commodity purchase, as the AH's own Buy Now: asks for the exact price,
+    -- then the button turns into Confirm
+    panel.buy:SetText("Buy now  ~" .. ns.Money(state.estimate or 0)) panel.buy:Enable()
   elseif ph == "none" or ph == "idle" then
     panel.buy:SetText("Search again") panel.buy:Enable()
   else

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.55.3
+- Buy panel: the button reads **Buy now ~(estimate)**, then **Confirm (exact price)** once the AH quotes it, as the AH's own Buy Now and confirm do.
+
 ## 0.55.2
 - Buy panel: as tall as the auction house window and wider, so more of the list shows; the list stops above Forget list instead of running under it.
 - Buy panel: the button never sits greyed out waiting for the AH's exact price. Where the price doesn't come by itself it reads **Get price ~(estimate)**: click it, then **Buy**.

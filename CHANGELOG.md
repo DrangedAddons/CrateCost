@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.53.2
+- Favor plan's recipe browser: tidier (search and Hide learned on the first row, the filters on the second, headings on their own line), a scrollbar, and the Merchant view's filters: **profession** (or My professions), **type / slot**, **Stats** (tick a stat, optionally a minimum) and **Sort** by a stat (its value shows in place of the profession).
+- Rep checklist: the empty crates counted for the containers leave out the crates the favor steps still have to fill, kind by kind.
+
 ## 0.53.1
 - Checklists: a live favor step. Rep: **Favor for the receipts**, before buying them: the favor you have against 15 per receipt still to buy, so both go down as you buy and it stays green while you have enough. Favor: **Favor for the recipes**, the same against what the wanted recipes still to buy cost. Neither is ticked for good: it goes back to open if you fall short.
 

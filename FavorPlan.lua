@@ -604,23 +604,44 @@ local function Build()
 end
 
 ------------------------------------------------------------------------------------------------
--- The recipe browser, down the left: the Merchant's list, searchable, with Add (or Drop) on
--- each. Adding puts it on the wanted list, which the plan on the right saves for.
+-- The recipe browser, down the left: the Merchant's list with Add (or Drop) on each. Adding
+-- puts it on the wanted list, which the plan on the right saves for. Filters as on the Merchant
+-- view and AuctionatorSync's price list: search, profession, type / slot, stats (with a
+-- minimum), sort by a stat, and hide what you've learned.
 
-local BROWSE_TOP, BROWSE_H = 60, 18
-local browse = { search = "", mine = false, hideKnown = true, offset = 0 }
+local BROWSE_TOP, BROWSE_H = 98, 18
+local browse = { search = "", prof = nil, kind = nil, hideKnown = true, stats = {}, statSort = nil,
+  statLow = false, offset = 0 }
 
 local function BrowseList()
-  local profs = browse.mine and ns.MyProfessions and ns.MyProfessions() or nil
+  local mine = browse.prof == "mine" and ns.MyProfessions and ns.MyProfessions() or nil
   local out = {}
   for _, e in ipairs(ns.RecipeEntries and ns.RecipeEntries() or {}) do
     local ok = true
     if browse.hideKnown and e.known and not e.wanted then ok = false end
-    if ok and profs and not profs[e.prof] then ok = false end
+    if ok and mine and not mine[e.prof] then ok = false end
+    if ok and browse.prof and browse.prof ~= "mine" and e.prof ~= browse.prof then ok = false end
+    if ok and browse.kind then
+      local v = browse.kind.group == "type" and e.type or e.slot
+      if v ~= browse.kind.value then ok = false end
+    end
     if ok and browse.search ~= "" and not e.text:find(browse.search, 1, true) then ok = false end
+    if ok and (next(browse.stats) or browse.statSort) and ns.EntryStats then
+      local st = ns.EntryStats(e)
+      for k, min in pairs(browse.stats) do
+        local v = st[k]
+        if not v or (type(min) == "number" and v < min) then ok = false break end
+      end
+      e.sortValue = browse.statSort and st[browse.statSort] or nil
+    end
     if ok then out[#out + 1] = e end
   end
   table.sort(out, function(a, b)
+    if browse.statSort then
+      local va, vb = a.sortValue, b.sortValue
+      if (va ~= nil) ~= (vb ~= nil) then return va ~= nil end
+      if va and va ~= vb then if browse.statLow then return va < vb end return va > vb end
+    end
     if a.prof ~= b.prof then return a.prof < b.prof end
     if a.cost ~= b.cost then return a.cost < b.cost end
     return a.name < b.name
@@ -631,8 +652,22 @@ end
 FillBrowser = function()
   local list = BrowseList()
   local rows = f.browseRows
-  browse.offset = math.max(0, math.min(browse.offset, #list - #rows))
-  f.browseCount:SetText(#list .. " shown")
+  local n = #rows
+  browse.offset = math.max(0, math.min(browse.offset, #list - n))
+  f.browseCount:SetText(GREY .. #list .. " shown|r")
+  -- the scrollbar: shown when there's more than fits
+  if #list > n then
+    local track = tonumber(f.browseTrack:GetHeight()) or (n * BROWSE_H)
+    local th = math.max(16, track * n / #list)
+    f.browseThumb:SetHeight(th)
+    f.browseThumb:ClearAllPoints()
+    f.browseThumb:SetPoint("TOP", f.browseTrack, "TOP", 0, -(track - th) * browse.offset / math.max(1, #list - n))
+    f.browseTrack:Show()
+    f.browseThumb:Show()
+  else
+    f.browseTrack:Hide()
+    f.browseThumb:Hide()
+  end
   for i, r in ipairs(rows) do
     local e = list[browse.offset + i]
     r.entry = e or false
@@ -641,35 +676,46 @@ FillBrowser = function()
     else
       local col = e.known and GREY or (e.wanted and "|cff40ff40" or "|cffffffff")
       r.name:SetText(col .. e.name .. "|r")
-      r.prof:SetText(GREY .. e.prof .. "|r")
-      r.cost:SetText(Num(e.cost))
-      if e.wanted then
-        r.add:SetText("Drop")
+      -- sorting by a stat: its value in place of the profession
+      if browse.statSort and e.sortValue and ns.StatLabel then
+        r.prof:SetText("|cffffd100" .. e.sortValue .. " " .. ns.StatLabel(browse.statSort) .. "|r")
       else
-        r.add:SetText("Add")
+        r.prof:SetText(GREY .. e.prof .. "|r")
       end
+      r.cost:SetText(Num(e.cost))
+      r.add:SetText(e.wanted and "Drop" or "Add")
       r.add:SetShown(not (e.known and not e.wanted))
       r:Show()
     end
   end
+  -- the dropdowns' labels
+  local p = browse.prof
+  f.browseProf.text:SetText(p == "mine" and "My professions" or p or "All professions")
+  f.browseKind.text:SetText(browse.kind and browse.kind.value or "All types")
+  local ns_ = 0
+  for _ in pairs(browse.stats) do ns_ = ns_ + 1 end
+  f.browseStats:SetText(ns_ > 0 and ("Stats (" .. ns_ .. ")") or "Stats")
+  f.browseSort:SetText(browse.statSort and ns.StatLabel and ns.StatLabel(browse.statSort) or "Sort")
 end
 
 BuildBrowser = function()
   local UI = ns.UI
+  local function Refresh() FillBrowser() end
   -- the pane: a slightly lighter panel with a rule at its edge
   local pane = f:CreateTexture(nil, "BACKGROUND", nil, 2)
-  pane:SetPoint("TOPLEFT", 1, -BROWSE_TOP + 26)
+  pane:SetPoint("TOPLEFT", 1, -28)
   pane:SetPoint("BOTTOMLEFT", 1, 1)
   pane:SetWidth(LEFT_W - 4)
   pane:SetColorTexture(1, 1, 1, 0.03)
   local rule = f:CreateTexture(nil, "ARTWORK")
   rule:SetWidth(1)
-  rule:SetPoint("TOPLEFT", LEFT_W - 3, -BROWSE_TOP + 26)
+  rule:SetPoint("TOPLEFT", LEFT_W - 3, -28)
   rule:SetPoint("BOTTOMLEFT", LEFT_W - 3, 6)
   rule:SetColorTexture(1, 0.82, 0, 0.25)
-  -- search, my professions, learned
+
+  -- row 1: search, hide learned
   local search = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-  search:SetSize(150, 20)
+  search:SetSize(170, 20)
   search:SetPoint("TOPLEFT", 18, UI.FILTER_Y)
   search:SetAutoFocus(false)
   local hint = search:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
@@ -686,39 +732,90 @@ BuildBrowser = function()
   search:SetScript("OnEditFocusGained", function() hint:Hide() end)
   search:SetScript("OnEditFocusLost", function(self) hint:SetShown((self:GetText() or "") == "") end)
   search:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-  local function Check(label, tip, get, set, anchor, x)
-    local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
-    cb:SetSize(20, 20)
-    cb:SetPoint("LEFT", anchor, "RIGHT", x, 0)
-    local l = cb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    l:SetPoint("LEFT", cb, "RIGHT", 0, 0)
-    l:SetText(label)
-    cb:SetChecked(get())
-    cb:SetScript("OnClick", function(self) set(self:GetChecked() and true or false) browse.offset = 0 FillBrowser() end)
-    UI.Tip(cb, label, tip)
-    return l
+  local hk = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+  hk:SetSize(20, 20)
+  hk:SetPoint("LEFT", search, "RIGHT", 10, 0)
+  local hkl = hk:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  hkl:SetPoint("LEFT", hk, "RIGHT", 0, 0)
+  hkl:SetText("Hide learned")
+  hk:SetChecked(browse.hideKnown)
+  hk:SetScript("OnClick", function(self) browse.hideKnown = self:GetChecked() and true or false browse.offset = 0 FillBrowser() end)
+  UI.Tip(hk, "Hide learned", "Leave out what you've learned already.")
+
+  -- row 2: profession, type / slot, stats, sort by stat
+  local y2 = UI.FILTER_Y - 26
+  local anchor = f:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+  anchor:SetPoint("TOPLEFT", 12, y2 - 3)
+  anchor:SetText("")
+  local pb = UI.DropButton(f, 104, anchor, 0)
+  f.browseProf = pb
+  local profChoices = { { "All professions", nil }, { "My professions", "mine" }, "-" }
+  for _, pr in ipairs(ns.RecipeProfessions or {}) do profChoices[#profChoices + 1] = { pr, pr } end
+  UI.Menu(f, pb, profChoices, 130, function(v) browse.prof, browse.offset = v, 0 FillBrowser() end)
+  local kb = UI.DropButton(f, 84, pb, 4)
+  f.browseKind = kb
+  -- types and slots that some recipe has
+  local types, slots, seenT, seenS = {}, {}, {}, {}
+  for _, e in ipairs(ns.RecipeEntries and ns.RecipeEntries() or {}) do
+    if e.type and e.type ~= "" and not seenT[e.type] then seenT[e.type] = true types[#types + 1] = e.type end
+    if e.slot and e.slot ~= "" and not seenS[e.slot] then seenS[e.slot] = true slots[#slots + 1] = e.slot end
   end
-  local mine = Check("Mine", "Only your professions' recipes.", function() return browse.mine end,
-    function(v) browse.mine = v end, search, 8)
-  Check("Hide learned", "Leave out what you've learned already.", function() return browse.hideKnown end,
-    function(v) browse.hideKnown = v end, mine, 6)
-  -- headings
+  table.sort(types)
+  table.sort(slots)
+  local kindChoices = { { "All types", nil }, "-", { heading = "Type" } }
+  for _, t in ipairs(types) do kindChoices[#kindChoices + 1] = { t, { group = "type", value = t } } end
+  if #slots > 0 then
+    kindChoices[#kindChoices + 1] = "-"
+    kindChoices[#kindChoices + 1] = { heading = "Slot" }
+    for _, sl in ipairs(slots) do kindChoices[#kindChoices + 1] = { sl, { group = "slot", value = sl } } end
+  end
+  UI.Menu(f, kb, kindChoices, 140, function(v) browse.kind, browse.offset = v, 0 FillBrowser() end)
+  local sb = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+  sb:SetSize(58, 20)
+  sb:SetPoint("LEFT", kb, "RIGHT", 4, 0)
+  sb:SetText("Stats")
+  f.browseStats = sb
+  local statsMenu = ns.BuildStatsMenu and ns.BuildStatsMenu(sb, browse, Refresh)
+  local srt = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+  srt:SetSize(58, 20)
+  srt:SetPoint("LEFT", sb, "RIGHT", 2, 0)
+  srt:SetText("Sort")
+  f.browseSort = srt
+  local sortMenu = ns.BuildStatSortMenu and ns.BuildStatSortMenu(srt, browse, Refresh)
+  f:HookScript("OnHide", function()
+    if statsMenu then statsMenu:Hide() end
+    if sortMenu then sortMenu:Hide() end
+  end)
+
+  -- headings, on their own line
   local hName = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  hName:SetPoint("TOPLEFT", 14, -BROWSE_TOP + 16)
+  hName:SetPoint("TOPLEFT", 14, -BROWSE_TOP + 14)
   hName:SetText("Merchant's recipes")
   f.browseCount = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
   f.browseCount:SetPoint("LEFT", hName, "RIGHT", 8, 0)
   local hCost = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  hCost:SetPoint("TOPRIGHT", f, "TOPLEFT", LEFT_W - 60, -BROWSE_TOP + 16)
+  hCost:SetPoint("TOPRIGHT", f, "TOPLEFT", LEFT_W - 64, -BROWSE_TOP + 14)
   hCost:SetText("Favor")
+
+  -- the scrollbar, at the pane's right edge
+  local H = TOP + PROWS * ROW_H + FOOT
+  f.browseTrack = f:CreateTexture(nil, "ARTWORK")
+  f.browseTrack:SetWidth(4)
+  f.browseTrack:SetPoint("TOPLEFT", LEFT_W - 12, -BROWSE_TOP)
+  f.browseTrack:SetPoint("BOTTOMLEFT", LEFT_W - 12, 10)
+  f.browseTrack:SetColorTexture(1, 1, 1, 0.08)
+  f.browseThumb = f:CreateTexture(nil, "OVERLAY")
+  f.browseThumb:SetWidth(4)
+  f.browseThumb:SetColorTexture(1, 0.82, 0, 0.6)
+
   -- rows: as many as the height holds
-  local n = math.floor((TOP + PROWS * ROW_H + FOOT - BROWSE_TOP - 12) / BROWSE_H)
+  local n = math.floor((H - BROWSE_TOP - 12) / BROWSE_H)
   f.browseRows = {}
   for i = 1, n do
     local r = CreateFrame("Frame", nil, f)
     r:SetHeight(BROWSE_H)
     r:SetPoint("TOPLEFT", 10, -BROWSE_TOP - (i - 1) * BROWSE_H)
-    r:SetWidth(LEFT_W - 20)
+    r:SetWidth(LEFT_W - 28)
     local hl = r:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints()
     hl:SetColorTexture(1, 1, 1, 0.07)
@@ -731,11 +828,11 @@ BuildBrowser = function()
     end)
     r.cost = r:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     r.cost:SetPoint("RIGHT", r.add, "LEFT", -6, 0)
-    r.cost:SetWidth(44)
+    r.cost:SetWidth(40)
     r.cost:SetJustifyH("RIGHT")
     r.name = r:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     r.name:SetPoint("LEFT", 2, 0)
-    r.name:SetWidth(160)
+    r.name:SetWidth(150)
     r.name:SetJustifyH("LEFT")
     r.name:SetWordWrap(false)
     r.prof = r:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
@@ -750,13 +847,14 @@ BuildBrowser = function()
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
       local shown = false
       if e.item then shown = pcall(GameTooltip.SetItemByID, GameTooltip, e.item) end
+      if not shown and e.craft then shown = pcall(GameTooltip.SetItemByID, GameTooltip, e.craft) end
       if not shown and e.spell and GameTooltip.SetSpellByID then shown = pcall(GameTooltip.SetSpellByID, GameTooltip, e.spell) end
       if not shown then GameTooltip:AddLine(e.name) end
       GameTooltip:AddLine(" ")
+      GameTooltip:AddDoubleLine(e.name, e.prof .. (e.type and e.type ~= "" and (", " .. e.type) or ""), 1, 0.82, 0, 1, 1, 1)
       GameTooltip:AddDoubleLine("Favor", Num(e.cost), 1, 1, 1, 1, 1, 1)
       local rep = ns.WantedRepName and ns.WantedRepName(e.rep) or ""
       if rep ~= "" then GameTooltip:AddDoubleLine("Needs", rep, 1, 1, 1, 1, 1, 1) end
-      if e.effect and e.effect ~= "" then GameTooltip:AddLine(e.effect, 0.8, 0.8, 0.8, true) end
       GameTooltip:AddLine(e.wanted and "On your wanted list." or (e.known and "Learned." or "Add: the plan saves for it."),
         0.6, 0.8, 1, true)
       GameTooltip:Show()

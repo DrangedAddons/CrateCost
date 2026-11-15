@@ -66,6 +66,16 @@ local function FavorHave()
   return (info and info.quantity) or 0
 end
 
+-- Waylaid Crates in your bags that count as empties for the containers: each kind's count, less
+-- the crates of that kind the favor steps still have to fill.
+local function EmptyCrates(toFill)
+  local n = 0
+  for _, id in pairs(ns.CrateIDs or {}) do
+    n = n + math.max(0, Count(id) - (toFill and toFill[id] or 0))
+  end
+  return n
+end
+
 local function Horde() return UnitFactionGroup and UnitFactionGroup("player") == "Horde" end
 
 -- Per plan: where you stood when it was made, and the steps seen done (they stay done).
@@ -152,8 +162,8 @@ local function RepSteps()
     local handed = math.max(0, math.floor((repGain - writRep - labelGain) / CONTAINER_REP))
     local notarized = CountByName(CONTAINER)
     local receipts = CountByName(RECEIPT)
-    local empty = 0
-    for _, id in pairs(ns.CrateIDs or {}) do empty = empty + Count(id) end
+    -- crates of each kind still to fill for the favor (not empties for the containers)
+    local toFill = {}
     if c.mix then
       -- favor earned since the plan (what you have now, plus what the receipts cost you), given
       -- to the crate kinds in the plan's order
@@ -161,6 +171,7 @@ local function RepSteps()
       local earned = FavorHave() - start.favor - labelFavor + RECEIPT_FAVOR * (receipts + notarized + handed)
       for _, pk in ipairs(c.mix.picks) do
         local filled = math.max(0, math.min(pk.n, math.floor(earned / pk.c.favor)))
+        toFill[pk.c.id] = (toFill[pk.c.id] or 0) + (pk.n - filled)
         earned = earned - filled * pk.c.favor
         Add({ id = "favor:" .. pk.c.name, text = "Fill " .. pk.c.name .. " crates, hand in", unit = "crates",
           have = filled, need = pk.n, item = pk.c.id, verb = "Fill ",
@@ -184,7 +195,7 @@ local function RepSteps()
       tip = { "15 favor each from " .. (Horde() and "Kurvelk Shadowhoof" or "Dianne Softstep") .. ". Needs Friendly.",
         "Counted in your bags, with the containers you've made and handed in." } })
     Add({ id = "crates", text = "Buy empty Waylaid Crates", unit = "",
-      have = empty + notarized + handed, need = c.n,
+      have = EmptyCrates(toFill) + notarized + handed, need = c.n,
       tip = { "The cheapest on the AH: any crate takes a receipt.",
         "Counted in your bags (any Waylaid Crate), with the containers made and handed in." } })
     Add({ id = "handin", text = "Hand in containers", unit = "",

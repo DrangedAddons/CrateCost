@@ -419,8 +419,9 @@ local function Popup(owner)
   return m
 end
 
--- Stats dropdown: a tick and an optional minimum per stat, only stats some entry has.
-local function BuildStatsMenu(sb)
+-- Stats dropdown: a tick and an optional minimum per stat, only stats some entry has. `st` holds
+-- .stats / .offset, `refresh` redraws (the Merchant view's, or the favor plan's browser).
+local function BuildStatsMenu(sb, st, refresh)
   local menu = Popup(sb)
   local lines = {}
   for i, s in ipairs(ns.STATS) do
@@ -431,10 +432,10 @@ local function BuildStatsMenu(sb)
     cb.label:SetPoint("LEFT", cb, "RIGHT", 2, 0)
     cb.label:SetText(s[2])
     cb:SetScript("OnClick", function(self)
-      view.stats[self.key] = self:GetChecked() and (tonumber(self.min:GetText()) or true) or nil
+      st.stats[self.key] = self:GetChecked() and (tonumber(self.min:GetText()) or true) or nil
       if not self:GetChecked() then self.min:SetText("") end
-      view.offset = 0
-      ns.RefreshRecipes()
+      st.offset = 0
+      refresh()
     end)
     local m = CreateFrame("EditBox", nil, cb, "InputBoxTemplate")
     m:SetSize(32, 18)
@@ -451,10 +452,10 @@ local function BuildStatsMenu(sb)
       self.hint:SetShown(self:GetText() == "" and not self:HasFocus())
       if not self:HasFocus() then return end
       local n = tonumber(self:GetText())
-      view.stats[cb.key] = (n and n > 0) and n or (cb:GetChecked() and true or nil)
-      cb:SetChecked(view.stats[cb.key] ~= nil)
-      view.offset = 0
-      ns.RefreshRecipes()
+      st.stats[cb.key] = (n and n > 0) and n or (cb:GetChecked() and true or nil)
+      cb:SetChecked(st.stats[cb.key] ~= nil)
+      st.offset = 0
+      refresh()
     end)
     m:SetScript("OnEditFocusGained", function(self) self.hint:Hide() self:HighlightText() end)
     m:SetScript("OnEditFocusLost", function(self) self.hint:SetShown(self:GetText() == "") end)
@@ -467,10 +468,10 @@ local function BuildStatsMenu(sb)
   clear:SetSize(80, 18)
   clear:SetText("Clear")
   clear:SetScript("OnClick", function()
-    wipe(view.stats)
+    wipe(st.stats)
     for _, cb in ipairs(lines) do cb:SetChecked(false) cb.min:SetText("") end
-    view.offset = 0
-    ns.RefreshRecipes()
+    st.offset = 0
+    refresh()
   end)
 
   function menu:Layout()
@@ -480,10 +481,10 @@ local function BuildStatsMenu(sb)
     end
     local y = -6
     for _, cb in ipairs(lines) do
-      if present[cb.key] or view.stats[cb.key] then
+      if present[cb.key] or st.stats[cb.key] then
         cb:ClearAllPoints()
         cb:SetPoint("TOPLEFT", 6, y)
-        local v = view.stats[cb.key]
+        local v = st.stats[cb.key]
         cb:SetChecked(v ~= nil)
         if not cb.min:HasFocus() then cb.min:SetText(type(v) == "number" and tostring(v) or "") end
         cb.min.hint:SetShown(cb.min:GetText() == "")
@@ -508,7 +509,7 @@ local function BuildStatsMenu(sb)
     GameTooltip:SetText("Stats")
     local any = false
     for _, s in ipairs(ns.STATS) do
-      local v = view.stats[s[1]]
+      local v = st.stats[s[1]]
       if v then
         any = true
         GameTooltip:AddLine(type(v) == "number" and string.format("%s %d+", s[2], v) or s[2], 1, 1, 1)
@@ -524,29 +525,29 @@ local function BuildStatsMenu(sb)
   return menu
 end
 
--- Sort by stat: pick a stat (under CraftRoute's group headings, only stats some row has) and
+-- Sort by stat (`st`: .statSort, .statLow, .offset): pick a stat (under CraftRoute's group headings, only stats some row has) and
 -- the list orders by its value. One Highest / Lowest first switch at the top. Rows without
 -- the stat go last. Clicking a column header goes back to column sorting.
-local function BuildStatSortMenu(btn)
+local function BuildStatSortMenu(btn, st, refresh)
   local menu = Popup(btn)
   local W = 170
 
   local dir = CreateFrame("Button", nil, menu, "UIPanelButtonTemplate")
   dir:SetSize(W - 12, 18)
   dir:SetPoint("TOPLEFT", 6, -6)
-  local function DirText() dir:SetText(view.statLow and "Lowest first" or "Highest first") end
+  local function DirText() dir:SetText(st.statLow and "Lowest first" or "Highest first") end
   dir:SetScript("OnClick", function()
-    view.statLow = not view.statLow
+    st.statLow = not st.statLow
     DirText()
-    view.offset = 0
-    ns.RefreshRecipes()
+    st.offset = 0
+    refresh()
   end)
 
   local function Pick(key)
-    view.statSort = key
-    view.offset = 0
+    st.statSort = key
+    st.offset = 0
     menu:Hide()
-    ns.RefreshRecipes()
+    refresh()
   end
   local function MenuItem(label)
     local it = CreateFrame("Button", nil, menu)
@@ -584,7 +585,7 @@ local function BuildStatSortMenu(btn)
     local y = -28
     none:ClearAllPoints()
     none:SetPoint("TOPLEFT", 2, y)
-    none.text:SetTextColor(1, view.statSort and 1 or 0.82, view.statSort and 1 or 0)
+    none.text:SetTextColor(1, st.statSort and 1 or 0.82, st.statSort and 1 or 0)
     y = y - 18
     local lastGroup
     for _, h in pairs(heads) do h:Hide() end
@@ -600,7 +601,7 @@ local function BuildStatSortMenu(btn)
         end
         it:ClearAllPoints()
         it:SetPoint("TOPLEFT", 2, y)
-        local on = view.statSort == it.key
+        local on = st.statSort == it.key
         it.text:SetTextColor(1, on and 0.82 or 1, on and 0 or 1)
         it:Show()
         y = y - 16
@@ -719,11 +720,11 @@ local function Build()
 
   local sb = DropButton(90, fb, 8)
   frame.statsBtn = sb
-  local statsMenu = BuildStatsMenu(sb)
+  local statsMenu = BuildStatsMenu(sb, view, ns.RefreshRecipes)
 
   local ssb = DropButton(150, sb, 8)
   frame.statSortBtn = ssb
-  local sortMenu = BuildStatSortMenu(ssb)
+  local sortMenu = BuildStatSortMenu(ssb, view, ns.RefreshRecipes)
   frame:HookScript("OnHide", function() menu:Hide() statsMenu:Hide() sortMenu:Hide() end)
 
   local l1 = Check("Favorites only", "favOnly", ssb, 12)
@@ -867,3 +868,7 @@ function ns.SetWanted(key, on)
 end
 
 ns.RecipeProfessions = PROFS
+
+-- The stats and sort-by-stat menus, for the favor plan's recipe browser.
+ns.BuildStatsMenu = BuildStatsMenu
+ns.BuildStatSortMenu = BuildStatSortMenu

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.46.2
+- Home: set the rep target (picker in the reputation header) and the favor target (box on the Merchant's Favor tile) right there; the plans follow. The window and cards are more see-through so the stone reads.
+- Title rows no longer overlap with the eight-button nav bar: shorter titles (Waylaid Crates, Craftsman's Writs, Merchant), the crate list's favor and the writ list's standing sit right after their target, and each view's count ("30 of 30 crates") moved to the bottom right.
+
 ## 0.46.1
 - Home: reputation across the top (the camp's name, a standing bar, target, Shipping Label quest, the rep plan and its cost, Open the rep plan), then three narrower tiles below: Crates, Merchant's Favor, Writs. Every card's button sits bottom centre. Narrower window; the art shows through more (lighter shade and panels).
 

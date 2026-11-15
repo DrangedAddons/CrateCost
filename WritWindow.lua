@@ -1150,7 +1150,7 @@ local function UpdateHeaders()
   local t = Target()
   frame.targetBtn.text:SetText(t and (STANDINGS[t][4] .. STANDINGS[t][2] .. "|r") or "No target")
   local st = standing
-  local txt = "Standing: " .. st.color .. st.label .. "|r"
+  local txt = st.color .. st.label .. "|r"
   if st.max then
     txt = txt .. string.format("  %s / %s", Num(st.value - st.min), Num(st.max - st.min))
   end
@@ -1261,7 +1261,7 @@ end
 
 local function Build()
   local UI = ns.UI
-  frame = UI.Window("CrateCostWrits", "Craftsman's Writs - cheapest reputation", WIDTH,
+  frame = UI.Window("CrateCostWrits", "Craftsman's Writs", WIDTH,
     TOP + VISIBLE * ROW_H + 106, UI.POS_KEY)
   frame:SetScript("OnShow", function()
     -- every writ, filling item and envelope, so shift-click links them straight away
@@ -1305,7 +1305,7 @@ local function Build()
   for i = 5, 8 do targetChoices[#targetChoices + 1] = { STANDINGS[i][4] .. STANDINGS[i][2] .. "|r", i } end
   UI.Menu(frame, tb, targetChoices, 100, function(v) SetTarget(v) Reset() end)
   frame.standing = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  frame.standing:SetPoint("LEFT", frame.title, "RIGHT", 196, 0)
+  frame.standing:SetPoint("LEFT", tb, "RIGHT", 16, 0)
 
   UI.NavBar(frame, "writs", function() ns.InvalidateWrits() ns.RefreshWrits() end)
 
@@ -1998,4 +1998,24 @@ function ns.ToggleWrits()
     frame:Hide()
   end
   ns.UI.ToggleView(frame)
+end
+
+-- For Home: the rep target picker's choices, its label, and setting it from there (the plan
+-- follows, as when it's picked in the plan or the writ list).
+function ns.WritTargetChoices()
+  local choices = { { "No target", nil }, "-" }
+  for i = 5, 8 do choices[#choices + 1] = { STANDINGS[i][4] .. STANDINGS[i][2] .. "|r", i } end
+  return choices
+end
+
+function ns.WritTargetText()
+  local t = Target()
+  return t and (STANDINGS[t][4] .. STANDINGS[t][2] .. "|r") or "No target"
+end
+
+function ns.SetWritTarget(v)
+  SetTarget(v)
+  Calc() Live() UpdateNeed()
+  if frame and frame:IsShown() then ns.RefreshWrits() end
+  if pf and pf:IsShown() then pf.offset = 0 FillPlan() end
 end

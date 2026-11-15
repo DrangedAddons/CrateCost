@@ -625,7 +625,7 @@ local function BuildStatSortMenu(btn)
 end
 
 local function Build()
-  frame = ns.UI.Window("CrateCostRecipes", "Merchant - what Merchant's Favor buys", WIDTH,
+  frame = ns.UI.Window("CrateCostRecipes", "Merchant", WIDTH,
     TOP + VISIBLE * ROW_H + 28, ns.UI.POS_KEY)
   frame:SetScript("OnShow", function()
     knownDirty = true

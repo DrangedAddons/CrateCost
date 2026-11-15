@@ -58,16 +58,16 @@ local function Art(c, key)
   shade:SetPoint("TOPLEFT", 1, -1)
   shade:SetPoint("BOTTOMRIGHT", -1, 1)
   shade:SetColorTexture(0, 0, 0, 1)
-  local ok = CreateColor and pcall(shade.SetGradient, shade, "HORIZONTAL", CreateColor(0, 0, 0, 0.3),
+  local ok = CreateColor and pcall(shade.SetGradient, shade, "HORIZONTAL", CreateColor(0, 0, 0, 0.15),
     CreateColor(0, 0, 0, 0))
-  if not ok then shade:SetAlpha(0.15) end
+  if not ok then shade:SetAlpha(0.08) end
 end
 
 local function Panel(w, h, key)
   local c = CreateFrame("Frame", nil, frame, "BackdropTemplate")
   c:SetSize(w, h)
   c:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-  c:SetBackdropColor(0.06, 0.06, 0.08, 0.5)
+  c:SetBackdropColor(0.06, 0.06, 0.08, 0.2)
   c:SetBackdropBorderColor(0.35, 0.3, 0.22, 1)
   Art(c, key)
   c.title = c:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
@@ -130,6 +130,18 @@ local function Hero()
   -- bottom centre, like the tiles' buttons
   b:SetPoint("BOTTOM", 0, 10)
   c.button = b
+  -- the rep target, the same one the rep plan uses
+  local tb = ns.UI.DropButton(c, 110, c, 0)
+  tb:ClearAllPoints()
+  tb:SetPoint("TOPRIGHT", -12, -10)
+  local tl = c:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+  tl:SetPoint("RIGHT", tb, "LEFT", -8, 0)
+  tl:SetText("Target:")
+  ns.UI.Menu(c, tb, ns.WritTargetChoices and ns.WritTargetChoices() or {}, 110, function(v)
+    if ns.SetWritTarget then ns.SetWritTarget(v) end
+    ns.RefreshHome()
+  end)
+  c.targetBtn = tb
   -- standing bar
   local bar = CreateFrame("StatusBar", nil, c)
   bar:SetPoint("TOPLEFT", 12, -38)
@@ -175,9 +187,10 @@ function ns.RefreshHome()
       hero.bar.text:SetText(s.label .. (s.max and ("  " .. Num(s.value - s.min) .. " / " .. Num(span)) or ""))
     end
     local p = ws.plan
+    if ns.WritTargetText then hero.targetBtn.text:SetText(ns.WritTargetText()) end
     local lines = {
-      { "Target", ws.targetName and (ws.need and (Num(ws.need) .. " rep to " .. ws.targetName)
-        or ("|cff40ff40" .. ws.targetName .. " reached|r")) or (GREY .. "none: pick one in the rep plan|r") },
+      { "To target", ws.targetName and (ws.need and (Num(ws.need) .. " rep to " .. ws.targetName)
+        or ("|cff40ff40" .. ws.targetName .. " reached|r")) or (GREY .. "pick a target above|r") },
       { "Shipping Label quest", ws.labelDone and "|cff40ff40done|r" or "|cffffd100not done: +2,000 rep|r" },
       (p and (p.spent or 0) > 0) and { "Best writs used today", "|cffff4040" .. p.spent .. "|r" } or {},
     }
@@ -204,21 +217,23 @@ function ns.RefreshHome()
 
   local fs = ns.FavorStatus and ns.FavorStatus()
   if fs then
+    local box = tiles[2].targetBox
+    if box and not box:HasFocus() then box:SetText(fs.target and tostring(fs.target) or "") end
     local lines = {
       { "You have", Num(fs.have) .. icon },
-      { "Target", fs.target and (function()
+      { "Target" },   -- the box sits on this line
+      { "To go", fs.target and (function()
           local left = fs.target - fs.have - fs.sealedFavor
-          return left > 0 and (Num(left) .. " to go") or "|cff40ff40reached|r"
-        end)() or (GREY .. "none set|r") },
+          return left > 0 and Num(left) or "|cff40ff40reached|r"
+        end)() or (GREY .. "type a target|r") },
     }
     local p = fs.plan
     if p and #p.picks > 0 then
       local n = 0
       for _, k in ipairs(p.picks) do n = n + k.n end
-      lines[3] = { "Plan", n .. " crates" }
-      lines[4] = { "Plan cost (net)", (p.guess and "|cffff9933~|r" or "") .. ns.Money(p.cost)
+      lines[4] = { "Plan", n .. " crates" }
+      lines[5] = { "Plan cost (net)", (p.guess and "|cffff9933~|r" or "") .. ns.Money(p.cost)
         .. (p.short and " |cffff4040(short)|r" or "") }
-      lines[5] = { GREY .. "Best: " .. p.picks[1].c.name .. "|r" }
     end
     Fill(tiles[2], lines)
   end
@@ -237,6 +252,8 @@ local function Build()
   local UI = ns.UI
   frame = UI.Window("CrateCostHome", "CrateCost", WIDTH, TOP + HERO_H + GAP + TILE_H + 40, UI.POS_KEY)
   frame:Hide()
+  -- see-through enough for the stone to read
+  frame:SetBackdropColor(0.05, 0.05, 0.07, 0.6)
   -- stone behind everything, so the window isn't flat
   local bg = frame:CreateTexture(nil, "BACKGROUND", nil, 1)
   bg:SetPoint("TOPLEFT", 1, -1)
@@ -244,7 +261,7 @@ local function Build()
   bg:SetTexture(ROCK, "REPEAT", "REPEAT")
   pcall(bg.SetHorizTile, bg, true)
   pcall(bg.SetVertTile, bg, true)
-  bg:SetAlpha(0.5)
+  bg:SetAlpha(0.8)
   UI.NavBar(frame, "home", function()
     if ns.InvalidateCrates then ns.InvalidateCrates() end
     if ns.InvalidateWrits then ns.InvalidateWrits() end
@@ -257,6 +274,25 @@ local function Build()
       function() ns.ShowFavorPlan() end),
     Tile(3, "writs", "Writs", "Open writs", "Every Craftsman's Writ by cost per rep.", function() ns.ToggleWrits() end),
   }
+  -- the favor target, the same one the favor plan uses: a box on the favor tile's second line
+  local ft = tiles[2]
+  local box = CreateFrame("EditBox", nil, ft, "InputBoxTemplate")
+  box:SetSize(64, 18)
+  box:SetPoint("TOPRIGHT", -12, -36 - LINE_H + 2)
+  box:SetAutoFocus(false)
+  box:SetNumeric(true)
+  box:SetMaxLetters(6)
+  box:SetJustifyH("CENTER")
+  local function SaveTarget(self)
+    local t = tonumber(self:GetText())
+    if ns.SetFavorTarget then ns.SetFavorTarget(t) end
+    ns.RefreshHome()
+  end
+  box:SetScript("OnEnterPressed", function(self) SaveTarget(self) self:ClearFocus() end)
+  box:SetScript("OnEditFocusLost", SaveTarget)
+  box:SetScript("OnEscapePressed", function(self) self:ClearFocus() ns.RefreshHome() end)
+  UI.Tip(box, "Favor target", "How much Merchant's Favor you want in all (what you have counts). Enter to plan.")
+  ft.targetBox = box
   local ah = UI.PlanAtAHCheck(frame, frame)
   ah:ClearAllPoints()
   ah:SetPoint("BOTTOMRIGHT", -180, 10)

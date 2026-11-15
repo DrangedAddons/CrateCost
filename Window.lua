@@ -1339,7 +1339,7 @@ end
 
 local function Build()
   local UI = ns.UI
-  frame = UI.Window("CrateCostFrame", "Waylaid Crates - cheapest Merchant's Favor", WIDTH, 400, UI.POS_KEY)
+  frame = UI.Window("CrateCostFrame", "Waylaid Crates", WIDTH, 400, UI.POS_KEY)
   frame:SetScript("OnShow", function()
     -- every crate and bundle item, so shift-click links them straight away
     local ids = {}
@@ -1370,7 +1370,8 @@ local function Build()
   tickIcon:SetPoint("LEFT", tb, "RIGHT", 4, 0)
   tickIcon:SetText(ns.FavorIcon())
   frame.status = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  frame.status:SetPoint("LEFT", frame.title, "RIGHT", 210, 0)
+  -- after the target box (the eight-button nav bar leaves no room further right)
+  frame.status:SetPoint("LEFT", tb, "RIGHT", 30, 0)
   local function OnTarget(self)
     local t = tonumber(self:GetText())
     if t == 0 then t = nil end

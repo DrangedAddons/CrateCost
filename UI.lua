@@ -132,8 +132,10 @@ function UI.NavBar(f, current, onRefresh)
     prev = b
   end
   UI.UpdateCartButtons()
+  -- the view's count ("30 of 30 crates") sits bottom right: the title row is full
   f.count = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  f.count:SetPoint("RIGHT", prev, "LEFT", -12, 0)
+  f.count:SetPoint("BOTTOMRIGHT", -14, 9)
+  f.count:SetJustifyH("RIGHT")
   return prev
 end
 
@@ -437,6 +439,7 @@ end
 function UI.Footer(f)
   local fs = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
   fs:SetPoint("BOTTOMLEFT", 12, 8)
+  fs:SetPoint("RIGHT", f, "RIGHT", -230, 0)   -- room for the count, bottom right
   fs:SetJustifyH("LEFT")
   return fs
 end

@@ -484,3 +484,11 @@ function ns.ShowFavorPlan()
   UpdateScan()
   ns.UI.Open(f)
 end
+
+-- For Home: set the favor target from there; the plan follows.
+function ns.SetFavorTarget(t)
+  if t == 0 then t = nil end
+  CharDB().favorTarget = t
+  Regenerate()
+  if f and f:IsShown() then f.offset = 0 Fill() end
+end

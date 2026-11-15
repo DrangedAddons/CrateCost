@@ -27,7 +27,12 @@ local function Combat() return InCombatLockdown and InCombatLockdown() end
 
 local function DB()
   if type(CrateCostDB) ~= "table" then CrateCostDB = {} end
-  CrateCostDB.handin = CrateCostDB.handin or {}      -- questID -> itemID it takes (false: none of ours)
+  CrateCostDB.handin = CrateCostDB.handin or {}      -- questID -> itemID it takes
+  if not CrateCostDB.handinV then
+    -- 0.57.0 saved "none of ours" when a quest's item wasn't loaded yet: forget those
+    for q, v in pairs(CrateCostDB.handin) do if v == false then CrateCostDB.handin[q] = nil end end
+    CrateCostDB.handinV = 2
+  end
   return CrateCostDB
 end
 
@@ -899,24 +904,65 @@ local function Continue()
 end
 
 -- The quest window shows what it takes: hand it in if that's one of the picked items.
+-- What the quest window asks for: { id, name, quality }. The item ID comes from the quest info,
+-- else the link; the link is nil while the item isn't loaded yet, so the name is kept too.
+local function Required()
+  local out = {}
+  for i = 1, (GetNumQuestItems and GetNumQuestItems() or 0) do
+    local ok, name, _, _, quality, _, itemID = pcall(GetQuestItemInfo, "required", i)
+    if not ok then name, quality, itemID = nil, nil, nil end
+    local id = (type(itemID) == "number" and itemID > 0 and itemID)
+      or ItemOfLink(GetQuestItemLink and GetQuestItemLink("required", i))
+    out[#out + 1] = { id = id, name = name, quality = quality }
+  end
+  return out
+end
+
+local function QualityOf(id)
+  local ok, q = pcall(C_Item and C_Item.GetItemQualityByID or function() end, id)
+  return ok and q or nil
+end
+
+-- The picked item a required item is: by ID, else by name (and quality, as the white and green
+-- Sealed Crates of a rank share a name).
+local function Match(req)
+  for _, r in ipairs(req) do
+    if r.id and (hand.left[r.id] or 0) > 0 then return r.id end
+  end
+  for _, r in ipairs(req) do
+    if not r.id and r.name then
+      for item, n in pairs(hand.left) do
+        if n > 0 and NameOf(item) == r.name and (not r.quality or not QualityOf(item) or QualityOf(item) == r.quality) then
+          return item
+        end
+      end
+    end
+  end
+end
+
 local function OnProgress()
   local id = GetQuestID and GetQuestID()
-  local item
-  for i = 1, (GetNumQuestItems and GetNumQuestItems() or 0) do
-    local it = ItemOfLink(GetQuestItemLink and GetQuestItemLink("required", i))
-    if it and hand.left[it] ~= nil then item = it break end
-    item = item or it
-  end
+  local req = Required()
+  local item = Match(req)
   local db = DB()
-  if id then db.handin[id] = item or false end
-  if item and (hand.left[item] or 0) > 0 and (not IsQuestCompletable or IsQuestCompletable()) then
+  local ready = not IsQuestCompletable or IsQuestCompletable()
+  if item and ready then
+    if id then db.handin[id] = item end
     hand.item = item
     CompleteQuest()
-  else
-    hand.tried[id or (hand.current and hand.current.title) or "?"] = true
-    if CloseQuest then CloseQuest() end
-    Status(GOLD .. "That quest wasn't one of yours. Talk to " .. NPCName() .. " again to carry on.|r")
+    return
   end
+  -- learn it only from an item ID that was read, never from an item not loaded yet
+  if id and not item and req[1] and req[1].id then db.handin[id] = req[1].id end
+  hand.tried[id or (hand.current and hand.current.title) or "?"] = true
+  local asks = {}
+  for _, r in ipairs(req) do asks[#asks + 1] = (r.name or "?") .. " (" .. tostring(r.id or "not loaded") .. ")" end
+  ns.Print(string.format("closed quest %s \"%s\": %s. It asks for: %s.", tostring(id),
+    tostring(hand.current and hand.current.title or (GetTitleText and GetTitleText()) or "?"),
+    item and "not ready to hand in" or "not one of the picked items",
+    #asks > 0 and table.concat(asks, ", ") or "nothing listed"))
+  if CloseQuest then CloseQuest() end
+  Status(GOLD .. "That quest wasn't one of yours. Talk to " .. NPCName() .. " again to carry on.|r")
 end
 
 local function OnComplete()
@@ -1020,6 +1066,10 @@ end
 
 local function ShowHand()
   if not handWin then BuildHand() end
+  -- the quest window reads the crates' item data: ask for it now
+  if C_Item and C_Item.RequestLoadItemDataByID then
+    for id in pairs(ns.SealedCrates or {}) do pcall(C_Item.RequestLoadItemDataByID, id) end
+  end
   handWin.list = false
   Status("")
   handWin:ClearAllPoints()

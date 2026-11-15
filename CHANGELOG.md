@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.57.1
+- Hand in: a crate whose item data wasn't loaded yet (Expert crates) was taken for "not yours" and the dialog closed. It now reads the quest's item ID, falls back to the name, and forgets the wrong answers 0.57.0 saved. When it does close a quest, chat says which quest and what it asked for.
+
 ## 0.57.0
 - Fill crates: a Fill crates button on Home's Crates card (and `/crates fill`) lists every Waylaid Crate in your bags with the bundle that fills it and how many. Fill asks how many (all it can by default), then fills them, one click each.
 - Make containers: pick which empty crates get a Forged Delivery Receipt and how many (`/crates containers`, the fill window, the rep checklist's Make button).

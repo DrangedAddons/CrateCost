@@ -503,8 +503,9 @@ local function MakePlan(need)
   end
   table.sort(plan.list, function(a, b)
     if a.day ~= b.day then return a.day < b.day end
-    -- same hand-in NPC together
-    if a.e.recipient ~= b.e.recipient then return (a.e.recipient or "") < (b.e.recipient or "") end
+    -- best value first: cost per rep
+    local pa, pb = a.cost / a.e.rep, b.cost / b.e.rep
+    if pa ~= pb then return pa < pb end
     return a.e.name < b.e.name
   end)
   return plan

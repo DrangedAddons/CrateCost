@@ -393,13 +393,16 @@ ns.MyProfessions = MyProfessions
 local function CopiesCost(e, k, canCraft)
   if k <= 0 then return 0, false end
   local cost = 0
-  local buyWrits = math.max(0, k - (e.haveWrit or 0))
+  -- the plan options (ns.PlanUseOwned / PlanUseMats): writs you hold, items in your bags
+  local heldWrits = ns.PlanUseOwned() and (e.haveWrit or 0) or 0
+  local heldItems = ns.PlanUseMats() and (e.haveItem or 0) or 0
+  local buyWrits = math.max(0, k - heldWrits)
   if buyWrits > 0 then
     local c, how = ns.FillCost(e.writ, buyWrits)
     if not c or how.short then return nil end
     cost = c
   end
-  local items = math.max(0, k * e.qty - (e.haveItem or 0))
+  local items = math.max(0, k * e.qty - heldItems)
   local crafted = false
   if items > 0 then
     local ah, how = ns.FillCost(e.item, items)
@@ -502,7 +505,7 @@ local function BuildPlan(need, profs, cd)
       local day = 1
       local _, crafted = CopiesCost(e, c.k, profs[e.prof])
       table.insert(plan.list, { day = day, e = e, cost = c.cost, crafted = crafted,
-        owned = c.k <= (e.haveWrit or 0) })
+        owned = ns.PlanUseOwned() and c.k <= (e.haveWrit or 0) })
       plan.rep = plan.rep + e.rep
       if day > plan.days then plan.days = day end
     end
@@ -1662,9 +1665,12 @@ end
 -- empty crates; nil = both.
 local function ContainerItems(c, items, step)
   if (not step or step == "favor") and c.src then
+    -- not the crates you hold or the materials in your bags (when the plan uses them)
     local src = c.src
-    items[#items + 1] = { id = src.id, name = "Waylaid Crate: " .. src.name, qty = src.n }
-    items[#items + 1] = { id = src.bundleID, name = src.bundle, qty = src.n * src.qty }
+    local crates = src.n - (src.held or 0)
+    local mats = math.max(0, src.n * src.qty - (ns.PlanUseMats() and Count(src.bundleID) or 0))
+    if crates > 0 then items[#items + 1] = { id = src.id, name = "Waylaid Crate: " .. src.name, qty = crates } end
+    if mats > 0 then items[#items + 1] = { id = src.bundleID, name = src.bundle, qty = mats } end
   end
   if not step or step == "crates" then
     local names = {}
@@ -1777,6 +1783,13 @@ function ns.ShowWritPlan()
     end)
     -- Scan AH, as on the writs view: deep enough for this plan, then it's made again
     pf.scanBtn = ScanButton(pf, tb, 14)
+    -- use what you have / materials you have (shared with the favor plan)
+    UI.PlanOptions(pf, pf.scanBtn, 14, function()
+      ns.RegenerateWritPlan()
+      pf.offset = 0
+      FillPlan()
+      if frame and frame:IsShown() then ns.RefreshWrits() end
+    end)
     -- Regenerate: a new plan from your rep, writs and prices as they are now
     local regen = CreateFrame("Button", nil, pf, "UIPanelButtonTemplate")
     regen:SetSize(90, 20)

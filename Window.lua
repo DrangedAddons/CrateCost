@@ -333,13 +333,20 @@ function ns.FavorSource(favor)
   for _, c in ipairs(CrateList()) do
     if c.favor and c.id then
       local n = math.ceil(favor / c.favor)
-      local crateCost, how = ns.FillCost(c.id, n)
+      -- the plan options: crates you hold, materials in your bags and bank
+      local held = (ns.PlanUseOwned and ns.PlanUseOwned()) and Owned(c.id) or 0
+      local mats = ns.PlanUseMats and ns.PlanUseMats()
+      local crateCost, how = 0, {}
+      if n > held then crateCost, how = ns.FillCost(c.id, n - held) end
       if crateCost and not how.short then
         local bCost, bName, bQty, bID, bGuess
         for _, b in ipairs(c.bundles) do
           local id = ns.ItemIDs[b[1]]
           local cost, bh
-          if id then cost, bh = ns.FillCost(id, b[2] * n) end
+          local need = id and math.max(0, b[2] * n - (mats and Owned(id) or 0))
+          if id then
+            if need > 0 then cost, bh = ns.FillCost(id, need) else cost, bh = 0, {} end
+          end
           if cost and not bh.short and (not bCost or cost < bCost) then
             bCost, bName, bQty, bID, bGuess = cost, b[1], b[2], id, bh.guess
           end
@@ -351,7 +358,8 @@ function ns.FavorSource(favor)
             -- guess: more than the scan read, so the price is a floor (Scan AH deeper)
             best = { name = c.name, id = c.id, n = n, favor = c.favor, bundle = bName, qty = bQty,
               bundleID = bID, crateCost = crateCost, bundleCost = bCost, pay = pay, total = total,
-              guess = (how.guess or bGuess) and true or false, scanned = how.depth and true or false }
+              guess = (how.guess or bGuess) and true or false, scanned = (how.depth or n <= held) and true or false,
+              held = math.min(n, held) }
           end
         end
       end

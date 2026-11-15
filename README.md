@@ -58,6 +58,13 @@ The landing view: your **reputation** across the top (the camp, a standing bar, 
 
 The nav bar on every view: **Home, Crates, Writs, Rep plan, Favor plan, Merchant, Cart, Refresh**. `/crates list` opens the crate list, `/crates plan` the rep plan. The rep plan has its own **Target** picker, **Scan AH** and standing line.
 
+## Plan options
+
+Two tickboxes in both plans (per character, shared, on by default):
+
+- **Use writs/crates you have**: writs you hold (any character) are free in the rep plan; crates you hold and the Sealed Crates in your bags count in the favor plan and for the rep plan's container favor. They're used where they're worth it: a writ you hold costs nothing, so it's picked first among writs worth the same rep. Untick to plan as if you had none.
+- **Use materials in bags & bank**: items and bundle materials you already have count, and the cart leaves them out. Untick to buy everything on the AH.
+
 ## Checklists
 
 **Checklist** (on Home and in each plan's footer) pops out a small window with just the plan's steps: do the Shipping Label quest, fulfil this writ, hand in these Sealed Crates, buy + fill these crates, buy 120 receipts, buy 120 empty crates, hand in the containers, reach the target. Steps the game can see tick themselves (quests and writs handed in, Sealed Crates gone, favor or the target reached); the rest you tick by clicking. Hover a step for its details. It opens at the first step not done, scrolls, can be dragged anywhere, and reopens after a reload if it was open. A new plan (Regenerate, another target) starts the list fresh.

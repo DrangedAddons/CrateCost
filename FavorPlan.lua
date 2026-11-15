@@ -69,7 +69,9 @@ end
 -- One crate kind: Cost(n) = what filling n of it costs (crates you hold and materials in your
 -- bags first), the bundle used, and whether it's priced past what the AH scan read.
 local function Kind(c)
-  local k = { c = c, held = Count(c.id), memo = {} }
+  -- the plan options: crates you hold, materials in your bags (ns.PlanUseOwned / PlanUseMats)
+  local mats = ns.PlanUseMats()
+  local k = { c = c, held = ns.PlanUseOwned() and Count(c.id) or 0, memo = {} }
   function k.Cost(n)
     local m = k.memo[n]
     if m then return m[1], m[2], m[3], m[4] end
@@ -85,7 +87,7 @@ local function Kind(c)
     for i, b in ipairs(c.bundles) do
       local id = ns.ItemIDs[b[1]]
       if id then
-        local need = math.max(0, b[2] * n - Count(id))
+        local need = math.max(0, b[2] * n - (mats and Count(id) or 0))
         local bc, bh = 0, {}
         if need > 0 then bc, bh = ns.FillCost(id, need) end
         if bc and not bh.short and (not best or bc < best) then
@@ -108,6 +110,7 @@ end
 local function MakePlan(target)
   local have = FavorHave()
   local sealedN, sealedFavor, sealedPay = Sealed()
+  if not ns.PlanUseOwned() then sealedN, sealedFavor, sealedPay = 0, 0, 0 end
   local label = not LabelDone() and LABEL_FAVOR or nil
   local p = { target = target, have = have, sealed = sealedN, sealedFavor = sealedFavor, sealedPay = sealedPay,
     label = label, favor = 0, cost = 0, pay = 0, picks = {} }
@@ -198,7 +201,7 @@ local function PickItems(pick, items)
   local c = pick.c
   local buy = pick.n - pick.held
   if buy > 0 then items[#items + 1] = { id = c.id, name = "Waylaid Crate: " .. c.name, qty = buy } end
-  local need = math.max(0, pick.qty * pick.n - Count(pick.bundleID))
+  local need = math.max(0, pick.qty * pick.n - (ns.PlanUseMats() and Count(pick.bundleID) or 0))
   if need > 0 then items[#items + 1] = { id = pick.bundleID, name = pick.bundle, qty = need } end
 end
 
@@ -341,6 +344,12 @@ local function Build()
   UI.Tip(scan, "Scan AH", "Reads the auction house listings for every crate and its bundles, deep enough for "
     .. "what's left to earn, then remakes the plan with them.")
   f.scan = scan
+  -- use what you have / materials you have (shared with the rep plan)
+  UI.PlanOptions(f, scan, 14, function()
+    Regenerate()
+    f.offset = 0
+    Fill()
+  end)
 
   local regen = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
   regen:SetSize(90, 20)

@@ -260,6 +260,47 @@ function UI.PlanMoney(f, upFront, back, guess)
   end
 end
 
+-- The plans' options (per character, shared by the rep and favor plans, on by default):
+--   use what you have: writs you hold (rep plan) and crates you hold, Sealed Crates included
+--     (favor plan, and the containers' favor crates) count before buying any;
+--   use materials: items and bundle materials in your bags and bank count; off = buy all on the AH.
+local function Opt(key)
+  return not (type(CrateCostCharDB) == "table" and CrateCostCharDB[key] == false)
+end
+function ns.PlanUseOwned() return Opt("planUseOwned") end
+function ns.PlanUseMats() return Opt("planUseMats") end
+
+local optChecks = {}
+-- The two tickboxes, after `anchor` in a plan's filter row. `onChange` remakes that plan; the
+-- other plan's boxes follow.
+function UI.PlanOptions(f, anchor, x, onChange)
+  local function Box(key, label, tip, after, dx)
+    local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    cb:SetSize(22, 22)
+    cb:SetPoint("LEFT", after, "RIGHT", dx, 0)
+    local l = cb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    l:SetPoint("LEFT", cb, "RIGHT", 1, 0)
+    l:SetText(label)
+    cb:SetChecked(Opt(key))
+    cb:SetScript("OnClick", function(self)
+      if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
+      CrateCostCharDB[key] = self:GetChecked() and true or false
+      for _, o in ipairs(optChecks) do o.box:SetChecked(Opt(o.key)) end
+      onChange()
+    end)
+    cb:SetScript("OnShow", function(self) self:SetChecked(Opt(key)) end)
+    UI.Tip(cb, label, tip)
+    optChecks[#optChecks + 1] = { box = cb, key = key }
+    return l
+  end
+  local l1 = Box("planUseOwned", "Use writs/crates you have",
+    "Writs you hold (any character) are free in the rep plan; crates you hold and Sealed Crates in your bags "
+      .. "count in the favor plan. Untick to plan as if you had none.", anchor, x)
+  local l2 = Box("planUseMats", "Use materials in bags & bank",
+    "Items and bundle materials already in your bags and bank count. Untick to buy them all on the AH.", l1, 10)
+  return l2
+end
+
 function UI.UpdateCartButtons()
   local n = ns.CartCount and ns.CartCount() or 0
   for _, b in ipairs(cartButtons) do b:SetText("Cart (" .. n .. ")") end

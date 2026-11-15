@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.48.0
+- Plan options, in both plans (per character, shared, on by default): **Use writs/crates you have** (held writs, crates and Sealed Crates count first; untick to plan as if you had none) and **Use materials in bags & bank** (untick to buy everything on the AH). The rep plan's container favor crates use them too, and the cart leaves out what you hold.
+
 ## 0.47.0
 - **Checklists**: a small pop-out per plan (rep, favor) with just the steps, ticked as you go: quests, writs and Sealed Crates handed in, favor and the target reached tick themselves; buying receipts and crates you tick by clicking. Hover a step for details. Opens at the first open step, drags anywhere, reopens after a reload, starts fresh with a new plan. **Checklist** buttons on Home (rep header, favor tile) and in both plans' footers.
 - New file (Checklist.lua): restart the game client, /reload isn't enough.

@@ -1,10 +1,53 @@
 local _, ns = ...
 
 -- Home: the landing view of the one window. Four cards in a 2x2 grid, Crates and Favor plan,
--- Writs and Rep plan, each with a few lines on where you stand and a button into its view. /crates and the minimap button open
--- it; the nav bar's Home button comes back to it.
+-- Writs and Rep plan, each with a few lines on where you stand and a button into its view.
+-- /crates and the minimap button open it; the nav bar's Home button comes back to it.
 
-local CARD_W, CARD_H, GAP, TOP = 573, 222, 16, 44
+local CARD_W, CARD_H, GAP, TOP = 579, 168, 12, 40
+local LINE_H = 20
+
+-- Card art, faint behind the text like the profession window's: the first of these atlases
+-- the client has (checked, so a missing one is skipped), else the stone background other
+-- frames use. One profession per card.
+local ART = {
+  { "Professions-Specializations-Background-Tailoring", "Professions-Specializations-Background-Leatherworking" },
+  { "Professions-Specializations-Background-Enchanting", "Professions-Specializations-Background-Jewelcrafting" },
+  { "Professions-Specializations-Background-Inscription", "Professions-Specializations-Background-Alchemy" },
+  { "Professions-Specializations-Background-Blacksmithing", "Professions-Specializations-Background-Engineering" },
+}
+local ROCK = "Interface\\FrameGeneral\\UI-Background-Rock"
+
+local function Art(c, i)
+  local tex = c:CreateTexture(nil, "BACKGROUND", nil, 1)
+  tex:SetPoint("TOPLEFT", 1, -1)
+  tex:SetPoint("BOTTOMRIGHT", -1, 1)
+  local done = false
+  if C_Texture and C_Texture.GetAtlasInfo then
+    for _, atlas in ipairs(ART[i] or {}) do
+      if C_Texture.GetAtlasInfo(atlas) then
+        tex:SetAtlas(atlas)
+        tex:SetAlpha(0.35)
+        done = true
+        break
+      end
+    end
+  end
+  if not done then
+    tex:SetTexture(ROCK, "REPEAT", "REPEAT")
+    pcall(tex.SetHorizTile, tex, true)
+    pcall(tex.SetVertTile, tex, true)
+    tex:SetAlpha(0.55)
+  end
+  -- darker on the left, where the text is
+  local shade = c:CreateTexture(nil, "BACKGROUND", nil, 2)
+  shade:SetPoint("TOPLEFT", 1, -1)
+  shade:SetPoint("BOTTOMRIGHT", -1, 1)
+  shade:SetColorTexture(0, 0, 0, 1)
+  local ok = CreateColor and pcall(shade.SetGradient, shade, "HORIZONTAL", CreateColor(0, 0, 0, 0.7),
+    CreateColor(0, 0, 0, 0.15))
+  if not ok then shade:SetAlpha(0.45) end
+end
 local LINES = 6
 local GREY = "|cff808080"
 
@@ -26,26 +69,28 @@ local function Card(i, title, button, tip, onClick)
   local col, row = (i - 1) % 2, math.floor((i - 1) / 2)
   c:SetPoint("TOPLEFT", frame, "TOPLEFT", GAP + col * (CARD_W + GAP), -TOP - row * (CARD_H + GAP))
   c:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-  c:SetBackdropColor(0.08, 0.08, 0.1, 0.95)
-  c:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+  c:SetBackdropColor(0.06, 0.06, 0.08, 0.95)
+  c:SetBackdropBorderColor(0.35, 0.3, 0.22, 1)
+  Art(c, i)
   c.title = c:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-  c.title:SetPoint("TOPLEFT", 14, -12)
+  c.title:SetPoint("TOPLEFT", 12, -10)
   c.title:SetText(title)
   c.left, c.right = {}, {}
   for k = 1, LINES do
-    local l = c:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-    l:SetPoint("TOPLEFT", 14, -40 - (k - 1) * 22)
+    local l = c:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    l:SetPoint("TOPLEFT", 14, -38 - (k - 1) * LINE_H)
     l:SetJustifyH("LEFT")
-    local r = c:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-    r:SetPoint("TOPRIGHT", -14, -40 - (k - 1) * 22)
+    local r = c:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    r:SetPoint("TOPRIGHT", -14, -38 - (k - 1) * LINE_H)
     r:SetPoint("LEFT", l, "RIGHT", 8, 0)
     r:SetJustifyH("RIGHT")
     r:SetWordWrap(false)
     c.left[k], c.right[k] = l, r
   end
   local b = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
-  b:SetSize(220, 24)
-  b:SetPoint("BOTTOMRIGHT", -12, 10)
+  -- in the title row, so the lines have the card's height
+  b:SetSize(170, 22)
+  b:SetPoint("TOPRIGHT", -10, -8)
   b:SetText(button)
   b:SetScript("OnClick", onClick)
   UI.Tip(b, button, tip)
@@ -134,6 +179,14 @@ local function Build()
   local UI = ns.UI
   frame = UI.Window("CrateCostHome", "CrateCost", UI.WIDTH, TOP + 2 * CARD_H + GAP + 44, UI.POS_KEY)
   frame:Hide()
+  -- faint stone behind the cards, so the window isn't flat
+  local bg = frame:CreateTexture(nil, "BACKGROUND", nil, 1)
+  bg:SetPoint("TOPLEFT", 1, -1)
+  bg:SetPoint("BOTTOMRIGHT", -1, 1)
+  bg:SetTexture(ROCK, "REPEAT", "REPEAT")
+  pcall(bg.SetHorizTile, bg, true)
+  pcall(bg.SetVertTile, bg, true)
+  bg:SetAlpha(0.3)
   UI.NavBar(frame, "home", function()
     if ns.InvalidateCrates then ns.InvalidateCrates() end
     if ns.InvalidateWrits then ns.InvalidateWrits() end

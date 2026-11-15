@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.45.1
+- Home: smaller cards (the button sits in the title row, smaller text), and a faint backdrop behind them: profession art like the profession window's where the client has it, else the stone background, with a shade under the text. The window itself gets a faint stone texture.
+
 ## 0.45.0
 - **Favor plan**: a view for a Merchant's Favor target. Your favor, Sealed Crates in your bags and the Shipping Label quest count first; then the cheapest crates to buy and fill, picked one by one by extra cost per favor up the AH listings, using crates you hold and materials in your bags first, less turn-in silver, only crates your level can fill. [+cart] per crate, Add plan to cart, Scan AH (deep enough for the plan, then remakes it), ~ where the scan didn't reach.
 - Home: four cards in a 2x2 grid (Crates, Merchant's Favor, Writs, Rep), the favor card leading to the favor plan.

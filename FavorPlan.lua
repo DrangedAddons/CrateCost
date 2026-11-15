@@ -11,11 +11,15 @@ local _, ns = ...
 -- so this stays close to the cheapest mix.
 
 local PROWS, ROW_H, TOP, FOOT = 22, 18, 84, 150
+-- the recipe browser down the left; the plan to its right
+local LEFT_W = 330
+local PLAN_W = 800
 local LEVEL = { Apprentice = 10, Journeyman = 10, Expert = 20, Artisan = 35 }
 local LABEL_QUESTS, LABEL_FAVOR = { 98247, 98248 }, 50
 local GREY = "|cff808080"
 
 local f, plan
+local BuildBrowser, FillBrowser   -- the recipe browser, further down
 
 local function Num(n) return BreakUpLargeNumbers and BreakUpLargeNumbers(n) or tostring(n) end
 
@@ -239,15 +243,22 @@ end
 
 local function Lines(p)
   local lines = {}
+  -- what the favor is for: the wanted recipes (learned ones greyed), with a running total
+  local _, sum, all = Wanted()
+  if #all > 0 then
+    lines[#lines + 1] = { head = "Wanted: " .. Num(sum) .. " favor still to buy" }
+    local run = 0
+    for _, w in ipairs(all) do
+      if not w.done then run = run + w.cost end
+      lines[#lines + 1] = { want = w, run = run }
+    end
+  end
+  if p.need > 0 or #p.picks > 0 or p.sealed > 0 or p.label then
+    lines[#lines + 1] = { head = "How to get it" }
+  end
   if p.sealed > 0 then lines[#lines + 1] = { sealed = true } end
   if p.label then lines[#lines + 1] = { label = true } end
   for _, pick in ipairs(p.picks) do lines[#lines + 1] = { pick = pick } end
-  -- what the favor is for: the wanted recipes, learned ones too (greyed)
-  local _, sum, all = Wanted()
-  if #all > 0 then
-    lines[#lines + 1] = { head = "Recipes to buy: " .. Num(sum) .. " favor" }
-    for _, w in ipairs(all) do lines[#lines + 1] = { want = w } end
-  end
   return lines
 end
 
@@ -304,7 +315,8 @@ local function Fill()
         end
         r.how:SetText(GREY .. w.prof .. (rep ~= "" and (", " .. rep) or "") .. "|r")
         r.favor:SetText(w.done and (GREY .. Num(w.cost) .. "|r") or Num(w.cost))
-        r.cost:SetText("")
+        -- the running total of what's still to buy
+        r.cost:SetText(w.done and "" or (GREY .. "total " .. "|r" .. Num(ln.run)))
         if not w.done then ns.UI.SetBuy(r.buy, w.item or w.name, 1) end
       elseif ln.sealed then
         r.name:SetText("   |cffffd100Hand in " .. p.sealed .. " Sealed Crates|r")
@@ -366,7 +378,7 @@ end
 
 local function Build()
   local UI = ns.UI
-  f = UI.Window("CrateCostFavorPlan", "Favor plan", UI.PLAN_W, TOP + PROWS * ROW_H + FOOT, UI.POS_KEY)
+  f = UI.Window("CrateCostFavorPlan", "Favor plan", LEFT_W + PLAN_W, TOP + PROWS * ROW_H + FOOT, UI.POS_KEY)
   f:Hide()
   UI.NavBar(f, "favor", function()
     if ns.InvalidateCrates then ns.InvalidateCrates() end
@@ -379,7 +391,7 @@ local function Build()
 
   -- filter row: the favor target, Scan AH, then open-with-the-AH and Regenerate on the right
   local tl = f:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-  tl:SetPoint("TOPLEFT", 18, UI.FILTER_Y - 3)
+  tl:SetPoint("TOPLEFT", LEFT_W + 18, UI.FILTER_Y - 3)
   tl:SetText("Target favor:")
   local box = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
   box:SetSize(70, 20)
@@ -430,14 +442,9 @@ local function Build()
   UI.Tip(wcb, "Target = wanted recipes", "The target is what your wanted recipes cost (the stars in the "
     .. "Merchant view). Untick to type your own.")
   f.wantedCheck = wcb
-  local pick = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-  pick:SetSize(100, 20)
-  pick:SetPoint("LEFT", wl, "RIGHT", 10, 0)
-  pick:SetText("Add recipes")
-  pick:SetScript("OnClick", function() ns.ToggleRecipes() end)
-  UI.Tip(pick, "Add recipes", "Opens the Merchant view: star what you want to buy and the plan saves for it.")
+
   -- use what you have / materials you have (shared with the rep plan)
-  UI.PlanOptions(f, 14, 34, function()
+  UI.PlanOptions(f, LEFT_W + 14, 34, function()
     Regenerate()
     f.offset = 0
     Fill()
@@ -463,13 +470,13 @@ local function Build()
   end)
   local ah = UI.PlanAtAHCheck(f, regen)
   ah:ClearAllPoints()
-  ah:SetPoint("BOTTOMLEFT", 14, 12)
+  ah:SetPoint("BOTTOMLEFT", LEFT_W + 14, 12)
 
   f.offset, f.rows = 0, {}
   for i = 1, PROWS do
     local r = CreateFrame("Frame", nil, f)
     r:SetHeight(ROW_H)
-    r:SetPoint("TOPLEFT", 12, -TOP - (i - 1) * ROW_H)
+    r:SetPoint("TOPLEFT", LEFT_W + 12, -TOP - (i - 1) * ROW_H)
     r:SetPoint("RIGHT", f, "RIGHT", -12, 0)
     local function Text(w, justify)
       local fs = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -478,9 +485,9 @@ local function Build()
       fs:SetWordWrap(false)
       return fs
     end
-    r.name = Text(300, "LEFT")
+    r.name = Text(240, "LEFT")
     r.name:SetPoint("LEFT", 0, 0)
-    r.how = Text(170, "LEFT")
+    r.how = Text(150, "LEFT")
     r.how:SetPoint("LEFT", r.name, "RIGHT", 6, 0)
     local add = CreateFrame("Button", nil, r, "UIPanelButtonTemplate")
     add:SetSize(34, 17)
@@ -579,8 +586,9 @@ local function Build()
     local items = {}
     for _, pick in ipairs(plan.picks) do PickItems(pick, items) end
     ns.Print(string.format("added %d to the cart.", ns.CartAdd(items)))
-  end, "Every crate to buy and the bundle materials not in your bags.", "favor")
+  end, "Every crate to buy and the bundle materials not in your bags.", "favor", LEFT_W / 2)
   f.total = f.summary
+  BuildBrowser()
   -- bags, favor and hand-ins change what's left
   for _, ev in ipairs({ "BAG_UPDATE_DELAYED", "CURRENCY_DISPLAY_UPDATE" }) do
     if not (C_EventUtils and C_EventUtils.IsEventValid) or C_EventUtils.IsEventValid(ev) then
@@ -595,9 +603,174 @@ local function Build()
   end)
 end
 
+------------------------------------------------------------------------------------------------
+-- The recipe browser, down the left: the Merchant's list, searchable, with Add (or Drop) on
+-- each. Adding puts it on the wanted list, which the plan on the right saves for.
+
+local BROWSE_TOP, BROWSE_H = 60, 18
+local browse = { search = "", mine = false, hideKnown = true, offset = 0 }
+
+local function BrowseList()
+  local profs = browse.mine and ns.MyProfessions and ns.MyProfessions() or nil
+  local out = {}
+  for _, e in ipairs(ns.RecipeEntries and ns.RecipeEntries() or {}) do
+    local ok = true
+    if browse.hideKnown and e.known and not e.wanted then ok = false end
+    if ok and profs and not profs[e.prof] then ok = false end
+    if ok and browse.search ~= "" and not e.text:find(browse.search, 1, true) then ok = false end
+    if ok then out[#out + 1] = e end
+  end
+  table.sort(out, function(a, b)
+    if a.prof ~= b.prof then return a.prof < b.prof end
+    if a.cost ~= b.cost then return a.cost < b.cost end
+    return a.name < b.name
+  end)
+  return out
+end
+
+FillBrowser = function()
+  local list = BrowseList()
+  local rows = f.browseRows
+  browse.offset = math.max(0, math.min(browse.offset, #list - #rows))
+  f.browseCount:SetText(#list .. " shown")
+  for i, r in ipairs(rows) do
+    local e = list[browse.offset + i]
+    r.entry = e or false
+    if not e then
+      r:Hide()
+    else
+      local col = e.known and GREY or (e.wanted and "|cff40ff40" or "|cffffffff")
+      r.name:SetText(col .. e.name .. "|r")
+      r.prof:SetText(GREY .. e.prof .. "|r")
+      r.cost:SetText(Num(e.cost))
+      if e.wanted then
+        r.add:SetText("Drop")
+      else
+        r.add:SetText("Add")
+      end
+      r.add:SetShown(not (e.known and not e.wanted))
+      r:Show()
+    end
+  end
+end
+
+BuildBrowser = function()
+  local UI = ns.UI
+  -- the pane: a slightly lighter panel with a rule at its edge
+  local pane = f:CreateTexture(nil, "BACKGROUND", nil, 2)
+  pane:SetPoint("TOPLEFT", 1, -BROWSE_TOP + 26)
+  pane:SetPoint("BOTTOMLEFT", 1, 1)
+  pane:SetWidth(LEFT_W - 4)
+  pane:SetColorTexture(1, 1, 1, 0.03)
+  local rule = f:CreateTexture(nil, "ARTWORK")
+  rule:SetWidth(1)
+  rule:SetPoint("TOPLEFT", LEFT_W - 3, -BROWSE_TOP + 26)
+  rule:SetPoint("BOTTOMLEFT", LEFT_W - 3, 6)
+  rule:SetColorTexture(1, 0.82, 0, 0.25)
+  -- search, my professions, learned
+  local search = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+  search:SetSize(150, 20)
+  search:SetPoint("TOPLEFT", 18, UI.FILTER_Y)
+  search:SetAutoFocus(false)
+  local hint = search:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+  hint:SetPoint("LEFT", 2, 0)
+  hint:SetText("Search recipes")
+  search:SetScript("OnTextChanged", function(self)
+    local t = (self:GetText() or ""):lower():match("^%s*(.-)%s*$")
+    hint:SetShown(t == "" and not self:HasFocus())
+    if t ~= browse.search then
+      browse.search, browse.offset = t, 0
+      FillBrowser()
+    end
+  end)
+  search:SetScript("OnEditFocusGained", function() hint:Hide() end)
+  search:SetScript("OnEditFocusLost", function(self) hint:SetShown((self:GetText() or "") == "") end)
+  search:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+  local function Check(label, tip, get, set, anchor, x)
+    local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    cb:SetSize(20, 20)
+    cb:SetPoint("LEFT", anchor, "RIGHT", x, 0)
+    local l = cb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    l:SetPoint("LEFT", cb, "RIGHT", 0, 0)
+    l:SetText(label)
+    cb:SetChecked(get())
+    cb:SetScript("OnClick", function(self) set(self:GetChecked() and true or false) browse.offset = 0 FillBrowser() end)
+    UI.Tip(cb, label, tip)
+    return l
+  end
+  local mine = Check("Mine", "Only your professions' recipes.", function() return browse.mine end,
+    function(v) browse.mine = v end, search, 8)
+  Check("Hide learned", "Leave out what you've learned already.", function() return browse.hideKnown end,
+    function(v) browse.hideKnown = v end, mine, 6)
+  -- headings
+  local hName = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  hName:SetPoint("TOPLEFT", 14, -BROWSE_TOP + 16)
+  hName:SetText("Merchant's recipes")
+  f.browseCount = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  f.browseCount:SetPoint("LEFT", hName, "RIGHT", 8, 0)
+  local hCost = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  hCost:SetPoint("TOPRIGHT", f, "TOPLEFT", LEFT_W - 60, -BROWSE_TOP + 16)
+  hCost:SetText("Favor")
+  -- rows: as many as the height holds
+  local n = math.floor((TOP + PROWS * ROW_H + FOOT - BROWSE_TOP - 12) / BROWSE_H)
+  f.browseRows = {}
+  for i = 1, n do
+    local r = CreateFrame("Frame", nil, f)
+    r:SetHeight(BROWSE_H)
+    r:SetPoint("TOPLEFT", 10, -BROWSE_TOP - (i - 1) * BROWSE_H)
+    r:SetWidth(LEFT_W - 20)
+    local hl = r:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints()
+    hl:SetColorTexture(1, 1, 1, 0.07)
+    r.add = CreateFrame("Button", nil, r, "UIPanelButtonTemplate")
+    r.add:SetSize(42, 16)
+    r.add:SetPoint("RIGHT", 0, 0)
+    r.add:SetScript("OnClick", function()
+      local e = r.entry
+      if e and ns.SetWanted then ns.SetWanted(e.key, not e.wanted) end
+    end)
+    r.cost = r:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    r.cost:SetPoint("RIGHT", r.add, "LEFT", -6, 0)
+    r.cost:SetWidth(44)
+    r.cost:SetJustifyH("RIGHT")
+    r.name = r:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    r.name:SetPoint("LEFT", 2, 0)
+    r.name:SetWidth(160)
+    r.name:SetJustifyH("LEFT")
+    r.name:SetWordWrap(false)
+    r.prof = r:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    r.prof:SetPoint("LEFT", r.name, "RIGHT", 4, 0)
+    r.prof:SetPoint("RIGHT", r.cost, "LEFT", -4, 0)
+    r.prof:SetJustifyH("LEFT")
+    r.prof:SetWordWrap(false)
+    r:EnableMouse(true)
+    r:SetScript("OnEnter", function(self)
+      local e = self.entry
+      if not e then return end
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      local shown = false
+      if e.item then shown = pcall(GameTooltip.SetItemByID, GameTooltip, e.item) end
+      if not shown and e.spell and GameTooltip.SetSpellByID then shown = pcall(GameTooltip.SetSpellByID, GameTooltip, e.spell) end
+      if not shown then GameTooltip:AddLine(e.name) end
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddDoubleLine("Favor", Num(e.cost), 1, 1, 1, 1, 1, 1)
+      local rep = ns.WantedRepName and ns.WantedRepName(e.rep) or ""
+      if rep ~= "" then GameTooltip:AddDoubleLine("Needs", rep, 1, 1, 1, 1, 1, 1) end
+      if e.effect and e.effect ~= "" then GameTooltip:AddLine(e.effect, 0.8, 0.8, 0.8, true) end
+      GameTooltip:AddLine(e.wanted and "On your wanted list." or (e.known and "Learned." or "Add: the plan saves for it."),
+        0.6, 0.8, 1, true)
+      GameTooltip:Show()
+    end)
+    r:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    r:EnableMouseWheel(true)
+    r:SetScript("OnMouseWheel", function(_, dl) browse.offset = browse.offset - dl * 3 FillBrowser() end)
+    f.browseRows[i] = r
+  end
+end
+
 function ns.OnWantedChanged()
   Regenerate()
-  if f and f:IsShown() then Fill() end
+  if f and f:IsShown() then Fill() FillBrowser() end
   if ns.RefreshHome then ns.RefreshHome() end
 end
 
@@ -618,6 +791,7 @@ function ns.ShowFavorPlan()
   if not plan or plan.target ~= Target() then Regenerate() end
   f.offset = 0
   Fill()
+  FillBrowser()
   UpdateScan()
   ns.UI.Open(f)
 end

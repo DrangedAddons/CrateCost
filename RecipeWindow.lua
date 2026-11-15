@@ -847,3 +847,23 @@ function ns.UnwantRecipe(key)
 end
 
 ns.WantedRepName = function(rep) return REP_NAME[rep] or "" end
+
+-- For the favor plan's recipe browser: every recipe and item, with .known and .wanted.
+function ns.RecipeEntries()
+  local favs = Favorites()
+  local list = Entries()
+  for _, e in ipairs(list) do
+    e.known = Known(e)
+    e.wanted = favs[e.key] and true or false
+  end
+  return list
+end
+
+-- Adds (or with `on` false, drops) a recipe on the wanted list.
+function ns.SetWanted(key, on)
+  Favorites()[key] = on and true or nil
+  if frame and frame:IsShown() then ns.RefreshRecipes() end
+  if ns.OnWantedChanged then ns.OnWantedChanged() end
+end
+
+ns.RecipeProfessions = PROFS

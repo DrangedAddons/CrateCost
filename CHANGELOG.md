@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.53.0
+- Favor plan: the Merchant's recipe list down the left. Search it, show only your professions, hide what you've learned, hover for the recipe, **Add** to want it (or **Drop**). On the right, the wanted list comes first with each recipe's favor and a running total of what's still to buy, then how to get the favor. The target follows it.
+
 ## 0.52.0
 - Rep plan: the containers' favor is planned crate by crate from the scanned listings, as the favor plan does: each next crate is the cheapest per favor, so a crate kind is dropped for another once its cheap crates or bundles run out. Step 1 is a row per kind ("Fill 24x Journeyman Fabrics", "Fill 34x Journeyman Ingots"), each with its favor, per favor, up-front cost and cart. The empty crates (step 3) come from what those leave of each kind's listings, so nothing is priced twice. The checklist follows, one step per kind.
 - Checklist: Ctrl + mouse wheel scales around the cursor, so the window stays under it.

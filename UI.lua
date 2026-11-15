@@ -190,29 +190,30 @@ end)
 -- note sits at the bottom left. Fills f.summary, f.moneyL/R (3 rows), f.add, f.note.
 UI.PLAN_FOOT = 150
 local SUM_W = 300   -- the sum's width: labels on the left, amounts right-aligned
-function UI.PlanFooter(f, onAdd, tip, checklist)
+function UI.PlanFooter(f, onAdd, tip, checklist, xoff)
+  local xo = xoff or 0   -- centred on the plan's pane, not the window, when it has a side pane
   f.summary = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  f.summary:SetPoint("BOTTOM", 0, 124)
+  f.summary:SetPoint("BOTTOM", xo, 124)
   f.moneyL, f.moneyR = {}, {}
   for i = 1, 3 do
     local y = 50 + (3 - i) * 22 + (i == 3 and 0 or 4)
     local l = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    l:SetPoint("BOTTOMLEFT", f, "BOTTOM", -SUM_W / 2, y)
+    l:SetPoint("BOTTOMLEFT", f, "BOTTOM", xo - SUM_W / 2, y)
     l:SetJustifyH("LEFT")
     local r = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    r:SetPoint("BOTTOMRIGHT", f, "BOTTOM", SUM_W / 2, y)
+    r:SetPoint("BOTTOMRIGHT", f, "BOTTOM", xo + SUM_W / 2, y)
     r:SetJustifyH("RIGHT")
     f.moneyL[i], f.moneyR[i] = l, r
   end
   -- the rule above the net
   f.moneyRule = f:CreateTexture(nil, "OVERLAY")
   f.moneyRule:SetHeight(1)
-  f.moneyRule:SetPoint("BOTTOMLEFT", f, "BOTTOM", -SUM_W / 2, 70)
-  f.moneyRule:SetPoint("BOTTOMRIGHT", f, "BOTTOM", SUM_W / 2, 70)
+  f.moneyRule:SetPoint("BOTTOMLEFT", f, "BOTTOM", xo - SUM_W / 2, 70)
+  f.moneyRule:SetPoint("BOTTOMRIGHT", f, "BOTTOM", xo + SUM_W / 2, 70)
   f.moneyRule:SetColorTexture(1, 0.82, 0, 0.5)
   local add = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
   add:SetSize(260, 32)
-  add:SetPoint("BOTTOM", 0, 12)
+  add:SetPoint("BOTTOM", xo, 12)
   add:SetText("Add plan to cart")
   if add.GetFontString and add:GetFontString() then pcall(add.SetNormalFontObject, add, "GameFontNormalLarge") end
   add:SetScript("OnClick", onAdd)

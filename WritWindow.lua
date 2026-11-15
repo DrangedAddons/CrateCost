@@ -679,6 +679,10 @@ local function MakePlan(need)
     local favorCost = src and src.total or earn * pf
     plan.containers = { n = nCont, favor = favor, have = have, earn = earn, src = src,
       crateCost = cont.crates[nCont], favorCost = favorCost, cost = cont.crates[nCont] + favorCost, byId = byId,
+      -- the favor crates' turn-in silver: paid back after you've bought everything; upFront =
+      -- what the empty crates, favor crates and bundles cost to buy
+      pay = src and src.pay or 0,
+      upFront = cont.crates[nCont] + (src and (src.crateCost + src.bundleCost) or favorCost),
       crateGuess = cont.guess[nCont], favorGuess = (not src and earn > 0) or (src and (src.guess or not src.scanned)) or false }
     plan.cost = plan.cost + plan.containers.cost
     plan.rep = plan.rep + nCont * CONTAINER_REP
@@ -1432,7 +1436,7 @@ end
 ---------------------------------------------------------------------------------------------
 -- The plan's window: day by day, each writ, how to get it and its item, rep and cost.
 
-local PROWS, PROW_H, PTOP, PFOOT = 26, 18, 84, 70
+local PROWS, PROW_H, PTOP, PFOOT = 24, 18, 84, 100
 local pf, ShowCD
 -- Show the writs already done today in the plan window (per character, default on).
 ShowCD = function()
@@ -1506,7 +1510,8 @@ local function FillPlan()
           r.how:SetText(GREY .. c.src.qty .. " " .. c.src.bundle .. " each|r")
           -- the favor it earns, in the rep column for neatness: grey with the favor icon, not rep
           r.rep:SetText(GREY .. "+" .. Num(c.src.n * c.src.favor) .. "|r" .. (ns.FavorIcon and ns.FavorIcon() or ""))
-          r.cost:SetText((c.favorGuess and "~" or "") .. ns.Money(c.src.total))
+          -- what you pay for the crates and bundles; the turn-in silver comes back later
+          r.cost:SetText((c.favorGuess and "~" or "") .. ns.Money(c.src.crateCost + c.src.bundleCost))
           r.addBtn:Show()
         elseif c.earn == 0 then
           r.name:SetText("   1. Favor: you have " .. Num(c.have))
@@ -1532,7 +1537,7 @@ local function FillPlan()
         r.how:SetText(GREY .. (horde and "Dokimi" or "Marcy Baker") .. "|r")
         r.rep:SetText(Num(c.n * CONTAINER_REP))
         r.per:SetText(ns.Money(math.floor(c.cost / (c.n * CONTAINER_REP) + 0.5)))
-        r.cost:SetText(((c.crateGuess or c.favorGuess) and "~" or "") .. ns.Money(c.cost))
+        r.cost:SetText(((c.crateGuess or c.favorGuess) and "~" or "") .. ns.Money(c.upFront))
       end
       r:Show()
     elseif ln.label then
@@ -1608,11 +1613,17 @@ local function FillPlan()
   end
   if p then
     pf.title:SetText("Rep plan")
-    pf.total:SetText(string.format("%d writs, %s rep%s   Total %s", PlanCount(p), Num(p.rep),
-      p.short and " |cffff4040(short of the target: regenerate tomorrow)|r" or "", ns.Money(p.cost)))
+    pf.total:SetText(string.format("%d writs%s, %s rep%s", PlanCount(p),
+      p.containers and (" + " .. p.containers.n .. " containers") or "", Num(p.rep),
+      p.short and " |cffff4040(short of the target: regenerate tomorrow)|r" or ""))
+    -- you buy everything first; the favor crates' turn-in silver comes back after
+    local c = p.containers
+    local back = c and c.pay or 0
+    ns.UI.PlanMoney(pf, p.cost - (c and c.cost or 0) + (c and c.upFront or 0), back, c and (c.crateGuess or c.favorGuess))
   else
     pf.title:SetText("Rep plan")
     pf.total:SetText(needRep and "No writ has a price yet." or (t and "Target reached." or "Pick a target standing."))
+    pf.money:SetText("")
   end
 end
 
@@ -1955,26 +1966,14 @@ function ns.ShowWritPlan()
     end
     pf:EnableMouseWheel(true)
     pf:SetScript("OnMouseWheel", function(_, delta) pf.offset = pf.offset - delta * 3 FillPlan() end)
-    pf.total = pf:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    pf.total:SetPoint("BOTTOMLEFT", 14, 42)
-    pf.cd = pf:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    pf.cd:SetPoint("BOTTOMRIGHT", -14, 44)
-    local add = CreateFrame("Button", nil, pf, "UIPanelButtonTemplate")
-    pf.add = add
-    add:SetSize(130, 22)
-    add:SetPoint("BOTTOMLEFT", 12, 12)
-    add:SetText("Add plan to cart")
-    add:SetScript("OnClick", function()
+    ns.UI.PlanFooter(pf, function()
       local p = CurrentPlan()
       if p then PlanToCart(p) end
-    end)
-    ns.UI.Tip(add, "Add plan to cart", "The plan's writs to buy and their fills: the item, or its reagents "
-      .. "when the plan crafts it. Not the writs already filled today.")
-    local note = pf:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    note:SetPoint("LEFT", add, "RIGHT", 12, 0)
-    note:SetPoint("RIGHT", pf, "RIGHT", -12, 0)
-    note:SetJustifyH("LEFT")
-    pf.note = note
+    end, "The plan's writs to buy and their fills (the item, or its reagents when the plan crafts it), "
+      .. "and the containers' crates and bundles. Not the writs already filled today.")
+    pf.total = pf.summary
+    pf.cd = pf:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    pf.cd:SetPoint("BOTTOMRIGHT", -14, 16)
   end
   if frame and frame:IsShown() then ns.RefreshWrits() else Calc() Live() UpdateNeed() end
   if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end

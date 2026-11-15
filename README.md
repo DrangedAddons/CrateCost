@@ -63,6 +63,8 @@ The nav bar on every view: **Home, Crates, Writs, Rep plan, Favor plan, Merchant
 
 The cheapest way to a Merchant's Favor target (type it in; per character). Favor you have and Sealed Crates in your bags count first, then the one-time Shipping Label quest (50 favor), then crates: each next crate is the one with the lowest extra cost per favor (near the target, one that finishes it for less wins), crates you hold and bundle materials in your bags first, the rest bought up the AH listings, less the turn-in silver. Only crates your level can fill. Each row: buy + fill N of a crate, with which bundle, favor, per favor and cost, a [+cart] for the crates to buy and the materials not in your bags; hover for the breakdown. **Scan AH** reads every crate and bundle deep enough for what's left, then remakes the plan; costs past what it read are marked **~**.
 
+Both plans' footers show **Up front** (everything you'll buy), **Turn-ins pay back** (the crates' turn-in silver, and your Sealed Crates', which come back after you've bought it all) and **Net**, with a big **Add plan to cart** under them.
+
 ## Crate list: `/crates list` (or Crates on the nav bar)
 
 Every Waylaid Crate, sorted by the cheapest Merchant's Favor:

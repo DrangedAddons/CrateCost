@@ -176,6 +176,44 @@ ahFrame:SetScript("OnEvent", function()
   end)
 end)
 
+-- The plans' footer, centred: a summary line, the money (up front, the turn-in silver that comes
+-- back later, net) a size up, and a big Add plan to cart button. A note sits at the bottom left.
+-- Fills f.summary, f.money, f.add, f.note.
+UI.PLAN_FOOT = 100
+function UI.PlanFooter(f, onAdd, tip)
+  f.summary = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  f.summary:SetPoint("BOTTOM", 0, 76)
+  f.money = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  f.money:SetPoint("BOTTOM", 0, 50)
+  local add = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+  add:SetSize(260, 32)
+  add:SetPoint("BOTTOM", 0, 12)
+  add:SetText("Add plan to cart")
+  if add.GetFontString and add:GetFontString() then pcall(add.SetNormalFontObject, add, "GameFontNormalLarge") end
+  add:SetScript("OnClick", onAdd)
+  UI.Tip(add, "Add plan to cart", tip)
+  f.add = add
+  f.note = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  f.note:SetPoint("BOTTOMLEFT", 14, 14)
+  f.note:SetPoint("RIGHT", add, "LEFT", -20, 0)
+  f.note:SetJustifyH("LEFT")
+  f.note:SetWordWrap(true)
+end
+
+-- "Up front 45g   Turn-ins pay back +3g   Net 42g"; just "Total" when nothing comes back.
+-- `guess`: a "~" in front, the prices go past what the AH scan read.
+function UI.PlanMoney(f, upFront, back, guess)
+  local g = guess and "|cffff9933~|r" or ""
+  if back and back > 0 then
+    local net = upFront - back
+    f.money:SetText(string.format("Up front %s%s     Turn-ins pay back |cff40ff40+%s|r     %s",
+      g, ns.Money(upFront), ns.Money(back), net >= 0 and ("Net " .. g .. ns.Money(net))
+        or ("|cff40ff40Net profit +" .. ns.Money(-net) .. "|r")))
+  else
+    f.money:SetText("Total " .. g .. ns.Money(upFront))
+  end
+end
+
 function UI.UpdateCartButtons()
   local n = ns.CartCount and ns.CartCount() or 0
   for _, b in ipairs(cartButtons) do b:SetText("Cart (" .. n .. ")") end

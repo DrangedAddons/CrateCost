@@ -10,7 +10,7 @@ local _, ns = ...
 -- that finishes it for less wins even at a worse rate. Crate costs only rise with the listings,
 -- so this stays close to the cheapest mix.
 
-local PROWS, ROW_H, TOP, FOOT = 26, 18, 84, 70
+local PROWS, ROW_H, TOP, FOOT = 24, 18, 84, 100
 local LEVEL = { Apprentice = 10, Journeyman = 10, Expert = 20, Artisan = 35 }
 local LABEL_QUESTS, LABEL_FAVOR = { 98247, 98248 }, 50
 local GREY = "|cff808080"
@@ -42,16 +42,19 @@ local function FavorHave()
 end
 
 -- Sealed Crates in your bags: how many, and the favor they'll pay.
+-- Sealed Crates in your bags: how many, the favor they'll pay, and their turn-in silver.
 local function Sealed()
-  local n, favor = 0, 0
+  local n, favor, pay = 0, 0, 0
   for id, sc in pairs(ns.SealedCrates or {}) do
     local k = Count(id)
     if k > 0 then
+      local kind = sc[2] == "crafted" and "Fabrics" or "Ore"
       n = n + k
-      favor = favor + k * (ns.FavorFor(sc[1], sc[2] == "crafted" and "Fabrics" or "Ore") or 0)
+      favor = favor + k * (ns.FavorFor(sc[1], kind) or 0)
+      pay = pay + k * ((ns.TurnInPay and ns.TurnInPay(sc[1], kind)) or 0)
     end
   end
-  return n, favor
+  return n, favor, pay
 end
 
 local function LabelDone()
@@ -69,7 +72,7 @@ local function Kind(c)
   local k = { c = c, held = Count(c.id), memo = {} }
   function k.Cost(n)
     local m = k.memo[n]
-    if m then return m[1], m[2], m[3] end
+    if m then return m[1], m[2], m[3], m[4] end
     local buy = math.max(0, n - k.held)
     local crateCost, guess = 0, false
     if buy > 0 then
@@ -91,9 +94,11 @@ local function Kind(c)
       end
     end
     if not best then k.memo[n] = { nil } return nil end
-    local cost = math.max(0, crateCost + best - (c.pay1 or 0) * n)
-    k.memo[n] = { cost, bi, guess or bguess }
-    return cost, bi, guess or bguess
+    -- cost: net of the turn-in silver; upFront: what the crates and bundles cost to buy
+    local upFront = crateCost + best
+    local cost = math.max(0, upFront - (c.pay1 or 0) * n)
+    k.memo[n] = { cost, bi, guess or bguess, upFront }
+    return cost, bi, guess or bguess, upFront
   end
   return k
 end
@@ -102,10 +107,10 @@ end
 -- short, picks = { { c, n, cost, bundle, held, guess }, ... } }
 local function MakePlan(target)
   local have = FavorHave()
-  local sealedN, sealedFavor = Sealed()
+  local sealedN, sealedFavor, sealedPay = Sealed()
   local label = not LabelDone() and LABEL_FAVOR or nil
-  local p = { target = target, have = have, sealed = sealedN, sealedFavor = sealedFavor, label = label,
-    favor = 0, cost = 0, picks = {} }
+  local p = { target = target, have = have, sealed = sealedN, sealedFavor = sealedFavor, sealedPay = sealedPay,
+    label = label, favor = 0, cost = 0, pay = 0, picks = {} }
   p.need = math.max(0, target - have - sealedFavor - (label or 0))
   local level = UnitLevel and UnitLevel("player") or 60
   local kinds = {}
@@ -138,10 +143,13 @@ local function MakePlan(target)
   p.short = got < p.need
   for i, n in pairs(counts) do
     local k = kinds[i]
-    local cost, bi, guess = k.Cost(n)
+    local cost, bi, guess, upFront = k.Cost(n)
     local b = k.c.bundles[bi]
-    table.insert(p.picks, { c = k.c, n = n, cost = cost, bundle = b[1], qty = b[2], bundleID = ns.ItemIDs[b[1]],
-      held = math.min(n, k.held), guess = guess })
+    local pay = (k.c.pay1 or 0) * n
+    table.insert(p.picks, { c = k.c, n = n, cost = cost, pay = pay, upFront = upFront, bundle = b[1], qty = b[2],
+      bundleID = ns.ItemIDs[b[1]], held = math.min(n, k.held), guess = guess })
+    p.pay = p.pay + pay
+    p.upFront = (p.upFront or 0) + upFront
     p.cost = p.cost + cost
     p.favor = p.favor + n * k.c.favor
     if guess then p.guess = true end
@@ -222,7 +230,7 @@ local function Fill()
         r.name:SetText("   |cffffd100Hand in " .. p.sealed .. " Sealed Crates|r")
         r.how:SetText(GREY .. "already filled, in your bags|r")
         r.favor:SetText(Num(p.sealedFavor))
-        r.cost:SetText(GREY .. "free|r")
+        r.cost:SetText((p.sealedPay or 0) > 0 and ("|cff40ff40+" .. ns.Money(p.sealedPay) .. "|r") or (GREY .. "free|r"))
       elseif ln.label then
         r.name:SetText("   |cffffd100Shipping Label quest (one time)|r")
         r.how:SetText(GREY .. "comes with your first filled crate|r")
@@ -236,7 +244,8 @@ local function Fill()
         r.how:SetText(GREY .. pick.qty .. " " .. pick.bundle .. " each|r")
         r.favor:SetText(Num(pick.n * c.favor))
         r.per:SetText(ns.Money(math.floor(pick.cost / (pick.n * c.favor) + 0.5)))
-        r.cost:SetText((pick.guess and "|cffff9933~|r" or "") .. ns.Money(pick.cost))
+        -- what you pay for the crates and bundles; per favor is net of the turn-in silver
+        r.cost:SetText((pick.guess and "|cffff9933~|r" or "") .. ns.Money(pick.upFront))
         r.add:Show()
       end
       r:Show()
@@ -244,15 +253,19 @@ local function Fill()
   end
   if p then
     local extra = (p.sealed > 0 and p.sealedFavor or 0) + (p.label or 0)
-    f.total:SetText(string.format("%d crates, %s favor%s   Total %s%s", (function()
-        local n = 0 for _, k in ipairs(p.picks) do n = n + k.n end return n end)(),
-      Num(p.favor + extra), p.short and " |cffff4040(not enough crates on the AH)|r" or "",
-      p.guess and "|cffff9933~|r" or "", ns.Money(p.cost)))
+    local n = 0
+    for _, k in ipairs(p.picks) do n = n + k.n end
+    f.total:SetText(string.format("%d crates to fill, %s favor%s", n, Num(p.favor + extra),
+      p.short and " |cffff4040(not enough crates on the AH)|r" or ""))
+    -- you buy everything first; the turn-in silver (and the Sealed Crates') comes back after
+    local back = p.pay + (p.sealedPay or 0)
+    ns.UI.PlanMoney(f, p.upFront or 0, back, p.guess)
     f.note:SetText(p.guess and "|cffff9933~ = more than the AH scan read, so the price is too low: Scan AH "
       .. "reads what this plan needs, then remakes it.|r"
       or "Crates you hold and materials in your bags are used first. Prices: AH listings when scanned, else Auctionator.")
   else
     f.total:SetText(t and "No crate has a price yet." or "Type how much Merchant's Favor you want.")
+    f.money:SetText("")
     f.note:SetText("")
   end
 end
@@ -407,7 +420,8 @@ local function Build()
         if (c.pay1 or 0) > 0 then
           GameTooltip:AddDoubleLine("Turn-in silver back", "-" .. ns.Money(c.pay1 * pick.n), 1, 1, 1, 0.25, 1, 0.25)
         end
-        GameTooltip:AddDoubleLine("Cost", ns.Money(pick.cost), 1, 0.82, 0, 1, 1, 1)
+        GameTooltip:AddDoubleLine("You pay", ns.Money(pick.upFront), 1, 1, 1, 1, 1, 1)
+        GameTooltip:AddDoubleLine("Net", ns.Money(pick.cost), 1, 0.82, 0, 1, 1, 1)
         if pick.guess then
           GameTooltip:AddLine("~ more than the AH scan read: Scan AH for the real price.", 1, 0.6, 0.2, true)
         end
@@ -433,23 +447,13 @@ local function Build()
     fs:SetJustifyH(h[3])
     fs:SetText(h[2])
   end
-  f.total = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  f.total:SetPoint("BOTTOMLEFT", 14, 42)
-  local all = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-  all:SetSize(130, 22)
-  all:SetPoint("BOTTOMLEFT", 12, 12)
-  all:SetText("Add plan to cart")
-  all:SetScript("OnClick", function()
+  UI.PlanFooter(f, function()
     if not plan then return end
     local items = {}
     for _, pick in ipairs(plan.picks) do PickItems(pick, items) end
     ns.Print(string.format("added %d to the cart.", ns.CartAdd(items)))
-  end)
-  UI.Tip(all, "Add plan to cart", "Every crate to buy and the bundle materials not in your bags.")
-  f.note = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-  f.note:SetPoint("LEFT", all, "RIGHT", 12, 0)
-  f.note:SetPoint("RIGHT", f, "RIGHT", -12, 0)
-  f.note:SetJustifyH("LEFT")
+  end, "Every crate to buy and the bundle materials not in your bags.")
+  f.total = f.summary
   -- bags, favor and hand-ins change what's left
   for _, ev in ipairs({ "BAG_UPDATE_DELAYED", "CURRENCY_DISPLAY_UPDATE" }) do
     if not (C_EventUtils and C_EventUtils.IsEventValid) or C_EventUtils.IsEventValid(ev) then

@@ -4,7 +4,7 @@ local _, ns = ...
 -- Writs and Rep plan, each with a few lines on where you stand and a button into its view.
 -- /crates and the minimap button open it; the nav bar's Home button comes back to it.
 
-local CARD_W, CARD_H, GAP, TOP = 579, 168, 12, 40
+local CARD_W, CARD_H, GAP, TOP = 420, 168, 12, 40
 local LINE_H = 20
 
 -- Card art, faint behind the text like the profession window's: the first of these atlases
@@ -27,7 +27,7 @@ local function Art(c, i)
     for _, atlas in ipairs(ART[i] or {}) do
       if C_Texture.GetAtlasInfo(atlas) then
         tex:SetAtlas(atlas)
-        tex:SetAlpha(0.35)
+        tex:SetAlpha(0.65)
         done = true
         break
       end
@@ -37,16 +37,16 @@ local function Art(c, i)
     tex:SetTexture(ROCK, "REPEAT", "REPEAT")
     pcall(tex.SetHorizTile, tex, true)
     pcall(tex.SetVertTile, tex, true)
-    tex:SetAlpha(0.55)
+    tex:SetAlpha(0.9)
   end
   -- darker on the left, where the text is
   local shade = c:CreateTexture(nil, "BACKGROUND", nil, 2)
   shade:SetPoint("TOPLEFT", 1, -1)
   shade:SetPoint("BOTTOMRIGHT", -1, 1)
   shade:SetColorTexture(0, 0, 0, 1)
-  local ok = CreateColor and pcall(shade.SetGradient, shade, "HORIZONTAL", CreateColor(0, 0, 0, 0.7),
-    CreateColor(0, 0, 0, 0.15))
-  if not ok then shade:SetAlpha(0.45) end
+  local ok = CreateColor and pcall(shade.SetGradient, shade, "HORIZONTAL", CreateColor(0, 0, 0, 0.55),
+    CreateColor(0, 0, 0, 0))
+  if not ok then shade:SetAlpha(0.3) end
 end
 local LINES = 6
 local GREY = "|cff808080"
@@ -177,7 +177,8 @@ end
 
 local function Build()
   local UI = ns.UI
-  frame = UI.Window("CrateCostHome", "CrateCost", UI.WIDTH, TOP + 2 * CARD_H + GAP + 44, UI.POS_KEY)
+  -- narrower than the list views: just the two columns of cards
+  frame = UI.Window("CrateCostHome", "CrateCost", 2 * CARD_W + 3 * GAP, TOP + 2 * CARD_H + GAP + 44, UI.POS_KEY)
   frame:Hide()
   -- faint stone behind the cards, so the window isn't flat
   local bg = frame:CreateTexture(nil, "BACKGROUND", nil, 1)
@@ -186,7 +187,7 @@ local function Build()
   bg:SetTexture(ROCK, "REPEAT", "REPEAT")
   pcall(bg.SetHorizTile, bg, true)
   pcall(bg.SetVertTile, bg, true)
-  bg:SetAlpha(0.3)
+  bg:SetAlpha(0.5)
   UI.NavBar(frame, "home", function()
     if ns.InvalidateCrates then ns.InvalidateCrates() end
     if ns.InvalidateWrits then ns.InvalidateWrits() end
@@ -202,10 +203,10 @@ local function Build()
   }
   local ah = UI.PlanAtAHCheck(frame, frame)
   ah:ClearAllPoints()
-  ah:SetPoint("BOTTOMRIGHT", -200, 10)
+  ah:SetPoint("BOTTOMRIGHT", -180, 10)
   local foot = frame:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
   foot:SetPoint("BOTTOMLEFT", 16, 14)
-  foot:SetText("Merchant: what Merchant's Favor buys. Cart: the shopping list. Both in the bar at the top.")
+  foot:SetText("Merchant and Cart are in the bar at the top.")
   frame:SetScript("OnShow", function() ns.RefreshHome() end)
   -- keep the numbers current while it's open
   for _, ev in ipairs({ "BAG_UPDATE_DELAYED", "CURRENCY_DISPLAY_UPDATE", "QUEST_TURNED_IN", "UPDATE_FACTION" }) do

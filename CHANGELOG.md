@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.56.6
+- Shopping dock (ShoppingDock 0.5.2): the Shopping List button sits in the AH window's title bar on every tab, labelled, with the items left and an arrow toward the dock.
+
 ## 0.56.5
 - Shopping dock (ShoppingDock 0.5.1): the Shopping list button sits in the AH's bottom tab row, right of Auctionator's tabs, on every tab.
 

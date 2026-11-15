@@ -58,6 +58,10 @@ The landing view: your **reputation** across the top (the camp, a standing bar, 
 
 The bar on every view: **Home** (the way between views), **Cart** and **Refresh**. Merchant is on the favor card. `/crates list` opens the crate list, `/crates plan` the rep plan. The rep plan has its own **Target** picker, **Scan AH** and standing line.
 
+## Buying at the auction house
+
+When CrateCost makes a shopping list (a plan's **Create shopping list**, or the cart's), the **buy panel** opens docked beside the auction house (or `/crates buy`). It works through the list one item at a time: it searches the AH, shows what buying the rest of that item costs right now against what the plan expected (over or under), and **Buy** buys it: a commodity in one purchase for the whole amount, an auction one at a time. Then it moves to the next. The summary keeps a running total: planned, spent so far and how that compares with what those items were planned to cost, and what's left. **Skip** moves past an item; **Forget list** drops it. The game only allows a purchase from a click, so it's one click per item.
+
 ## Buying at the vendor
 
 With a vendor open, the favor plan's wanted recipes and the checklists' steps that a vendor sells (each wanted recipe, the Forged Delivery Receipts) show a **Buy** button: it buys the right item, the amount the step still needs.

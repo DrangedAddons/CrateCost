@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.55.0
+- **Buy panel** beside the auction house: works through the last shopping list CrateCost made, one item at a time. It searches the item, shows what the rest of it costs now against the plan (over / under), and **Buy** buys the whole amount in one purchase (or an auction at a time, for items sold as separate auctions), then moves on. A running total shows what you've spent against what those items were planned to cost, and what's left. Skip, and Forget list. Opens with the AH while a list is unfinished, when a list is made at the AH, or with `/crates buy`. One click per item: the game only allows a purchase from a click.
+- New file (BuyPanel.lua): restart the game client, /reload isn't enough.
+
 ## 0.54.1
 - Cart and the shopping list review price each item up the scanned AH listings for its amount, as the plans do (before: Auctionator's lowest price x amount, which came out lower than the plan's up-front cost). ~ marks prices past what the scan read.
 

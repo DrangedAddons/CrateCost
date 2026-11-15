@@ -495,6 +495,8 @@ SlashCmdList.CRATECOST = function(msg)
     ns.ToggleWindow()
   elseif msg == "plan" or msg == "rep" then
     ns.ShowWritPlan()
+  elseif msg == "buy" or msg == "shop" then
+    if ns.ShowBuyPanel then ns.ShowBuyPanel() end
   elseif msg == "config" or msg == "options" or msg == "settings" then
     ns.ToggleConfig()
   elseif msg == "cart" then
@@ -507,6 +509,7 @@ SlashCmdList.CRATECOST = function(msg)
     Print("/crates - home: your favor, writs and rep at a glance")
     Print("/crates list - crate list sorted by cost per favor")
     Print("/crates plan - the plan to your rep target")
+    Print("/crates buy - the buy panel for your last shopping list (beside the AH)")
     Print("/crates merchant - everything Merchant's Favor buys")
     Print("/crates writs - Craftsman's Writs by cost per reputation")
     Print("/writ and /writs work the same as /crates")

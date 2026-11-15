@@ -1212,16 +1212,7 @@ local function DepthNote()
 end
 
 local function UpdateScanButton()
-  local b = frame and frame.scanBtn
-  if not (b and ns.Depth) then return end
-  local d = ns.Depth
-  if d.state == "running" then
-    b:SetText(string.format("Stop scan %d/%d", d.done, math.max(d.total, d.done)))
-    b:Enable()
-  else
-    b:SetText("Scan AH")
-    b:SetEnabled(d.atAH and true or false)
-  end
+  if frame and frame.scanBtn then ns.UI.UpdateScan(frame.scanBtn) end
 end
 
 -- Units to read per item for a scan: the crates the list wants (target / owned / one each),

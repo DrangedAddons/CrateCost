@@ -1737,19 +1737,8 @@ function ns.WritStatus()
 end
 
 local function UpdateWritScan()
-  local dp = ns.Depth
-  if not dp then return end
-  for _, b in ipairs({ frame and frame.scanBtn or false, pf and pf.scanBtn or false }) do
-    if b then
-      if dp.state == "running" then
-        b:SetText(string.format("Stop scan %d/%d", dp.done, math.max(dp.total, dp.done)))
-        b:Enable()
-      else
-        b:SetText("Scan AH")
-        b:SetEnabled(dp.atAH and true or false)
-      end
-    end
-  end
+  if frame and frame.scanBtn then ns.UI.UpdateScan(frame.scanBtn) end
+  if pf and pf.scanBtn then ns.UI.UpdateScan(pf.scanBtn) end
 end
 ns.OnDepthChangedWrits = function()
   UpdateWritScan()

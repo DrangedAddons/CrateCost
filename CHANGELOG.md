@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.51.1
+- Scan AH: while it runs, the button turns into a progress bar with the status inside ("Reading listings 12 / 98"); click the bar to stop. The button comes back when the scan's done. On every view with a scan.
+
 ## 0.51.0
 - Plans: a **Buy | Craft** switch (per character, shared, Craft by default). Buy buys everything, no crafting. Craft makes what your professions can (a writ's item at its skill, crafted crates' bundles) when it's cheaper, and buys the rest. Crafted rows say so and the cart leaves them out.
 

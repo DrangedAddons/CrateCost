@@ -337,15 +337,7 @@ local function Fill()
 end
 
 local function UpdateScan()
-  local b, d = f and f.scan, ns.Depth
-  if not (b and d) then return end
-  if d.state == "running" then
-    b:SetText(string.format("Stop scan %d/%d", d.done, math.max(d.total, d.done)))
-    b:Enable()
-  else
-    b:SetText("Scan AH")
-    b:SetEnabled(d.atAH and true or false)
-  end
+  if f and f.scan then ns.UI.UpdateScan(f.scan) end
 end
 
 function ns.OnDepthChangedFavor()

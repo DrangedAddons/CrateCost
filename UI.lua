@@ -437,6 +437,50 @@ function UI.SetBuy(b, match, count)
   return ok
 end
 
+-- A scan button while the AH scan runs: it hides behind a progress bar in its place, with the
+-- status inside ("Reading listings 12 / 98"); clicking the bar stops the scan. When the scan
+-- ends the button comes back (enabled at the auction house).
+function UI.UpdateScan(b)
+  local d = ns.Depth
+  if not (b and d) then return end
+  local bar = rawget(b, "scanBar")
+  if not bar then
+    bar = CreateFrame("Button", nil, b:GetParent())
+    bar:SetAllPoints(b)
+    local sb = CreateFrame("StatusBar", nil, bar)
+    sb:SetAllPoints()
+    sb:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    sb:SetStatusBarColor(0.25, 0.55, 1)
+    sb:SetMinMaxValues(0, 1)
+    local bg = sb:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0, 0, 0, 0.7)
+    local edge = CreateFrame("Frame", nil, sb, "BackdropTemplate")
+    edge:SetPoint("TOPLEFT", -1, 1)
+    edge:SetPoint("BOTTOMRIGHT", 1, -1)
+    edge:SetBackdrop({ edgeFile = WHITE, edgeSize = 1 })
+    edge:SetBackdropBorderColor(0.55, 0.45, 0.25, 1)
+    sb.text = sb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    sb.text:SetPoint("CENTER")
+    bar.sb = sb
+    bar:SetScript("OnClick", function() if ns.Depth.state == "running" then ns.Depth.Stop() end end)
+    UI.Tip(bar, "Scanning the AH", "Click to stop. What's been read so far is kept.")
+    b.scanBar = bar
+  end
+  if d.state == "running" then
+    local total = math.max(d.total or 0, d.done or 0, 1)
+    bar.sb:SetValue((d.done or 0) / total)
+    bar.sb.text:SetText((d.phase == "survey" and "Surveying" or "Reading listings") .. "  " .. (d.done or 0) .. " / " .. total)
+    bar:Show()
+    b:Hide()
+  else
+    bar:Hide()
+    b:SetText("Scan AH")
+    b:SetEnabled(d.atAH and true or false)
+    b:Show()
+  end
+end
+
 function UI.UpdateCartButtons()
   local n = ns.CartCount and ns.CartCount() or 0
   for _, b in ipairs(cartButtons) do b:SetText("Cart (" .. n .. ")") end

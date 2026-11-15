@@ -104,20 +104,15 @@ function UI.Place(f, posKey)
   end
 end
 
--- The nav bar at the top right, the same on every window: Home, Crates, Writs, Rep plan, Favor
--- plan, Merchant, Cart (n), Refresh. The window's own button is greyed out. Returns the leftmost.
+-- The bar at the top right: Home (the way between views), Cart (n) and Refresh. The window's own
+-- button is greyed out.
 local cartButtons = {}
 function UI.NavBar(f, current, onRefresh)
   local items = {
-    { "home", "Home", 58, function() ns.ToggleHome() end, "Your favor, writs and rep at a glance" },
-    { "crates", "Crates", 66, function() ns.ToggleWindow() end, "Waylaid Crates by cost per favor" },
-    { "writs", "Writs", 60, function() ns.ToggleWrits() end, "Craftsman's Writs by cost per reputation" },
-    { "plan", "Rep plan", 74, function() ns.ShowWritPlan() end, "The cheapest way to your rep target" },
-    { "favor", "Favor plan", 84, function() ns.ShowFavorPlan() end, "The cheapest way to your Merchant's Favor target" },
-    { "merchant", "Merchant", 76, function() ns.ToggleRecipes() end, "Every recipe sold for Merchant's Favor" },
-    { "cart", "Cart", 72, function() ns.ShowCart() end, "The shopping list from the crate list's [+] buttons" },
-    { "refresh", "Refresh", 66, onRefresh, "Read prices again" },
+    { "home", "Home", 58, function() ns.ToggleHome() end, "Your favor, writs and rep, and the way to every view" },
   }
+  items[#items + 1] = { "cart", "Cart", 72, function() ns.ShowCart() end, "The shopping list" }
+  items[#items + 1] = { "refresh", "Refresh", 66, onRefresh, "Read prices again" }
   local prev
   for i = #items, 1, -1 do
     local it = items[i]
@@ -221,10 +216,11 @@ function UI.PlanFooter(f, onAdd, tip, checklist)
     UI.Tip(cl, "Checklist", "A small window with just the plan's steps, ticked as you do them. Hover a step for details.")
     f.checklistBtn = cl
   end
+  -- the bottom left holds the plan's tickboxes; notes go bottom right
   f.note = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-  f.note:SetPoint("BOTTOMLEFT", 14, 14)
-  f.note:SetPoint("RIGHT", add, "LEFT", -20, 0)
-  f.note:SetJustifyH("LEFT")
+  f.note:SetPoint("BOTTOMRIGHT", -14, 34)
+  f.note:SetWidth(200)
+  f.note:SetJustifyH("RIGHT")
   f.note:SetWordWrap(true)
 end
 
@@ -271,13 +267,13 @@ function ns.PlanUseOwned() return Opt("planUseOwned") end
 function ns.PlanUseMats() return Opt("planUseMats") end
 
 local optChecks = {}
--- The two tickboxes, after `anchor` in a plan's filter row. `onChange` remakes that plan; the
--- other plan's boxes follow.
-function UI.PlanOptions(f, anchor, x, onChange)
-  local function Box(key, label, tip, after, dx)
+-- The two tickboxes, stacked up from (x, y) at the bottom left of a plan (the footer). `onChange`
+-- remakes that plan; the other plan's boxes follow. Returns the top one.
+function UI.PlanOptions(f, x, y, onChange)
+  local function Box(key, label, tip, below)
     local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
     cb:SetSize(22, 22)
-    cb:SetPoint("LEFT", after, "RIGHT", dx, 0)
+    if below then cb:SetPoint("BOTTOMLEFT", below, "TOPLEFT", 0, -2) else cb:SetPoint("BOTTOMLEFT", x, y) end
     local l = cb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     l:SetPoint("LEFT", cb, "RIGHT", 1, 0)
     l:SetText(label)
@@ -291,15 +287,17 @@ function UI.PlanOptions(f, anchor, x, onChange)
     cb:SetScript("OnShow", function(self) self:SetChecked(Opt(key)) end)
     UI.Tip(cb, label, tip)
     optChecks[#optChecks + 1] = { box = cb, key = key }
-    return l
+    return cb
   end
-  local l1 = Box("planUseOwned", "Use writs/crates you have",
+  local mats = Box("planUseMats", "Use materials in bags & bank",
+    "Items and bundle materials already in your bags and bank count. Untick to buy them all on the AH.")
+  return Box("planUseOwned", "Use writs/crates you have",
     "Writs you hold (any character) are free in the rep plan; crates you hold and Sealed Crates in your bags "
-      .. "count in the favor plan. Untick to plan as if you had none.", anchor, x)
-  local l2 = Box("planUseMats", "Use materials in bags & bank",
-    "Items and bundle materials already in your bags and bank count. Untick to buy them all on the AH.", l1, 10)
-  return l2
+      .. "count in the favor plan. Untick to plan as if you had none.", mats)
 end
+
+-- The plans' width: narrower than the lists.
+UI.PLAN_W = 860
 
 function UI.UpdateCartButtons()
   local n = ns.CartCount and ns.CartCount() or 0

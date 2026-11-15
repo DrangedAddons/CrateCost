@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.49.0
+- Checklists tick themselves: no clicking. Steps with an amount count up as you go (crates filled, receipts, empty crates, containers handed in), read from your bags, favor and rep since the plan was made; quests and writs stay done once seen. A progress bar on top (rep to the target, or favor), the current step in gold, done steps green, counted steps filling as they go, and a stone and bronze look.
+- The bar on every view is just **Home**, **Cart** and **Refresh**; Merchant moved onto the favor card.
+- Both plans are narrower (860): shorter columns, and the tickboxes (use what you have, materials, show done, open with the AH) stacked bottom left.
+- Home's art is brighter.
+
 ## 0.48.0
 - Plan options, in both plans (per character, shared, on by default): **Use writs/crates you have** (held writs, crates and Sealed Crates count first; untick to plan as if you had none) and **Use materials in bags & bank** (untick to buy everything on the AH). The rep plan's container favor crates use them too, and the cart leaves out what you hold.
 

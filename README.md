@@ -56,7 +56,26 @@ The landing view: your **reputation** across the top (the camp, a standing bar, 
 
 **Open the plan with the AH** (Home and both plans, per character, on by default): opening the auction house opens the plan you used last.
 
-The nav bar on every view: **Home, Crates, Writs, Rep plan, Favor plan, Merchant, Cart, Refresh**. `/crates list` opens the crate list, `/crates plan` the rep plan. The rep plan has its own **Target** picker, **Scan AH** and standing line.
+The bar on every view: **Home** (the way between views), **Cart** and **Refresh**. Merchant is on the favor card. `/crates list` opens the crate list, `/crates plan` the rep plan. The rep plan has its own **Target** picker, **Scan AH** and standing line.
+
+## Plan options
+
+Two tickboxes in both plans (per character, shared, on by default):
+
+- **Use writs/crates you have**: writs you hold (any character) are free in the rep plan; crates you hold and the Sealed Crates in your bags count in the favor plan and for the rep plan's container favor. They're used where they're worth it: a writ you hold costs nothing, so it's picked first among writs worth the same rep. Untick to plan as if you had none.
+- **Use materials in bags & bank**: items and bundle materials you already have count, and the cart leaves them out. Untick to buy everything on the AH.
+
+## Checklists
+
+**Checklist** (on Home and in each plan's footer) pops out a small window with just the plan's steps, a progress bar on top (rep to the target, or favor) and a count on the steps that have one ("78 / 90 crates"). Everything ticks itself:
+
+- quests and writs handed in (a writ done during the plan stays done past the daily reset);
+- Sealed Crates as they leave your bags;
+- receipts and notarized containers counted in your bags by name, plus those already used;
+- empty Waylaid Crates in your bags;
+- favor earned and containers handed in, from your favor and rep since the plan was made.
+
+The step you're on is highlighted gold, done steps green, and a step with a count fills as it goes. Hover a step for its details. It drags anywhere, scrolls to where you're up to, reopens after a reload, and starts again with a new plan.
 
 ## Plan options
 

@@ -53,8 +53,19 @@ local function Art(c, key)
     pcall(tex.SetVertTile, tex, true)
     tex:SetAlpha(0.9)
   end
+  -- the art is dark: a brightened copy over it brings the detail out
+  local glow = c:CreateTexture(nil, "BACKGROUND", nil, 2)
+  glow:SetAllPoints(tex)
+  local atlas = done and tex.GetAtlas and tex:GetAtlas()
+  if atlas then glow:SetAtlas(atlas) else
+    glow:SetTexture(ROCK, "REPEAT", "REPEAT")
+    pcall(glow.SetHorizTile, glow, true)
+    pcall(glow.SetVertTile, glow, true)
+  end
+  pcall(glow.SetBlendMode, glow, "ADD")
+  glow:SetAlpha(0.35)
   -- a light shade under the text on the left, clear on the right so the art shows
-  local shade = c:CreateTexture(nil, "BACKGROUND", nil, 2)
+  local shade = c:CreateTexture(nil, "BACKGROUND", nil, 3)
   shade:SetPoint("TOPLEFT", 1, -1)
   shade:SetPoint("BOTTOMRIGHT", -1, 1)
   shade:SetColorTexture(0, 0, 0, 1)
@@ -256,7 +267,7 @@ local function Build()
   frame = UI.Window("CrateCostHome", "CrateCost", WIDTH, TOP + HERO_H + GAP + TILE_H + 40, UI.POS_KEY)
   frame:Hide()
   -- see-through enough for the stone to read
-  frame:SetBackdropColor(0.05, 0.05, 0.07, 0.6)
+  frame:SetBackdropColor(0.05, 0.05, 0.07, 0.4)
   -- stone behind everything, so the window isn't flat
   local bg = frame:CreateTexture(nil, "BACKGROUND", nil, 1)
   bg:SetPoint("TOPLEFT", 1, -1)
@@ -264,7 +275,14 @@ local function Build()
   bg:SetTexture(ROCK, "REPEAT", "REPEAT")
   pcall(bg.SetHorizTile, bg, true)
   pcall(bg.SetVertTile, bg, true)
-  bg:SetAlpha(0.8)
+  bg:SetAlpha(0.9)
+  local glow = frame:CreateTexture(nil, "BACKGROUND", nil, 2)
+  glow:SetAllPoints(bg)
+  glow:SetTexture(ROCK, "REPEAT", "REPEAT")
+  pcall(glow.SetHorizTile, glow, true)
+  pcall(glow.SetVertTile, glow, true)
+  pcall(glow.SetBlendMode, glow, "ADD")
+  glow:SetAlpha(0.2)
   UI.NavBar(frame, "home", function()
     if ns.InvalidateCrates then ns.InvalidateCrates() end
     if ns.InvalidateWrits then ns.InvalidateWrits() end
@@ -273,19 +291,21 @@ local function Build()
   hero = Hero()
   tiles = {
     Tile(1, "crates", "Crates", "Open crates", "Every Waylaid Crate by cost per favor.", function() ns.ToggleWindow() end),
-    Tile(2, "favor", "Merchant's Favor", "Open the favor plan", "The cheapest crates to your Merchant's Favor target.",
+    Tile(2, "favor", "Merchant's Favor", "Favor plan", "The cheapest crates to your Merchant's Favor target.",
       function() ns.ShowFavorPlan() end),
     Tile(3, "writs", "Writs", "Open writs", "Every Craftsman's Writ by cost per rep.", function() ns.ToggleWrits() end),
   }
   -- the favor target, the same one the favor plan uses: a box on the favor tile's second line
   local ft = tiles[2]
-  -- the favor plan's button shares the bottom with its checklist popout
-  ft.button:SetWidth(TILE_W - 24 - 78)
+  -- the favor tile's bottom: its plan, the plan's checklist, and the Merchant (what favor buys)
+  ft.button:SetWidth(70)
   ft.button:ClearAllPoints()
   ft.button:SetPoint("BOTTOMLEFT", 12, 10)
   local fcl = Button(ft, "Checklist", "A small window with just the favor plan's steps, ticked as you do them.",
-    function() if ns.ToggleChecklist then ns.ToggleChecklist("favor") end end, 72, 22)
-  fcl:SetPoint("LEFT", ft.button, "RIGHT", 6, 0)
+    function() if ns.ToggleChecklist then ns.ToggleChecklist("favor") end end, 64, 22)
+  fcl:SetPoint("LEFT", ft.button, "RIGHT", 3, 0)
+  local mer = Button(ft, "Merchant", "Every recipe sold for Merchant's Favor.", function() ns.ToggleRecipes() end, 64, 22)
+  mer:SetPoint("LEFT", fcl, "RIGHT", 3, 0)
   local box = CreateFrame("EditBox", nil, ft, "InputBoxTemplate")
   box:SetSize(64, 18)
   box:SetPoint("TOPRIGHT", -12, -36 - LINE_H + 2)
@@ -308,7 +328,7 @@ local function Build()
   ah:SetPoint("BOTTOMRIGHT", -180, 10)
   local foot = frame:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
   foot:SetPoint("BOTTOMLEFT", 16, 14)
-  foot:SetText("Merchant and Cart are in the bar at the top.")
+  foot:SetText("Merchant is on the favor card; Cart in the bar at the top.")
   frame:SetScript("OnShow", function() ns.RefreshHome() end)
   -- keep the numbers current while it's open
   for _, ev in ipairs({ "BAG_UPDATE_DELAYED", "CURRENCY_DISPLAY_UPDATE", "QUEST_TURNED_IN", "UPDATE_FACTION" }) do

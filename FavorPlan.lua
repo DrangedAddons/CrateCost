@@ -298,7 +298,7 @@ end
 
 local function Build()
   local UI = ns.UI
-  f = UI.Window("CrateCostFavorPlan", "Favor plan", UI.WIDTH, TOP + PROWS * ROW_H + FOOT, UI.POS_KEY)
+  f = UI.Window("CrateCostFavorPlan", "Favor plan", UI.PLAN_W, TOP + PROWS * ROW_H + FOOT, UI.POS_KEY)
   f:Hide()
   UI.NavBar(f, "favor", function()
     if ns.InvalidateCrates then ns.InvalidateCrates() end
@@ -345,7 +345,7 @@ local function Build()
     .. "what's left to earn, then remakes the plan with them.")
   f.scan = scan
   -- use what you have / materials you have (shared with the rep plan)
-  UI.PlanOptions(f, scan, 14, function()
+  UI.PlanOptions(f, 14, 34, function()
     Regenerate()
     f.offset = 0
     Fill()
@@ -362,7 +362,9 @@ local function Build()
     Fill()
   end)
   UI.Tip(regen, "Regenerate", "Make the plan again from your favor, crates, bags and prices as they are now.")
-  UI.PlanAtAHCheck(f, regen)
+  local ah = UI.PlanAtAHCheck(f, regen)
+  ah:ClearAllPoints()
+  ah:SetPoint("BOTTOMLEFT", 14, 12)
 
   f.offset, f.rows = 0, {}
   for i = 1, PROWS do
@@ -377,9 +379,9 @@ local function Build()
       fs:SetWordWrap(false)
       return fs
     end
-    r.name = Text(420, "LEFT")
+    r.name = Text(300, "LEFT")
     r.name:SetPoint("LEFT", 0, 0)
-    r.how = Text(300, "LEFT")
+    r.how = Text(170, "LEFT")
     r.how:SetPoint("LEFT", r.name, "RIGHT", 6, 0)
     local add = CreateFrame("Button", nil, r, "UIPanelButtonTemplate")
     add:SetSize(34, 17)

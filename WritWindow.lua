@@ -1512,7 +1512,7 @@ local function FillPlan()
       r.addBtn:Hide()
       if step == "favor" then
         if c.src then
-          r.name:SetText("   1. Buy + fill " .. c.src.n .. "x " .. c.src.name .. ", turn them in")
+          r.name:SetText("   1. Fill " .. c.src.n .. "x " .. c.src.name .. ", hand in")
           r.how:SetText(GREY .. c.src.qty .. " " .. c.src.bundle .. " each|r")
           -- the favor it earns, in the rep column for neatness: grey with the favor icon, not rep
           r.rep:SetText(GREY .. "+" .. Num(c.src.n * c.src.favor) .. "|r" .. (ns.FavorIcon and ns.FavorIcon() or ""))
@@ -1529,9 +1529,9 @@ local function FillPlan()
           r.cost:SetText(ns.Money(c.favorCost))
         end
       elseif step == "receipts" then
-        r.name:SetText("   2. Buy " .. c.n .. " Forged Delivery Receipts with the favor")
+        r.name:SetText("   2. Buy " .. c.n .. " receipts with the favor")
         r.rep:SetText(GREY .. "-" .. Num(c.favor) .. "|r" .. (ns.FavorIcon and ns.FavorIcon() or ""))
-        r.how:SetText(GREY .. Num(c.favor) .. " favor, " .. (horde and "Kurvelk Shadowhoof" or "Dianne Softstep") .. "|r")
+        r.how:SetText(GREY .. (horde and "Kurvelk Shadowhoof" or "Dianne Softstep") .. "|r")
         r.cost:SetText(GREY .. "favor|r")
       elseif step == "crates" then
         r.name:SetText("   3. Buy " .. c.n .. " empty Waylaid Crates")
@@ -1756,7 +1756,7 @@ function ns.ShowWritPlan()
   if not pf then
     -- a view of the one window, like Crates and Writs
     local UI = ns.UI
-    pf = UI.Window("CrateCostWritPlan", "Rep plan", UI.WIDTH, PTOP + PROWS * PROW_H + PFOOT, UI.POS_KEY)
+    pf = UI.Window("CrateCostWritPlan", "Rep plan", UI.PLAN_W, PTOP + PROWS * PROW_H + PFOOT, UI.POS_KEY)
     pf:Hide()
     UI.NavBar(pf, "plan", function()
       ns.InvalidateWrits()
@@ -1783,8 +1783,8 @@ function ns.ShowWritPlan()
     end)
     -- Scan AH, as on the writs view: deep enough for this plan, then it's made again
     pf.scanBtn = ScanButton(pf, tb, 14)
-    -- use what you have / materials you have (shared with the favor plan)
-    UI.PlanOptions(pf, pf.scanBtn, 14, function()
+    -- use what you have / materials you have (shared with the favor plan): the footer's left side
+    UI.PlanOptions(pf, 14, 56, function()
       ns.RegenerateWritPlan()
       pf.offset = 0
       FillPlan()
@@ -1806,7 +1806,7 @@ function ns.ShowWritPlan()
     -- show / hide writs on cooldown (done today)
     local cb = CreateFrame("CheckButton", nil, pf, "UICheckButtonTemplate")
     cb:SetSize(22, 22)
-    cb:SetPoint("RIGHT", regen, "LEFT", -150, 0)
+    cb:SetPoint("BOTTOMLEFT", 14, 34)
     local cbl = cb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     cbl:SetPoint("LEFT", cb, "RIGHT", 2, 0)
     cbl:SetText("Show writs done today")
@@ -1819,7 +1819,9 @@ function ns.ShowWritPlan()
     ns.UI.Tip(cb, "Show writs done today", "The writs the plan would have used today but you've already "
       .. "filled (red, outside the cost), and the ones handed in since the plan was made. Untick to hide them.")
     pf.showCD = cb
-    ns.UI.PlanAtAHCheck(pf, cb, -170)
+    local ah = ns.UI.PlanAtAHCheck(pf, cb, 0)
+    ah:ClearAllPoints()
+    ah:SetPoint("BOTTOMLEFT", 14, 12)
     -- cooldowns change as writs are handed in
     pcall(pf.RegisterEvent, pf, "QUEST_TURNED_IN")
     pf:SetScript("OnEvent", function()
@@ -1840,9 +1842,9 @@ function ns.ShowWritPlan()
       end
       -- name and route from the left; the numbers from the right, each in its own slot, so a
       -- long amount ("100g 11s 21c") can't run into the next column
-      r.name = Text(380, "LEFT")
+      r.name = Text(262, "LEFT")
       r.name:SetPoint("LEFT", 0, 0)
-      r.how = Text(320, "LEFT")
+      r.how = Text(186, "LEFT")
       r.how:SetPoint("LEFT", r.name, "RIGHT", 6, 0)
       r.cost = Text(110, "RIGHT")
       r.per = Text(80, "RIGHT")

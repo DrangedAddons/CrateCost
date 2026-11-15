@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.36.0
+- Writ plan: Today / Next day are gone. The plan ignores cooldowns and marks writs done today **(on CD today)**; **Show writs on CD** (per character, on by default) hides them. The summary line counts them.
+- The plan is kept as made until **Regenerate** (or a new target), so it doesn't shift as you hand writs in. Days are numbered Day 1, Day 2. **Add day 1 to cart** skips hidden writs.
+
 ## 0.35.0
 - Writ plan: **Today | Next day** buttons. Next day plans from tomorrow, with every writ off cooldown again (rep as it is now); Today leaves out writs done today. The choice also drives the summary line under the envelopes.
 - Writs done today are marked **(on CD today)** in the plan, and the window counts how many are on cooldown. The cart button adds the plan's first day (today or tomorrow).

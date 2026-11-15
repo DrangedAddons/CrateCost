@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.49.1
+- Checklist: steps about an item (writs, crates) show it as the game does, its icon and its name in its quality colour, and hovering shows the item's own tooltip. Under each writ and crate step not yet done, its fill: the item's icon and name, and how many you have of what the step still needs (green when you have enough). Darker: near-opaque panel, the stone only a hint, quieter highlights, grey and yellow dots for steps to come and the one you're on.
+
 ## 0.49.0
 - Checklists tick themselves: no clicking. Steps with an amount count up as you go (crates filled, receipts, empty crates, containers handed in), read from your bags, favor and rep since the plan was made; quests and writs stay done once seen. A progress bar on top (rep to the target, or favor), the current step in gold, done steps green, counted steps filling as they go, and a stone and bronze look.
 - The bar on every view is just **Home**, **Cart** and **Refresh**; Merchant moved onto the favor card.

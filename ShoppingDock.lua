@@ -19,7 +19,7 @@
 -- Buying needs a click (the game only allows a purchase from one). A commodity is two clicks:
 -- Buy now asks the AH for the exact price (StartCommoditiesPurchase), then Confirm buys at it.
 
-local MINOR = 8
+local MINOR = 9
 
 local _, NS = ...
 NS = type(NS) == "table" and NS or {}
@@ -686,6 +686,7 @@ Refresh = function()
     panel.buy:Disable() panel.buy:SetText("Buy") panel.skip:Disable() panel.amount:Hide()
     panel.rescanItem:Disable() panel.rescanList:Disable() panel.rescanList:SetText("Rescan list")
     for _, r in ipairs(panel.rows) do r:Hide() end
+    panel.track:Hide()
     return
   end
   panel.listName:SetText(GOLD .. name .. "|r")
@@ -795,6 +796,19 @@ Refresh = function()
   local rows = panel.visible or 12
   if not panel.scrolled and idx then panel.offset = idx - 3 end
   panel.offset = math.max(0, math.min(panel.offset, n - rows))
+  -- the scrollbar: only when the plan has more rows than fit
+  local over = n - rows
+  if over > 0 then
+    local trackH = rows * ROW_H
+    local th = math.max(16, math.floor(trackH * rows / n))
+    panel.track:SetHeight(trackH)
+    panel.thumb:SetHeight(th)
+    panel.thumb:ClearAllPoints()
+    panel.thumb:SetPoint("TOP", panel.track, "TOP", 0, -(trackH - th) * panel.offset / over)
+    panel.track:Show()
+  else
+    panel.track:Hide()
+  end
   for i, r in ipairs(panel.rows) do
     local it = i <= rows and items[panel.offset + i]
     if not it then
@@ -1142,7 +1156,7 @@ local function Build()
     local r = CreateFrame("Button", nil, p)
     r:SetHeight(ROW_H)
     r:SetPoint("TOPLEFT", 14, -LIST_TOP - (i - 1) * ROW_H)
-    r:SetPoint("RIGHT", p, "RIGHT", -14, 0)
+    r:SetPoint("RIGHT", p, "RIGHT", -26, 0)
     r.bg = r:CreateTexture(nil, "BACKGROUND")
     r.bg:SetAllPoints()
     r.check = r:CreateTexture(nil, "ARTWORK")
@@ -1173,6 +1187,43 @@ local function Build()
     r:SetScript("OnMouseWheel", Wheel)
     p.rows[i] = r
   end
+  -- scrollbar beside the plan: a 6px track, a thumb you can drag
+  p.track = CreateFrame("Frame", nil, p)
+  p.track:SetWidth(6)
+  p.track:SetPoint("TOPRIGHT", -14, -LIST_TOP)
+  local tbg = p.track:CreateTexture(nil, "BACKGROUND")
+  tbg:SetAllPoints()
+  tbg:SetColorTexture(0.12, 0.12, 0.12, 1)
+  p.track:EnableMouseWheel(true)
+  p.track:SetScript("OnMouseWheel", Wheel)
+  p.track:Hide()
+  p.thumb = CreateFrame("Button", nil, p.track)
+  p.thumb:SetWidth(6)
+  local tt = p.thumb:CreateTexture(nil, "ARTWORK")
+  tt:SetAllPoints()
+  tt:SetColorTexture(0.55, 0.55, 0.55, 1)
+  local thl = p.thumb:CreateTexture(nil, "HIGHLIGHT")
+  thl:SetAllPoints()
+  thl:SetColorTexture(1, 1, 1, 0.2)
+  local function CursorY() return select(2, GetCursorPosition()) / p:GetEffectiveScale() end
+  p.thumb:SetScript("OnMouseDown", function(self)
+    self.startY, self.startOff = CursorY(), p.offset
+    self:SetScript("OnUpdate", function()
+      local items = Items(ActiveName()) or {}
+      local rows = p.visible or 12
+      local over = #items - rows
+      local free = p.track:GetHeight() - self:GetHeight()
+      if over <= 0 or free <= 0 then return end
+      local off = self.startOff + (self.startY - CursorY()) * over / free
+      off = math.max(0, math.min(over, math.floor(off + 0.5)))
+      if off ~= p.offset then
+        p.offset, p.scrolled = off, true
+        Refresh()
+      end
+    end)
+  end)
+  p.thumb:SetScript("OnMouseUp", function(self) self:SetScript("OnUpdate", nil) end)
+  p.thumb:SetScript("OnHide", function(self) self:SetScript("OnUpdate", nil) end)
   p:EnableMouseWheel(true)
   p:SetScript("OnMouseWheel", Wheel)
   local forget = Button(p, "Forget list", 120, 22, function()

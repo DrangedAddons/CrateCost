@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.56.2
+- Shopping dock (ShoppingDock 0.4.0): click any row in **The plan** to buy that item next; **Forget list** is back in place of Start over and Done with list.
+
 ## 0.56.1
 - Shopping dock (ShoppingDock 0.3.0): the list picker is a solid dropdown grouped by the addon that made each list; Rescan list moved to the top right of the summary, Rescan item to the top right of the item; the dock no longer shows the AH through it.
 

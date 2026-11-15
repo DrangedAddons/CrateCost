@@ -19,7 +19,7 @@
 -- Buying needs a click (the game only allows a purchase from one). A commodity is two clicks:
 -- Buy now asks the AH for the exact price (StartCommoditiesPurchase), then Confirm buys at it.
 
-local MINOR = 3
+local MINOR = 4
 
 local _, NS = ...
 NS = type(NS) == "table" and NS or {}
@@ -87,7 +87,8 @@ end
 
 ------------------------------------------------------------------------------------------------
 -- Saved data: ShoppingDockDB = { enabled, active = listName, lists = { [listName] = L }, ... }
---   L = { items = { [key] = rec }, plan = { [itemID] = { qty, planned, name } }, forgotten }
+--   L = { items = { [key] = rec }, plan = { [itemID] = { qty, planned, name } }, forgotten,
+--         focus = key of the item picked from the plan rows, source = the addon that made it }
 --   rec = { id, bought, spent, base (price each when first seen), want (amount set here), skipped }
 -- Only touched from PLAYER_LOGIN on: SavedVariables load after this file runs.
 
@@ -273,11 +274,20 @@ local function ActiveName()
   return nil
 end
 
+-- The item the dock is on: the one picked from the plan rows (L.focus) while it has some left,
+-- then the next unfinished one after it, wrapping round. Nothing picked: the first unfinished.
 local function Current()
-  local items = Items(ActiveName())
+  local items, L = Items(ActiveName())
   if not items then return nil end
-  for i, x in ipairs(items) do
-    if not IsDone(x) then return x, i, items end
+  local start = 1
+  if L and L.focus then
+    for i, x in ipairs(items) do
+      if x.key == L.focus then start = i break end
+    end
+  end
+  for k = 0, #items - 1 do
+    local i = (start - 1 + k) % #items + 1
+    if not IsDone(items[i]) then return items[i], i, items end
   end
   return nil, nil, items
 end
@@ -538,6 +548,20 @@ local function SelectList(name)
   Search()
 end
 
+-- A plan row was clicked: work on that item next. A skipped item comes back; a bought one
+-- has nothing left to work on. Not while a purchase is waiting for its answer.
+local function FocusItem(key)
+  local name = ActiveName()
+  if not (Active() and name and key) or state.phase == "buying" then return end
+  local x = FindItem(key)
+  if not x then return end
+  x.rec.skipped = nil
+  if IsDone(x) then return end
+  Track(name).focus = key
+  if panel then panel.scrolled = true end
+  Search()
+end
+
 -- dir = 1 next list, -1 previous
 local function Cycle(dir)
   local lists = RawLists()
@@ -795,6 +819,7 @@ Refresh = function()
       local done = rec.bought >= Want(it)
       r.check:SetShown(done)
       local label = it.name .. " x" .. Want(it)
+      r.key, r.label, r.done = it.key, label, done
       if it == x then
         r.text:SetText(GOLD .. label .. "|r")
         r.bg:SetColorTexture(1, 0.82, 0, 0.08)
@@ -913,8 +938,10 @@ local function FillMenu()
         if IsDone(it) then done = done + 1 end
       end
       row.text:SetPoint("LEFT", 18, 0)
-      row.text:SetText((e.name == cur and "|cffffffff" or "|cffcccccc") .. e.name .. "|r"
-        .. GREY .. "  " .. done .. " / " .. #items .. "|r")
+      local L = Store().lists[e.name]
+      local forgotten = L and L.forgotten
+      row.text:SetText((e.name == cur and "|cffffffff" or forgotten and GREY or "|cffcccccc") .. e.name .. "|r"
+        .. GREY .. "  " .. (forgotten and "forgotten" or (done .. " / " .. #items)) .. "|r")
       row.sel:SetShown(e.name == cur)
       row.name = e.name
       row:EnableMouse(true)
@@ -1124,7 +1151,7 @@ local function Build()
   -- the list
   local lt = p:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
   lt:SetPoint("TOPLEFT", 18, -LIST_TOP + 16)
-  lt:SetText("The list")
+  lt:SetText("The plan")
   local function Wheel(_, d)
     p.offset = p.offset - d * 3
     p.scrolled = true
@@ -1132,7 +1159,7 @@ local function Build()
   end
   p.rows = {}
   for i = 1, MAX_ROWS do
-    local r = CreateFrame("Frame", nil, p)
+    local r = CreateFrame("Button", nil, p)
     r:SetHeight(ROW_H)
     r:SetPoint("TOPLEFT", 14, -LIST_TOP - (i - 1) * ROW_H)
     r:SetPoint("RIGHT", p, "RIGHT", -14, 0)
@@ -1150,33 +1177,41 @@ local function Build()
     r.text:SetPoint("RIGHT", r.cost, "LEFT", -6, 0)
     r.text:SetJustifyH("LEFT")
     r.text:SetWordWrap(false)
+    local hl = r:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints()
+    hl:SetColorTexture(1, 1, 1, 0.08)
+    r:SetScript("OnClick", function(self) FocusItem(self.key) end)
+    r:SetScript("OnEnter", function(self)
+      if not self.key then return end
+      GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+      GameTooltip:SetText(self.label or "")
+      GameTooltip:AddLine(self.done and "Bought." or "Click to buy this one next.", 1, 1, 1, true)
+      GameTooltip:Show()
+    end)
+    r:SetScript("OnLeave", function() GameTooltip:Hide() end)
     r:EnableMouseWheel(true)
     r:SetScript("OnMouseWheel", Wheel)
     p.rows[i] = r
   end
   p:EnableMouseWheel(true)
   p:SetScript("OnMouseWheel", Wheel)
-  local restart = Button(p, "Start over", 120, 22, function()
+  local forget = Button(p, "Forget list", 120, 22, function()
     local name = ActiveName()
     if not name then return end
+    -- the dock drops this list's progress and stops opening for it; the plan's prices stay,
+    -- and Auctionator's list isn't touched
     local L = Track(name)
-    -- progress goes; the plan and the prices it was listed at stay
     for _, rec in pairs(L.items) do
       rec.bought, rec.spent, rec.skipped, rec.want = 0, 0, nil, nil
     end
+    L.focus, L.forgotten = nil, true
+    Store().active = nil
     p.scrolled = false
     Search()
   end)
-  restart:SetPoint("BOTTOMLEFT", 16, 14)
-  Tip(restart, "Start over", "Clear what's been bought and skipped on this list. Auctionator's list isn't touched.")
-  local hide = Button(p, "Done with list", 120, 22, function()
-    local name = ActiveName()
-    if name then Track(name).forgotten = true end
-    p:Hide()
-  end)
-  hide:SetPoint("BOTTOMRIGHT", -16, 14)
-  Tip(hide, "Done with list", "Stop opening the dock for this list when you visit the auction house. "
-    .. "It comes back if the list changes. Auctionator's list isn't touched.")
+  forget:SetPoint("BOTTOMRIGHT", -16, 14)
+  Tip(forget, "Forget list", "Drop what's been bought and skipped on this list, and stop opening the dock for it "
+    .. "at the auction house. Auctionator's list isn't touched: pick it from the list menu to start it again.")
   p:SetScript("OnHide", function()
     CloseMenu()
     if state.phase == "scan" then state = { phase = "idle" } end

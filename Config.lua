@@ -120,7 +120,7 @@ local function Build()
   Check(frame, "Show shopping list dock",
     function() return ShoppingDock and ShoppingDock.IsEnabled() end,
     function(on) if ShoppingDock then ShoppingDock.SetEnabled(on) end end, L, -278,
-    "The Shopping list button beside the auction house, and the dock that works through your shopping lists "
+    "The Shopping list button in the auction house window, and the dock that works through your shopping lists "
       .. "there one item at a time. Shared with every addon that carries ShoppingDock.")
 
   local note = Text(frame, "Prices come from Auctionator. Hovering a crate in your bags saves its real "

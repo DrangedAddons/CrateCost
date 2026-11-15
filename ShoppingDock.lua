@@ -19,7 +19,7 @@
 -- Buying needs a click (the game only allows a purchase from one). A commodity is two clicks:
 -- Buy now asks the AH for the exact price (StartCommoditiesPurchase), then Confirm buys at it.
 
-local MINOR = 5
+local MINOR = 6
 
 local _, NS = ...
 NS = type(NS) == "table" and NS or {}
@@ -42,7 +42,7 @@ local ICON_DONE = "Interface\\RaidFrame\\ReadyCheck-Ready"
 local BUY_TIMEOUT = 10 -- seconds before a purchase with no answer counts as failed
 local SCAN_TIMEOUT = 5 -- seconds a list rescan waits on one item before moving on
 
-local panel, tab
+local panel
 local atAH = false
 -- the current item: phase = idle | find (looking up an unknown item's ID) | search | start
 -- (a commodity: Buy now asks for the quote) | price (waiting for the quote) | ready | buying | none
@@ -333,7 +333,7 @@ local function CancelQuote()
   end
 end
 
-local Refresh
+local Refresh, UpdateButton
 
 local function SendQuery()
   if state.phase == "find" then
@@ -1192,7 +1192,9 @@ local function Build()
   forget:SetPoint("BOTTOMRIGHT", -16, 14)
   Tip(forget, "Forget list", "Drop what's been bought and skipped on this list, and stop opening the dock for it "
     .. "at the auction house. Auctionator's list isn't touched: pick it from the list menu to start it again.")
+  p:SetScript("OnShow", function() UpdateButton() end)
   p:SetScript("OnHide", function()
+    UpdateButton()
     CloseMenu()
     if state.phase == "scan" then state = { phase = "idle" } end
     CancelQuote()
@@ -1207,9 +1209,9 @@ local function Dock()
   local ahf = _G.AuctionHouseFrame
   panel:ClearAllPoints()
   if ahf and ahf:IsShown() then
-    panel:SetPoint("TOPLEFT", ahf, "TOPRIGHT", 4, -26)
+    panel:SetPoint("TOPLEFT", ahf, "TOPRIGHT", 4, 0)
     local h = tonumber(ahf:GetHeight())
-    panel:SetHeight(h and h > 400 and h - 26 or 560)
+    panel:SetHeight(h and h > 400 and h or 560)
   else
     panel:SetPoint("CENTER")
     panel:SetHeight(560)
@@ -1234,27 +1236,110 @@ function SD.Toggle()
   if panel and panel:IsShown() then panel:Hide() else ShowDock() end
 end
 
--- the Shopping list button on the AH window's right edge: opens and closes the dock
-local function Tab()
+-- The Shopping list button inside the auction house window: an icon that opens the dock. It's
+-- there only while the dock is closed and there's at least one shopping list. On Auctionator's
+-- Shopping tab it sits at the top right of the search row; on other tabs (where the AH's own
+-- search bar runs to the edge) it shrinks into the title bar, left of the close button.
+local ahButton, shopHooked
+
+local function PlaceButton()
+  local ahf = _G.AuctionHouseFrame
+  if not (ahButton and ahf) then return end
+  ahButton:ClearAllPoints()
+  local shop = ahf.AuctionatorShoppingTabFrame
+  if shop and shop:IsShown() then
+    ahButton:SetSize(30, 30)
+    ahButton:SetPoint("TOPRIGHT", ahf, "TOPRIGHT", -8, -32)
+  else
+    ahButton:SetSize(18, 18)
+    if ahf.CloseButton then
+      ahButton:SetPoint("RIGHT", ahf.CloseButton, "LEFT", -4, 0)
+    else
+      ahButton:SetPoint("TOPRIGHT", ahf, "TOPRIGHT", -30, -3)
+    end
+  end
+end
+
+-- items still to buy on the dock's list (nil: no list picked)
+local function LeftOnActive()
+  local name = ActiveName()
+  if not name or Track(name).forgotten then return nil end
+  local n = 0
+  for _, x in ipairs(Items(name) or {}) do
+    if not IsDone(x) then n = n + 1 end
+  end
+  return n
+end
+
+local function BuildAHButton(ahf)
+  local b = CreateFrame("Button", "ShoppingDockAHButton", ahf)
+  b:SetFrameLevel(ahf:GetFrameLevel() + 20)
+  local edge = b:CreateTexture(nil, "BACKGROUND")
+  edge:SetAllPoints()
+  edge:SetColorTexture(0, 0, 0, 1)
+  local gold = b:CreateTexture(nil, "BORDER")
+  gold:SetPoint("TOPLEFT", 1, -1)
+  gold:SetPoint("BOTTOMRIGHT", -1, 1)
+  gold:SetColorTexture(0.85, 0.68, 0.2, 1)
+  b.icon = b:CreateTexture(nil, "ARTWORK")
+  b.icon:SetPoint("TOPLEFT", 2, -2)
+  b.icon:SetPoint("BOTTOMRIGHT", -2, 2)
+  b.icon:SetTexture("Interface\\Icons\\INV_Misc_Bag_10")
+  b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+  b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+  b.count = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+  b.count:SetPoint("BOTTOMRIGHT", -1, 2)
+  b:SetScript("OnMouseDown", function(self) self.icon:SetPoint("TOPLEFT", 3, -3) end)
+  b:SetScript("OnMouseUp", function(self) self.icon:SetPoint("TOPLEFT", 2, -2) end)
+  b:SetScript("OnClick", function()
+    GameTooltip:Hide()
+    ShowDock()
+  end)
+  b:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+    GameTooltip:SetText("Shopping list")
+    local name = ActiveName()
+    if name then
+      local left = LeftOnActive()
+      GameTooltip:AddLine(name, 1, 0.82, 0)
+      if left then GameTooltip:AddLine(left .. " item" .. (left == 1 and "" or "s") .. " left to buy", 1, 1, 1) end
+    end
+    local n = #RawLists()
+    GameTooltip:AddLine(n .. " shopping list" .. (n == 1 and "" or "s"), 0.7, 0.7, 0.7)
+    GameTooltip:AddLine("|cffffd100Click|r to open the dock", 1, 1, 1)
+    GameTooltip:Show()
+  end)
+  b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  b:Hide()
+  ahButton = b
+end
+
+UpdateButton = function()
   if not Active() then return end
   local ahf = _G.AuctionHouseFrame
   if not ahf then return end
-  if not tab then
-    tab = Button(ahf, "Shopping list", 120, 22, function() SD.Toggle() end)
-    tab:SetPoint("TOPLEFT", ahf, "TOPRIGHT", 4, 0)
-    Tip(tab, "Shopping list", "Works through an Auctionator shopping list one item at a time, with the live "
-      .. "price against what the list expected.")
+  if not ahButton then BuildAHButton(ahf) end
+  local shop = ahf.AuctionatorShoppingTabFrame
+  if shop and not shopHooked then
+    shopHooked = true
+    shop:HookScript("OnShow", function() if Active() then PlaceButton() end end)
+    shop:HookScript("OnHide", function() if Active() then PlaceButton() end end)
   end
-  tab:SetShown(SD.IsEnabled())
+  local show = SD.IsEnabled() and #RawLists() > 0 and not (panel and panel:IsShown())
+  ahButton:SetShown(show and true or false)
+  if show then
+    PlaceButton()
+    local left = LeftOnActive()
+    ahButton.count:SetText(left and left > 0 and tostring(left) or "")
+  end
 end
 
 -- The "Show shopping list dock" option: off hides the AH button and the dock, and stops the
 -- dock opening by itself. The minimap button and slash command still open it.
 function SD.SetEnabled(on)
   Store().enabled = on and true or false
-  if tab then tab:SetShown(on and true or false) end
   if not on and panel then panel:Hide() end
-  if on and atAH then Tab() end
+  UpdateButton()
 end
 
 -- A list was made or changed: the dock follows it, and opens if you're at the AH.
@@ -1351,7 +1436,7 @@ end
 -- A newer copy took over: this one hides its frames and goes quiet.
 function SD._Retire()
   if panel then panel:Hide() end
-  if tab then tab:Hide() end
+  if ahButton then ahButton:Hide() end
 end
 
 ------------------------------------------------------------------------------------------------
@@ -1372,6 +1457,7 @@ function listListener:ReceiveEvent(event, name)
       Follow(name, true) -- made in Auctionator's Shopping tab
     end
     if panel and panel:IsShown() then Refresh() end
+    UpdateButton()
   end)
   if not ok then Log("list event", err) end
 end
@@ -1386,9 +1472,12 @@ local function WatchLists()
   listListener.on = pcall(Auctionator.EventBus.Register, Auctionator.EventBus, listListener, names)
 end
 
+local HookAH -- below, with the AH events
+
 local function Init()
   if not Active() then return end
   WatchLists()
+  HookAH()
   -- progress for lists Auctionator no longer has goes
   local s = Store()
   for name in pairs(s.lists) do
@@ -1402,6 +1491,7 @@ end
 
 local ev = CreateFrame("Frame")
 ev:RegisterEvent("PLAYER_LOGIN")
+ev:RegisterEvent("ADDON_LOADED")
 for _, e in ipairs({ "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED", "AUCTION_HOUSE_THROTTLED_SYSTEM_READY",
   "AUCTION_HOUSE_BROWSE_RESULTS_UPDATED", "COMMODITY_SEARCH_RESULTS_UPDATED", "COMMODITY_SEARCH_RESULTS_ADDED",
   "ITEM_SEARCH_RESULTS_UPDATED", "COMMODITY_PRICE_UPDATED", "COMMODITY_PRICE_UNAVAILABLE",
@@ -1412,20 +1502,49 @@ for _, e in ipairs({ "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED", "AUCTION_HOUS
   end
 end
 
+-- The AH window opened: the dock (when the list you're on has things left) or the button,
+-- in the same frame as the window, so nothing pops in afterwards. Once per visit.
+local ahOpened = false
+local function OnAHShown()
+  if ahOpened then return end
+  ahOpened, atAH = true, true
+  if SD.IsEnabled() then
+    local name = ActiveName()
+    if name and not Track(name).forgotten and Current() then ShowDock() end
+  end
+  UpdateButton()
+  -- Auctionator builds its tabs as the AH opens: once more next frame to catch its Shopping tab
+  C_Timer.After(0, function() if Active() then UpdateButton() end end)
+end
+
+local ahHooked = false
+HookAH = function()
+  local ahf = _G.AuctionHouseFrame
+  if ahHooked or not ahf then return end
+  ahHooked = true
+  ahf:HookScript("OnShow", function()
+    if not Active() then return end
+    local ok, err = pcall(OnAHShown)
+    if not ok then Log("AH show", err) end
+  end)
+  ahf:HookScript("OnHide", function() ahOpened = false end)
+end
+
 local function OnEvent(e, a, b)
   if e == "PLAYER_LOGIN" then
     Init()
     return
+  elseif e == "ADDON_LOADED" then
+    if a == "Blizzard_AuctionHouseUI" then HookAH() end
+    return
   elseif e == "AUCTION_HOUSE_SHOW" then
+    -- usually the AH window's OnShow got here first; this covers it not having been hooked yet
     atAH = true
-    if not SD.IsEnabled() then return end
-    C_Timer.After(0.3, Tab)
-    -- the list you're on still has things to buy: the dock opens beside the AH
-    local name = ActiveName()
-    if name and not Track(name).forgotten and Current() then C_Timer.After(0.5, ShowDock) end
+    HookAH()
+    if _G.AuctionHouseFrame and _G.AuctionHouseFrame:IsShown() then OnAHShown() end
     return
   elseif e == "AUCTION_HOUSE_CLOSED" then
-    atAH = false
+    atAH, ahOpened = false, false
     if panel then panel:Hide() end
     state = { phase = "idle" }
     return

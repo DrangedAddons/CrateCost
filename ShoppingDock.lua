@@ -19,7 +19,7 @@
 -- Buying needs a click (the game only allows a purchase from one). A commodity is two clicks:
 -- Buy now asks the AH for the exact price (StartCommoditiesPurchase), then Confirm buys at it.
 
-local MINOR = 6
+local MINOR = 7
 
 local _, NS = ...
 NS = type(NS) == "table" and NS or {}
@@ -1236,28 +1236,22 @@ function SD.Toggle()
   if panel and panel:IsShown() then panel:Hide() else ShowDock() end
 end
 
--- The Shopping list button inside the auction house window: an icon that opens the dock. It's
--- there only while the dock is closed and there's at least one shopping list. On Auctionator's
--- Shopping tab it sits at the top right of the search row; on other tabs (where the AH's own
--- search bar runs to the edge) it shrinks into the title bar, left of the close button.
-local ahButton, shopHooked
+-- The Shopping list button in the auction house's bottom tab row, right of the last tab
+-- (Auctionator's, or any other LibAHTab addon's): drawn with the same template as those tabs,
+-- but it only opens the dock, it doesn't switch the AH's view. It's there only while the dock
+-- is closed and there's at least one shopping list.
+local ahButton
+local BAG = "|TInterface\Icons\INV_Misc_Bag_10:14:14:0:0:64:64:5:59:5:59|t "
+-- the gap between tabs, as LibAHTab uses it
+local TAB_GAP = (WOW_PROJECT_ID ~= WOW_PROJECT_MAINLINE and WOW_PROJECT_ID ~= WOW_PROJECT_CAMELOT) and -14 or 3
 
-local function PlaceButton()
-  local ahf = _G.AuctionHouseFrame
-  if not (ahButton and ahf) then return end
-  ahButton:ClearAllPoints()
-  local shop = ahf.AuctionatorShoppingTabFrame
-  if shop and shop:IsShown() then
-    ahButton:SetSize(30, 30)
-    ahButton:SetPoint("TOPRIGHT", ahf, "TOPRIGHT", -8, -32)
-  else
-    ahButton:SetSize(18, 18)
-    if ahf.CloseButton then
-      ahButton:SetPoint("RIGHT", ahf.CloseButton, "LEFT", -4, 0)
-    else
-      ahButton:SetPoint("TOPRIGHT", ahf, "TOPRIGHT", -30, -3)
-    end
-  end
+-- the rightmost tab in the row: LibAHTab's last (Auctionator's tabs), else the AH's own last
+local function LastTab()
+  local lib = LibStub and LibStub("LibAHTab-1-0", true)
+  local tabs = lib and lib.internalState and lib.internalState.Tabs
+  if type(tabs) == "table" and tabs[#tabs] then return tabs[#tabs] end
+  local own = _G.AuctionHouseFrame and _G.AuctionHouseFrame.Tabs
+  return type(own) == "table" and own[#own] or nil
 end
 
 -- items still to buy on the dock's list (nil: no list picked)
@@ -1272,31 +1266,18 @@ local function LeftOnActive()
 end
 
 local function BuildAHButton(ahf)
-  local b = CreateFrame("Button", "ShoppingDockAHButton", ahf)
-  b:SetFrameLevel(ahf:GetFrameLevel() + 20)
-  local edge = b:CreateTexture(nil, "BACKGROUND")
-  edge:SetAllPoints()
-  edge:SetColorTexture(0, 0, 0, 1)
-  local gold = b:CreateTexture(nil, "BORDER")
-  gold:SetPoint("TOPLEFT", 1, -1)
-  gold:SetPoint("BOTTOMRIGHT", -1, 1)
-  gold:SetColorTexture(0.85, 0.68, 0.2, 1)
-  b.icon = b:CreateTexture(nil, "ARTWORK")
-  b.icon:SetPoint("TOPLEFT", 2, -2)
-  b.icon:SetPoint("BOTTOMRIGHT", -2, 2)
-  b.icon:SetTexture("Interface\\Icons\\INV_Misc_Bag_10")
-  b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-  b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-  b.count = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
-  b.count:SetPoint("BOTTOMRIGHT", -1, 2)
-  b:SetScript("OnMouseDown", function(self) self.icon:SetPoint("TOPLEFT", 3, -3) end)
-  b:SetScript("OnMouseUp", function(self) self.icon:SetPoint("TOPLEFT", 2, -2) end)
+  local ok, b = pcall(CreateFrame, "Button", "ShoppingDockAHTab", ahf, "AuctionHouseFrameDisplayModeTabTemplate")
+  if not ok then
+    -- no tab template on this client: a plain button in the same spot
+    b = CreateFrame("Button", "ShoppingDockAHTab", ahf, "UIPanelButtonTemplate")
+    b:SetHeight(24)
+  end
   b:SetScript("OnClick", function()
     GameTooltip:Hide()
     ShowDock()
   end)
   b:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
     GameTooltip:SetText("Shopping list")
     local name = ActiveName()
     if name then
@@ -1319,19 +1300,23 @@ UpdateButton = function()
   local ahf = _G.AuctionHouseFrame
   if not ahf then return end
   if not ahButton then BuildAHButton(ahf) end
-  local shop = ahf.AuctionatorShoppingTabFrame
-  if shop and not shopHooked then
-    shopHooked = true
-    shop:HookScript("OnShow", function() if Active() then PlaceButton() end end)
-    shop:HookScript("OnHide", function() if Active() then PlaceButton() end end)
-  end
   local show = SD.IsEnabled() and #RawLists() > 0 and not (panel and panel:IsShown())
-  ahButton:SetShown(show and true or false)
-  if show then
-    PlaceButton()
-    local left = LeftOnActive()
-    ahButton.count:SetText(left and left > 0 and tostring(left) or "")
+  if not show then
+    ahButton:Hide()
+    return
   end
+  local left = LeftOnActive()
+  ahButton:SetText(BAG .. "Shopping list" .. (left and left > 0 and ("  |cffffffff" .. left .. "|r") or ""))
+  if PanelTemplates_TabResize then pcall(PanelTemplates_TabResize, ahButton, 20, nil, 70) end
+  if PanelTemplates_DeselectTab then pcall(PanelTemplates_DeselectTab, ahButton) end
+  local last = LastTab()
+  ahButton:ClearAllPoints()
+  if last then
+    ahButton:SetPoint("TOPLEFT", last, "TOPRIGHT", TAB_GAP, 0)
+  else
+    ahButton:SetPoint("TOPLEFT", ahf, "BOTTOMLEFT", 600, 2)
+  end
+  ahButton:Show()
 end
 
 -- The "Show shopping list dock" option: off hides the AH button and the dock, and stops the
@@ -1513,7 +1498,7 @@ local function OnAHShown()
     if name and not Track(name).forgotten and Current() then ShowDock() end
   end
   UpdateButton()
-  -- Auctionator builds its tabs as the AH opens: once more next frame to catch its Shopping tab
+  -- Auctionator adds its tabs as the AH opens: once more next frame so the button sits after them
   C_Timer.After(0, function() if Active() then UpdateButton() end end)
 end
 

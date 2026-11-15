@@ -1436,7 +1436,7 @@ end
 ---------------------------------------------------------------------------------------------
 -- The plan's window: day by day, each writ, how to get it and its item, rep and cost.
 
-local PROWS, PROW_H, PTOP, PFOOT = 24, 18, 84, 100
+local PROWS, PROW_H, PTOP, PFOOT = 22, 18, 84, 150
 local pf, ShowCD
 -- Show the writs already done today in the plan window (per character, default on).
 ShowCD = function()
@@ -1623,7 +1623,7 @@ local function FillPlan()
   else
     pf.title:SetText("Rep plan")
     pf.total:SetText(needRep and "No writ has a price yet." or (t and "Target reached." or "Pick a target standing."))
-    pf.money:SetText("")
+    ns.UI.PlanMoney(pf)
   end
 end
 

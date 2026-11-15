@@ -10,7 +10,7 @@ local _, ns = ...
 -- that finishes it for less wins even at a worse rate. Crate costs only rise with the listings,
 -- so this stays close to the cheapest mix.
 
-local PROWS, ROW_H, TOP, FOOT = 24, 18, 84, 100
+local PROWS, ROW_H, TOP, FOOT = 22, 18, 84, 150
 local LEVEL = { Apprentice = 10, Journeyman = 10, Expert = 20, Artisan = 35 }
 local LABEL_QUESTS, LABEL_FAVOR = { 98247, 98248 }, 50
 local GREY = "|cff808080"
@@ -265,7 +265,7 @@ local function Fill()
       or "Crates you hold and materials in your bags are used first. Prices: AH listings when scanned, else Auctionator.")
   else
     f.total:SetText(t and "No crate has a price yet." or "Type how much Merchant's Favor you want.")
-    f.money:SetText("")
+    ns.UI.PlanMoney(f)
     f.note:SetText("")
   end
 end

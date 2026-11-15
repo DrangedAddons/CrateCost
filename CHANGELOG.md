@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.46.3
+- Plans' money as a sum, top to bottom: Up front, Turn-ins pay back (-), a rule, then Net (or Net profit). Just Total when nothing comes back.
+
 ## 0.46.2
 - Home: set the rep target (picker in the reputation header) and the favor target (box on the Merchant's Favor tile) right there; the plans follow. The window and cards are more see-through so the stone reads.
 - Title rows no longer overlap with the eight-button nav bar: shorter titles (Waylaid Crates, Craftsman's Writs, Merchant), the crate list's favor and the writ list's standing sit right after their target, and each view's count ("30 of 30 crates") moved to the bottom right.

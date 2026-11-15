@@ -178,15 +178,31 @@ ahFrame:SetScript("OnEvent", function()
   end)
 end)
 
--- The plans' footer, centred: a summary line, the money (up front, the turn-in silver that comes
--- back later, net) a size up, and a big Add plan to cart button. A note sits at the bottom left.
--- Fills f.summary, f.money, f.add, f.note.
-UI.PLAN_FOOT = 100
+-- The plans' footer, centred: a summary line, the money as a little sum (up front, minus the
+-- turn-in silver that comes back later, = net) a size up, and a big Add plan to cart button. A
+-- note sits at the bottom left. Fills f.summary, f.moneyL/R (3 rows), f.add, f.note.
+UI.PLAN_FOOT = 150
+local SUM_W = 300   -- the sum's width: labels on the left, amounts right-aligned
 function UI.PlanFooter(f, onAdd, tip)
   f.summary = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  f.summary:SetPoint("BOTTOM", 0, 76)
-  f.money = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-  f.money:SetPoint("BOTTOM", 0, 50)
+  f.summary:SetPoint("BOTTOM", 0, 124)
+  f.moneyL, f.moneyR = {}, {}
+  for i = 1, 3 do
+    local y = 50 + (3 - i) * 22 + (i == 3 and 0 or 4)
+    local l = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    l:SetPoint("BOTTOMLEFT", f, "BOTTOM", -SUM_W / 2, y)
+    l:SetJustifyH("LEFT")
+    local r = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    r:SetPoint("BOTTOMRIGHT", f, "BOTTOM", SUM_W / 2, y)
+    r:SetJustifyH("RIGHT")
+    f.moneyL[i], f.moneyR[i] = l, r
+  end
+  -- the rule above the net
+  f.moneyRule = f:CreateTexture(nil, "OVERLAY")
+  f.moneyRule:SetHeight(1)
+  f.moneyRule:SetPoint("BOTTOMLEFT", f, "BOTTOM", -SUM_W / 2, 70)
+  f.moneyRule:SetPoint("BOTTOMRIGHT", f, "BOTTOM", SUM_W / 2, 70)
+  f.moneyRule:SetColorTexture(1, 0.82, 0, 0.5)
   local add = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
   add:SetSize(260, 32)
   add:SetPoint("BOTTOM", 0, 12)
@@ -202,17 +218,35 @@ function UI.PlanFooter(f, onAdd, tip)
   f.note:SetWordWrap(true)
 end
 
--- "Up front 45g   Turn-ins pay back +3g   Net 42g"; just "Total" when nothing comes back.
--- `guess`: a "~" in front, the prices go past what the AH scan read.
+-- The sum, top to bottom:   Up front      45g
+--                           Turn-ins pay back   -3g
+--                           -----------------------
+--                           Net           42g
+-- Just "Total" when nothing comes back; nothing with no `upFront`. `guess`: a "~" in front, the
+-- prices go past what the AH scan read.
 function UI.PlanMoney(f, upFront, back, guess)
+  local L, R = f.moneyL, f.moneyR
+  for i = 1, 3 do L[i]:SetText("") R[i]:SetText("") end
+  f.moneyRule:Hide()
+  if not upFront then return end
   local g = guess and "|cffff9933~|r" or ""
   if back and back > 0 then
     local net = upFront - back
-    f.money:SetText(string.format("Up front %s%s     Turn-ins pay back |cff40ff40+%s|r     %s",
-      g, ns.Money(upFront), ns.Money(back), net >= 0 and ("Net " .. g .. ns.Money(net))
-        or ("|cff40ff40Net profit +" .. ns.Money(-net) .. "|r")))
+    L[1]:SetText("Up front")
+    R[1]:SetText("|cffffffff" .. g .. ns.Money(upFront) .. "|r")
+    L[2]:SetText("Turn-ins pay back")
+    R[2]:SetText("|cff40ff40-" .. ns.Money(back) .. "|r")
+    f.moneyRule:Show()
+    if net >= 0 then
+      L[3]:SetText("Net")
+      R[3]:SetText("|cffffffff" .. g .. ns.Money(net) .. "|r")
+    else
+      L[3]:SetText("|cff40ff40Net profit|r")
+      R[3]:SetText("|cff40ff40+" .. ns.Money(-net) .. "|r")
+    end
   else
-    f.money:SetText("Total " .. g .. ns.Money(upFront))
+    L[3]:SetText("Total")
+    R[3]:SetText("|cffffffff" .. g .. ns.Money(upFront) .. "|r")
   end
 end
 

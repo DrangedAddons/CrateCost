@@ -64,6 +64,27 @@ ns.FavorEstimate = {
   crafted = { Artisan = 40 },
 }
 ns.CraftedKinds = { Fabrics = true, Ingots = true, Parts = true }
+
+-- A filled Waylaid Crate turns into a Sealed Crate of its rank. Each rank has two that share
+-- a name: white from a raw crate, green from a crafted one (Fabrics, Ingots, Parts). The green
+-- one pays the crafted favor above. Item IDs from Wowhead Forever.
+ns.SealedCrates = {
+  [248765] = { "Apprentice", "raw" }, [248770] = { "Apprentice", "crafted" },
+  [248766] = { "Journeyman", "raw" }, [248771] = { "Journeyman", "crafted" },
+  [248767] = { "Expert",     "raw" }, [248772] = { "Expert",     "crafted" },
+  [248768] = { "Artisan",    "raw" }, [248773] = { "Artisan",    "crafted" },
+}
+-- Copper a Sealed Crate's turn-in pays on top of the favor: 2s 50c a rank for white, double
+-- for green, up to Expert as read from the beta client (theforeverguides.com, via Waylaid
+-- Auction Helper). Artisan continues the steps and shows as an estimate.
+ns.SealedMoney = {
+  raw     = { Apprentice = 250, Journeyman = 500,  Expert = 750 },
+  crafted = { Apprentice = 500, Journeyman = 1000, Expert = 1500 },
+}
+ns.SealedMoneyEstimate = {
+  raw     = { Artisan = 1000 },
+  crafted = { Artisan = 2000 },
+}
 -- Crate item IDs from the wow-professions.com tables, so the list knows them without
 -- scanning item IDs at login. IDs seen in game (hover, scan) are saved and win.
 ns.CrateIDs = {

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.31.0
+- Sealed Crate tooltips. Each rank has a white and a green Sealed Crate with the same name; the tooltip says which one it is (raw or crafted crate), the Merchant's Favor and silver its turn-in pays, and the total for a stack in your bags. Artisan values are estimates, marked "~".
+
 ## 0.30.3
 - Owned view: **Who** is the first column. Crate / Crates (Writ .. Rep on the writ list) move right into the space the cost column left; Buy puts them back.
 

@@ -13,6 +13,17 @@ Hover a Waylaid Crate:
 - a Merchant's Favor line shows what the crate pays (the same whichever bundle you use)
 - two **Ratings** (Best, Great, Good, Fair, Poor, Worst) under the crate's name: **to Buy** (buying the crate and filling it) and **to Fill** (filling one you already have). Under the favor line, the cost per favor both ways, with rank and how it compares to the cheapest.
 
+Hover a Sealed Crate (a filled crate, ready to turn in). Each rank has two with the same name: white from a raw crate, green from a crafted one (Fabrics, Ingots, Parts). The tooltip says which one it is, the Merchant's Favor and silver its turn-in pays, and the total for a stack in your bags:
+
+| Rank | Favor (white / green) | Turn-in silver (white / green) |
+|---|---|---|
+| Apprentice | 5 / 10 | 2s 50c / 5s |
+| Journeyman | 10 / 20 | 5s / 10s |
+| Expert | 15 / 30 | 7s 50c / 15s |
+| Artisan | ~20 / ~40 | ~10s / ~20s |
+
+Artisan is an estimate (marked "~") until the real numbers are known.
+
 ### How the rating works
 
 Each crate's market cost per favor is `p = (crate AH price + cheapest bundle) / favor`. Crates without a known favor or any priced bundle aren't rated. Each rated crate is compared with the cheapest one (`ratio = p / cheapest p`) and gets one of four tiers, with Best and Worst kept for the extremes:

@@ -193,8 +193,43 @@ local function ClearColumns(tooltip)
   end
 end
 
+-- Sealed Crate: what turning it in pays. The white and green ones share a name, so this says
+-- which it is too.
+local function SealedLines(tooltip, itemID, sealed)
+  if not On("favorLine") then return end
+  local rank, key = sealed[1], sealed[2]
+  local favor, est = FavorFor(rank, key == "crafted" and "Fabrics" or "Ore")
+  local money = ns.SealedMoney[key][rank]
+  local moneyEst = not money and ns.SealedMoneyEstimate[key][rank]
+  local icon = FavorIcon()
+  tooltip:AddLine(" ")
+  if key == "crafted" then
+    tooltip:AddLine("From a crafted crate (Fabrics, Ingots, Parts)", 0.12, 1, 0)
+  else
+    tooltip:AddLine("From a raw crate (Herbs, Ore, Textiles, Curiosities)", 1, 1, 1)
+  end
+  if favor then
+    tooltip:AddDoubleLine(est and "Merchant's Favor (estimate)" or "Merchant's Favor",
+      (est and "~" or "") .. favor .. icon, 0.4, 0.8, 1, 1, 1, 1)
+  end
+  if money or moneyEst then
+    tooltip:AddDoubleLine(moneyEst and "Turn-in pays (estimate)" or "Turn-in pays",
+      (moneyEst and "~" or "") .. Money(money or moneyEst), 0.4, 0.8, 1, 1, 1, 1)
+  end
+  -- a stack in the bags: what all of it pays
+  local n = C_Item and C_Item.GetItemCount and C_Item.GetItemCount(itemID, true) or 0
+  if favor and n > 1 then
+    local total = (est and "~" or "") .. (favor * n) .. icon
+    if money or moneyEst then total = total .. "  " .. Money((money or moneyEst) * n) end
+    tooltip:AddDoubleLine("Your " .. n, total, 0.4, 0.8, 1, 1, 1, 1)
+  end
+  tooltip:Show()
+end
+
 local function Process(tooltip, itemID)
   ClearColumns(tooltip)
+  local sealed = itemID and ns.SealedCrates and ns.SealedCrates[itemID]
+  if sealed then return SealedLines(tooltip, itemID, sealed) end
   local name = tooltip:GetName()
   local title = name and _G[name .. "TextLeft1"]
   local titleText = title and title:GetText()

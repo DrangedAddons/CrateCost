@@ -144,8 +144,12 @@ local function FillOptions(c, bags)
           fills = fills + math.floor(s.count / b[2])
         end
       end
+      -- an item that stacks smaller than the bundle can't come from one stack: count it all
+      local okM, maxStack = pcall(C_Item and C_Item.GetItemMaxStackSizeByID or function() end, id)
+      local multi = okM and type(maxStack) == "number" and maxStack > 0 and maxStack < b[2]
+      if multi then fills = math.floor(have / b[2]) end
       local unit = ns.Price and ns.Price(id)
-      out[#out + 1] = { name = b[1], id = id, qty = b[2], have = have, fills = fills,
+      out[#out + 1] = { name = b[1], id = id, qty = b[2], have = have, fills = fills, multi = multi,
         short = fills == 0 and have >= b[2], value = (unit or 0) * b[2] }
     end
   end
@@ -258,59 +262,53 @@ local function Ask(title, text, def, max, onOK)
 end
 
 ------------------------------------------------------------------------------------------------
--- The runner: one secure button, one item per click. A job is
+-- Running a job: a section with a secure button, one item per click, and a progress bar. A job is
 --   { title, verb, total, start(bags) -> state, done(bags, state) -> n, next(bags, state) -> macro }
+-- A section can sit in any window (the fill window has one); the runner is a small window with one.
 
-local runner, job
+local sections = {}
 local RefreshFill, RefreshContainers   -- forward: windows refresh as the bags change
 
-local function RunnerUpdate()
-  if not runner or not job then return end
-  local bags = Bags()
-  local done = job.done(bags, job.state)
-  local nextMacro = done < job.total and job.next(bags, job.state)
-  if done >= job.total or not nextMacro then
-    local finished = done
-    local j = job
-    job = nil
-    if not Combat() then runner:Hide() end
-    ns.Print(string.format("%s: %d of %d done.", j.title, finished, j.total)
-      .. ((finished < j.total) and (" " .. (j.stop or "Nothing left to do it with.")) or ""))
-    if j.after then pcall(j.after, finished) end
-  else
-    runner.progress:SetText(string.format("%d of %d done", done, job.total))
-    runner.bar:SetWidth(math.max(1, (runner:GetWidth() - 28) * done / job.total))
-    runner.run:SetText(string.format("%s %d of %d", job.verb, done + 1, job.total))
+local function SecUpdate(sec)
+  local job = sec.job
+  if job then
+    local bags = Bags()
+    local done = job.done(bags, job.state)
+    local nextMacro = done < job.total and job.next(bags, job.state)
+    if done >= job.total or not nextMacro then
+      sec.job = false
+      ns.Print(string.format("%s: %d of %d done.", job.title, done, job.total)
+        .. ((done < job.total) and (" " .. (job.stop or "Nothing left to do it with.")) or ""))
+      if job.after then pcall(job.after, done) end
+      if sec.onFinish then pcall(sec.onFinish, job, done) end
+    else
+      sec.progress:SetText(string.format("%d of %d done", done, job.total))
+      sec.bar:SetWidth(math.max(1, sec.trackW * done / job.total))
+      sec.bar:Show()
+      sec.run:SetText(string.format("%s %d of %d", job.verb, done + 1, job.total))
+    end
   end
-  if RefreshFill then RefreshFill() end
-  if RefreshContainers then RefreshContainers() end
+  if not sec.job then
+    sec.bar:Hide()
+    sec.progress:SetText("")
+    if sec.idle then sec.idle(sec) end
+  end
 end
 
-local function BuildRunner()
-  runner = Panel("CrateCostRunner", 300, 128, "")
-  runner.close:SetScript("OnClick", function()
-    if Combat() then return end
-    job = nil
-    runner:Hide()
-  end)
-  runner.note = Text(runner, "GameFontDisableSmall")
-  runner.note:SetPoint("TOPLEFT", 14, -30)
-  runner.note:SetWidth(272)
-  runner.note:SetText("The game lets an addon use an item only on a click: click once per item. "
-    .. "The button works out the next one each time.")
-  local track = runner:CreateTexture(nil, "ARTWORK")
-  track:SetPoint("TOPLEFT", 14, -62)
-  track:SetSize(272, 6)
-  track:SetColorTexture(0.12, 0.12, 0.12, 1)
-  runner.bar = runner:CreateTexture(nil, "OVERLAY")
-  runner.bar:SetPoint("TOPLEFT", track, "TOPLEFT")
-  runner.bar:SetSize(1, 6)
-  runner.bar:SetColorTexture(1, 0.82, 0, 0.9)
-  runner.progress = Text(runner)
-  runner.progress:SetPoint("TOPLEFT", track, "BOTTOMLEFT", 0, -4)
-  local run = CreateFrame("Button", "CrateCostRunButton", runner, "SecureActionButtonTemplate,UIPanelButtonTemplate")
-  run:SetSize(200, 26)
-  run:SetPoint("BOTTOM", 0, 10)
+local function Begin(sec, j)
+  j.state = j.start and j.start(Bags()) or {}
+  sec.job = j
+  SecUpdate(sec)
+end
+
+-- `name` for the secure button; `w` wide. sec.makeJob() (optional) makes the job on the first click.
+local function RunSection(parent, name, w)
+  local sec = CreateFrame("Frame", nil, parent)
+  sec:SetSize(w, 52)
+  sec.trackW, sec.job = w, false
+  local run = CreateFrame("Button", name, sec, "SecureActionButtonTemplate,UIPanelButtonTemplate")
+  run:SetSize(w, 26)
+  run:SetPoint("TOP", 0, 0)
   run:RegisterForClicks("AnyUp")
   run:SetAttribute("useOnKeyDown", false)
   run:SetAttribute("type", "macro")
@@ -318,35 +316,90 @@ local function BuildRunner()
   -- the next item, worked out from the bags as they are now
   run:SetScript("PreClick", function(self)
     if Combat() then return end
-    local m = job and job.next(Bags(), job.state)
+    if not sec.job and sec.makeJob then
+      local j = sec.makeJob()
+      if j then Begin(sec, j) end
+    end
+    local m = sec.job and sec.job.next(Bags(), sec.job.state)
     self:SetAttribute("macrotext", m or "")
   end)
-  runner.run = run
-  runner:RegisterEvent("BAG_UPDATE_DELAYED")
-  runner:SetScript("OnEvent", function() if job then C_Timer.After(0.1, RunnerUpdate) end end)
+  sec.run = run
+  local track = sec:CreateTexture(nil, "ARTWORK")
+  track:SetPoint("TOPLEFT", run, "BOTTOMLEFT", 0, -6)
+  track:SetSize(w, 6)
+  track:SetColorTexture(0.12, 0.12, 0.12, 1)
+  sec.bar = sec:CreateTexture(nil, "OVERLAY")
+  sec.bar:SetPoint("TOPLEFT", track, "TOPLEFT")
+  sec.bar:SetSize(1, 6)
+  sec.bar:SetColorTexture(1, 0.82, 0, 0.9)
+  sec.bar:Hide()
+  sec.progress = Text(sec)
+  sec.progress:SetPoint("TOPLEFT", track, "BOTTOMLEFT", 0, -3)
+  sections[#sections + 1] = sec
+  return sec
 end
 
+local bagWatch = CreateFrame("Frame")
+bagWatch:RegisterEvent("BAG_UPDATE_DELAYED")
+bagWatch:SetScript("OnEvent", function()
+  C_Timer.After(0.1, function()
+    for _, sec in ipairs(sections) do if sec.job then SecUpdate(sec) end end
+    if RefreshFill then RefreshFill() end
+    if RefreshContainers then RefreshContainers() end
+  end)
+end)
+
+-- The runner: a small window with a section, for jobs started elsewhere (containers).
+local runner
 local function StartJob(j)
   if Combat() then ns.Print("not in combat.") return end
-  if not runner then BuildRunner() end
-  local bags = Bags()
-  j.state = j.start and j.start(bags) or {}
-  job = j
+  if not runner then
+    runner = Panel("CrateCostRunner", 300, 128, "")
+    runner.note = Text(runner, "GameFontDisableSmall")
+    runner.note:SetPoint("TOPLEFT", 14, -30)
+    runner.note:SetWidth(272)
+    runner.note:SetText("The game lets an addon use an item only on a click: click once per item. "
+      .. "The button works out the next one each time.")
+    runner.sec = RunSection(runner, "CrateCostRunButton", 272)
+    runner.sec:SetPoint("BOTTOM", 0, 6)
+    runner.sec.onFinish = function() if not Combat() then runner:Hide() end end
+    runner.close:SetScript("OnClick", function()
+      if Combat() then return end
+      runner.sec.job = false
+      runner:Hide()
+    end)
+  end
   runner.title:SetText(j.title)
   runner:ClearAllPoints()
   runner:SetPoint("CENTER", UIParent, "CENTER", 0, -120)
   runner:Show()
   runner:Raise()
-  RunnerUpdate()
+  Begin(runner.sec, j)
 end
 
 local function Use(s) return "/use " .. s.bag .. " " .. s.slot end
 
 ------------------------------------------------------------------------------------------------
--- Fill crates window
+-- Fill crates window: the crates in your bags on top (scrolling), the one you pick below with
+-- how many and the Fill button.
 
 local fillWin
-local FILL_ROWS, FILL_ROW_H = 12, 30
+local FILL_W, FILL_ROWS, FILL_ROW_H = 640, 8, 30
+local LIST_TOP = 32
+local PANEL_H = 112
+
+-- The stack to fill from: one that holds the whole bundle, else (an item that stacks smaller than
+-- the bundle) the biggest.
+local function FillStack(o, bags)
+  local best
+  for _, s in ipairs(bags) do
+    if s.id == o.id then
+      if s.count >= o.qty then return s end
+      if o.multi and (not best or s.count > best.count) then best = s end
+    end
+  end
+  return best
+end
 
 local function FillJob(e, n)
   return {
@@ -359,7 +412,7 @@ local function FillJob(e, n)
       if not crate then return nil end
       for _, o in ipairs(FillOptions(e.c, bags)) do
         if o.fills > 0 then
-          local stack = FirstSlot(function(s) return s.id == o.id and s.count >= o.qty end, bags)
+          local stack = FillStack(o, bags)
           if stack then return Use(crate) .. "\n" .. Use(stack) end
         end
       end
@@ -367,20 +420,39 @@ local function FillJob(e, n)
   }
 end
 
-local function FillRow(parent, i)
-  local r = CreateFrame("Frame", nil, parent)
-  r:SetSize(parent:GetWidth() - 24, FILL_ROW_H - 2)
-  r:SetPoint("TOPLEFT", 12, -36 - (i - 1) * FILL_ROW_H)
+local function Selected(f)
+  for _, e in ipairs(f.list or {}) do if e.id == f.selID then return e end end
+end
+
+local function SelectCrate(f, e)
+  if f.sec.job and f.selID ~= (e and e.id) then f.sec.job = false end
+  f.selID = e and e.id or false
+  f.qty = e and e.can or 0
+  f.box:SetText(tostring(f.qty))
+  RefreshFill()
+end
+
+local function FillRow(f, i)
+  local r = CreateFrame("Button", nil, f)
+  r:SetSize(FILL_W - 24 - 12, FILL_ROW_H - 2)
+  r:SetPoint("TOPLEFT", 12, -LIST_TOP - (i - 1) * FILL_ROW_H)
   r.bg = r:CreateTexture(nil, "BACKGROUND")
   r.bg:SetAllPoints()
   r.bg:SetColorTexture(1, 1, 1, i % 2 == 0 and 0.03 or 0)
+  r.sel = r:CreateTexture(nil, "BORDER")
+  r.sel:SetAllPoints()
+  r.sel:SetColorTexture(1, 0.82, 0, 0.18)
+  r.sel:Hide()
+  r.hl = r:CreateTexture(nil, "HIGHLIGHT")
+  r.hl:SetAllPoints()
+  r.hl:SetColorTexture(1, 1, 1, 0.08)
   r.icon = r:CreateTexture(nil, "ARTWORK")
   r.icon:SetSize(22, 22)
   r.icon:SetPoint("LEFT", 2, 0)
   r.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
   r.crate = Text(r, "GameFontHighlight")
   r.crate:SetPoint("LEFT", r.icon, "RIGHT", 6, 0)
-  r.crate:SetWidth(210)
+  r.crate:SetWidth(200)
   r.crate:SetWordWrap(false)
   r.arrow = Text(r, "GameFontNormal")
   r.arrow:SetPoint("LEFT", r.crate, "RIGHT", 4, 0)
@@ -389,21 +461,17 @@ local function FillRow(parent, i)
   r.matIcon:SetSize(18, 18)
   r.matIcon:SetPoint("LEFT", r.arrow, "RIGHT", 6, 0)
   r.matIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-  r.mat = Text(r)
-  r.mat:SetPoint("LEFT", r.matIcon, "RIGHT", 4, 0)
-  r.mat:SetWidth(230)
-  r.mat:SetWordWrap(false)
-  r.fill = Button(r, "Fill", 70, function()
-    local e = r.entry
-    if not e or e.can == 0 then return end
-    Ask("Fill " .. e.c.name, "How many Waylaid Crate: " .. e.c.name .. " to fill? You have " .. e.n
-      .. ", with bundles for " .. e.can .. ".", e.can, e.can, function(n) StartJob(FillJob(e, n)) end)
-  end)
+  r.fill = Button(r, "Fill", 60, function() if r.entry then SelectCrate(f, r.entry) end end)
   r.fill:SetPoint("RIGHT", -2, 0)
   r.count = Text(r)
   r.count:SetPoint("RIGHT", r.fill, "LEFT", -8, 0)
+  r.count:SetWidth(54)
   r.count:SetJustifyH("RIGHT")
-  r:EnableMouse(true)
+  r.mat = Text(r)
+  r.mat:SetPoint("LEFT", r.matIcon, "RIGHT", 4, 0)
+  r.mat:SetPoint("RIGHT", r.count, "LEFT", -6, 0)
+  r.mat:SetWordWrap(false)
+  r:SetScript("OnClick", function() if r.entry then SelectCrate(f, r.entry) end end)
   r:SetScript("OnEnter", function(self)
     local e = self.entry
     if not e then return end
@@ -415,11 +483,54 @@ local function FillRow(parent, i)
         .. (o.fills > 0 and (" (" .. o.fills .. ")") or (o.short and ", no stack big enough" or "")) .. "|r",
         0.9, 0.9, 0.9)
     end
-    GameTooltip:AddLine("A bundle has to come from one stack that holds the whole amount.", 0.7, 0.7, 0.7, true)
+    GameTooltip:AddLine("A bundle comes from one stack that holds the whole amount.", 0.7, 0.7, 0.7, true)
     GameTooltip:Show()
   end)
   r:SetScript("OnLeave", function() GameTooltip:Hide() end)
   return r
+end
+
+-- the picked crate's section: what it is, how many, the Fill button
+local function RefreshPicked(f, e)
+  local p = f.picked
+  if not e then
+    p.icon:Hide()
+    p.name:SetText("")
+    p.how:SetText("")
+    p.hint:SetText(GREY .. "Pick a crate above: click its row or Fill.|r")
+    p.qtyRow:Hide()
+    if not Combat() then f.sec:Hide() end
+    return
+  end
+  p.hint:SetText("")
+  p.icon:SetTexture(IconOf(e.id))
+  p.icon:Show()
+  p.name:SetText(QualityHex(e.id) .. "Waylaid Crate: " .. e.c.name .. "|r  " .. GREY .. "x" .. e.n .. "|r")
+  local o = e.opts[1]
+  if o and o.fills > 0 then
+    p.how:SetText("-> " .. o.qty .. " " .. o.name .. GREY .. "  (" .. Num(o.have) .. " in bags)|r"
+      .. "   " .. GREEN .. "fills " .. e.can .. "|r")
+  else
+    p.how:SetText(o and (GREY .. "-> needs " .. o.qty .. " " .. o.name .. (o.short and " in one stack" or "") .. "|r")
+      or (GREY .. "bundles not known: hover the crate in your bags|r"))
+  end
+  p.qtyRow:Show()
+  p.of:SetText("of " .. e.can)
+  local busy = f.sec.job and true or false
+  if not busy and not f.box:HasFocus() then
+    f.qty = math.min(f.qty or e.can, e.can)
+    f.box:SetText(tostring(f.qty))
+  end
+  if not Combat() then f.sec:Show() end
+  if not busy and not Combat() then
+    if e.can > 0 and (f.qty or 0) > 0 then
+      f.sec.run:Enable()
+      f.sec.run:SetText("Fill 1 of " .. f.qty)
+    else
+      f.sec.run:Disable()
+      f.sec.run:SetText(e.can > 0 and "Fill" or "Nothing to fill with")
+    end
+  end
 end
 
 RefreshFill = function()
@@ -440,9 +551,10 @@ RefreshFill = function()
   local maxOff = math.max(0, #list - FILL_ROWS)
   f.offset = math.min(f.offset or 0, maxOff)
   for i = 1, FILL_ROWS do
-    local r, e = f.rows[i], list[(f.offset or 0) + i]
+    local r, e = f.rows[i], list[f.offset + i]
     r.entry = e or false
     if e then
+      r.sel:SetShown(e.id == f.selID)
       r.icon:SetTexture(IconOf(e.id))
       r.crate:SetText(QualityHex(e.id) .. e.c.name .. "|r  " .. GREY .. "x" .. e.n .. "|r")
       local o = e.opts[1]
@@ -451,8 +563,7 @@ RefreshFill = function()
         r.matIcon:Show()
         local more = 0
         for k = 2, #e.opts do if e.opts[k].fills > 0 then more = more + 1 end end
-        r.mat:SetText(o.name .. " " .. GREY .. "x" .. o.qty .. "|r"
-          .. (more > 0 and (GREY .. "  +" .. more .. " more|r") or ""))
+        r.mat:SetText(o.qty .. " " .. o.name .. (more > 0 and (GREY .. "  +" .. more .. " more|r") or ""))
         r.count:SetText(GREEN .. "fills " .. e.can .. "|r")
         r.fill:Enable()
       else
@@ -468,7 +579,22 @@ RefreshFill = function()
       r:Hide()
     end
   end
+  -- the scrollbar: only when the list doesn't fit
+  if maxOff > 0 then
+    local trackH = FILL_ROWS * FILL_ROW_H - 2
+    local thumbH = math.max(16, trackH * FILL_ROWS / #list)
+    f.thumb:SetHeight(thumbH)
+    f.thumb:SetPoint("TOP", f.track, "TOP", 0, -(trackH - thumbH) * f.offset / maxOff)
+    f.track:Show()
+    f.thumb:Show()
+  else
+    f.track:Hide()
+    f.thumb:Hide()
+  end
   f.empty:SetShown(#list == 0)
+  local e = Selected(f)
+  if not e and f.selID and not f.sec.job then f.selID = false end
+  RefreshPicked(f, e)
   local receipts = BagCountByName(RECEIPT, bags)
   f.containers:SetShown(#list > 0)
   f.containers:SetText("Make containers" .. (receipts > 0 and (" (" .. receipts .. ")") or ""))
@@ -476,10 +602,18 @@ end
 
 function ns.ShowFillCrates()
   if not fillWin then
-    local f = Panel("CrateCostFill", 640, 36 + FILL_ROWS * FILL_ROW_H + 44, "Fill crates")
-    f.offset = 0
+    local listH = FILL_ROWS * FILL_ROW_H
+    local f = Panel("CrateCostFill", FILL_W, LIST_TOP + listH + 10 + PANEL_H + 40, "Fill crates")
+    f.offset, f.selID, f.qty, f.list = 0, false, 0, false
     f.rows = {}
     for i = 1, FILL_ROWS do f.rows[i] = FillRow(f, i) end
+    f.track = f:CreateTexture(nil, "ARTWORK")
+    f.track:SetPoint("TOPRIGHT", -12, -LIST_TOP)
+    f.track:SetSize(6, listH - 2)
+    f.track:SetColorTexture(0.12, 0.12, 0.12, 1)
+    f.thumb = f:CreateTexture(nil, "OVERLAY")
+    f.thumb:SetWidth(6)
+    f.thumb:SetColorTexture(0.55, 0.55, 0.55, 1)
     f.empty = Text(f, "GameFontDisable")
     f.empty:SetPoint("TOP", 0, -60)
     f.empty:SetText("No Waylaid Crates in your bags.")
@@ -488,6 +622,75 @@ function ns.ShowFillCrates()
       self.offset = math.max(0, (self.offset or 0) - d)
       RefreshFill()
     end)
+
+    -- the picked crate, below the list
+    local p = CreateFrame("Frame", nil, f, "BackdropTemplate")
+    p:SetPoint("TOPLEFT", 12, -LIST_TOP - listH - 10)
+    p:SetPoint("TOPRIGHT", -12, -LIST_TOP - listH - 10)
+    p:SetHeight(PANEL_H)
+    p:SetBackdrop({ bgFile = WHITE, edgeFile = WHITE, edgeSize = 1 })
+    p:SetBackdropColor(0.03, 0.03, 0.035, 0.95)
+    p:SetBackdropBorderColor(0.25, 0.25, 0.28, 1)
+    f.picked = p
+    p.icon = p:CreateTexture(nil, "ARTWORK")
+    p.icon:SetSize(36, 36)
+    p.icon:SetPoint("TOPLEFT", 10, -10)
+    p.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    p.name = Text(p, "GameFontNormalLarge")
+    p.name:SetPoint("TOPLEFT", p.icon, "TOPRIGHT", 10, -1)
+    p.name:SetWidth(330)
+    p.name:SetWordWrap(false)
+    p.how = Text(p)
+    p.how:SetPoint("TOPLEFT", p.name, "BOTTOMLEFT", 0, -5)
+    p.how:SetWidth(330)
+    p.how:SetWordWrap(false)
+    p.hint = Text(p, "GameFontHighlight")
+    p.hint:SetPoint("CENTER")
+    -- How many [n] of N [Max]
+    p.qtyRow = CreateFrame("Frame", nil, p)
+    p.qtyRow:SetSize(330, 24)
+    p.qtyRow:SetPoint("BOTTOMLEFT", 56, 12)
+    local lbl = Text(p.qtyRow, "GameFontHighlight")
+    lbl:SetPoint("LEFT", 0, 0)
+    lbl:SetText("How many")
+    f.box = NumBox(p.qtyRow, 54)
+    f.box:SetPoint("LEFT", lbl, "RIGHT", 12, 0)
+    p.of = Text(p.qtyRow)
+    p.of:SetPoint("LEFT", f.box, "RIGHT", 8, 0)
+    local function SaveQty()
+      local e = Selected(f)
+      local n = math.max(0, math.min(e and e.can or 0, tonumber(f.box:GetText()) or 0))
+      f.qty = n
+      f.box:SetText(tostring(n))
+      -- while filling: the new amount is where it stops
+      if f.sec.job then f.sec.job.total = math.max(n, f.sec.job.done(Bags(), f.sec.job.state)) SecUpdate(f.sec) end
+      RefreshFill()
+    end
+    f.box:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    f.box:SetScript("OnEditFocusLost", SaveQty)
+    p.max = Button(p.qtyRow, "Max", 50, function()
+      local e = Selected(f)
+      f.box:SetText(tostring(e and e.can or 0))
+      SaveQty()
+    end)
+    p.max:SetPoint("LEFT", p.of, "RIGHT", 10, 0)
+    -- the Fill button and its progress, on the right
+    f.sec = RunSection(p, "CrateCostFillButton", 200)
+    f.sec:SetPoint("TOPRIGHT", -12, -14)
+    f.sec.makeJob = function()
+      local e = Selected(f)
+      if e and e.can > 0 and (f.qty or 0) > 0 then return FillJob(e, math.min(f.qty, e.can)) end
+    end
+    f.sec.idle = function() RefreshPicked(f, Selected(f)) end
+    f.sec.onFinish = function()
+      f.qty = false   -- back to all it can fill
+    end
+    local note = Text(p, "GameFontDisableSmall")
+    note:SetPoint("TOPRIGHT", f.sec, "BOTTOMRIGHT", 0, -20)
+    note:SetWidth(200)
+    note:SetJustifyH("RIGHT")
+    note:SetText("One click per crate: the game only lets an addon use an item on a click.")
+
     f.containers = Button(f, "Make containers", 140, function() ns.ShowContainers() end,
       "Put Forged Delivery Receipts on empty crates: Notarized Shipping Containers for "
         .. NPCName() .. ", 50 rep each.")
@@ -495,9 +698,8 @@ function ns.ShowFillCrates()
     local hint = Text(f, "GameFontDisableSmall")
     hint:SetPoint("LEFT", f.containers, "RIGHT", 12, 0)
     hint:SetText("Each crate uses its cheapest bundle in your bags. Hover a row for every bundle.")
-    f:RegisterEvent("BAG_UPDATE_DELAYED")
-    f:SetScript("OnEvent", function() C_Timer.After(0.2, RefreshFill) end)
     f:SetScript("OnShow", function() RefreshFill() end)
+    f:SetScript("OnHide", function() if not Combat() then f.sec.job = false end end)
     fillWin = f
   end
   fillWin:Show()
@@ -764,8 +966,11 @@ local function HandInItems(bags)
   return out
 end
 
-local function Status(text)
-  if handWin then handWin.status:SetText(text or "") end
+-- the status line under the list; `big`: the large gold line, for what you have to do next
+local function Status(text, big)
+  if not handWin then return end
+  handWin.status:SetText(big and "" or (text or ""))
+  handWin.wait:SetText(big and (text or "") or "")
 end
 
 local function ItemOfLink(link)
@@ -962,7 +1167,7 @@ local function OnProgress()
     item and "not ready to hand in" or "not one of the picked items",
     #asks > 0 and table.concat(asks, ", ") or "nothing listed"))
   if CloseQuest then CloseQuest() end
-  Status(GOLD .. "That quest wasn't one of yours. Talk to " .. NPCName() .. " again to carry on.|r")
+  Status("Right-click " .. NPCName() .. " to carry on.", true)
 end
 
 local function OnComplete()
@@ -984,7 +1189,7 @@ local function OnTurnedIn(questID)
   C_Timer.After(1.2, function()
     if hand and hand.waiting then
       if Left() <= 0 then Continue()
-      else Status(GOLD .. "Talk to " .. NPCName() .. " again to hand in the rest (" .. Left() .. ").|r") end
+      else Status("Right-click " .. NPCName() .. " for the next one (" .. Left() .. " left).", true) end
     end
   end)
 end
@@ -1036,13 +1241,16 @@ local function HandRow(f, i)
 end
 
 local function BuildHand()
-  local f = Panel("CrateCostHandIn", 400, 54 + HAND_ROWS * 26 + 64, "Hand in")
+  local f = Panel("CrateCostHandIn", 400, 54 + HAND_ROWS * 26 + 92, "Hand in")
   f.ask = Text(f)
   f.ask:SetPoint("TOPLEFT", 14, -30)
   f.ask:SetWidth(372)
   f.ask:SetText("You have these to hand in. Which would you like to hand in?")
   f.rows = {}
   for i = 1, HAND_ROWS do f.rows[i] = HandRow(f, i) end
+  f.wait = Text(f, "GameFontNormalLarge")
+  f.wait:SetPoint("BOTTOMLEFT", 14, 62)
+  f.wait:SetWidth(372)
   f.status = Text(f, "GameFontHighlightSmall")
   f.status:SetPoint("BOTTOMLEFT", 14, 40)
   f.status:SetWidth(372)

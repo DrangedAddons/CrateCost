@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.58.0
+- Fill crates is one window: the crate list on top scrolls (with a scrollbar when it doesn't fit), and the crate you pick shows in the panel below with How many, Max and the Fill button and its progress. No separate prompt or runner window.
+- Fill crates: the bundle text no longer runs into "fills"; an item that stacks smaller than its bundle counts every stack.
+- Hand in: after each hand-in the window says, in large text, to right-click the NPC for the next one (the game doesn't let addons reopen the dialog); each right-click hands in the next.
+
 ## 0.57.1
 - Hand in: a crate whose item data wasn't loaded yet (Expert crates) was taken for "not yours" and the dialog closed. It now reads the quest's item ID, falls back to the name, and forgets the wrong answers 0.57.0 saved. When it does close a quest, chat says which quest and what it asked for.
 

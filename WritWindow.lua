@@ -477,6 +477,13 @@ local function Choose(groups, need)
   return best, bestCost
 end
 
+-- The plan's days by name: Today, Tomorrow, then Day 3 on.
+local function DayName(day)
+  if day == 1 then return "Today" end
+  if day == 2 then return "Tomorrow" end
+  return "Day " .. day
+end
+
 local function SortPlan(list)
   table.sort(list, function(a, b)
     if a.day ~= b.day then return a.day < b.day end
@@ -1276,7 +1283,7 @@ local function PlanLines(p)
           else n, cost, rep = n + 1, cost + x.cost, rep + x.e.rep end
         end
       end
-      lines[#lines + 1] = { head = "Day " .. day .. string.format("  -  %d writs", n)
+      lines[#lines + 1] = { head = DayName(day) .. string.format("  -  %d writs", n)
         .. (spent > 0 and string.format("  |cffff4040(+%d done today)|r", spent) or ""), cost = cost, rep = rep }
     end
     if ShowCD() or not it.e.done then lines[#lines + 1] = { it = it } end
@@ -1524,7 +1531,7 @@ function ns.ShowWritPlan()
         self.entry = e
         ShowRowTooltip(self)
         GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("In the plan: Day " .. it.day, 1, 0.82, 0)
+        GameTooltip:AddLine("In the plan: " .. DayName(it.day), 1, 0.82, 0)
         GameTooltip:AddDoubleLine((it.owned and "Have writ" or "Buy writ") .. " + "
           .. (it.crafted and "craft" or "buy") .. " " .. (e.qty > 1 and (e.qty .. "x ") or "") .. "item",
           ns.Money(it.cost), 1, 1, 1, 1, 1, 1)

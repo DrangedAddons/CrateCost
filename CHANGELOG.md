@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.37.0
+- Writ plan: a **[+cart]** button on each writ adds the writ and its fill. **Add plan to cart** (was Add day 1 to cart) adds the whole plan's. The writ goes in unless you have it; the fill is the item, or the recipe's reagents when the plan crafts it. Writs on CD only when shown.
+
 ## 0.36.3
 - Writ plan: a **Per rep** column (each writ, and each day's total) and column headings.
 

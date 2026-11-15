@@ -1242,6 +1242,7 @@ local function FillPlan()
       r.rep:SetText("|cffffd100" .. Num(ln.rep) .. "|r")
       r.per:SetText("|cffffd100" .. ns.Money(math.floor(ln.cost / ln.rep + 0.5)) .. "|r")
       r.cost:SetText("|cffffd100" .. ns.Money(ln.cost) .. "|r")
+      r.addBtn:Hide()
       r:Show()
     else
       local it, e = ln.it, ln.it.e
@@ -1252,6 +1253,7 @@ local function FillPlan()
         .. (it.crafted and "craft" or "buy") .. " " .. (e.qty > 1 and (e.qty .. "x ") or "") .. "item|r")
       r.rep:SetText(e.rep)
       r.per:SetText(ns.Money(math.floor(it.cost / e.rep + 0.5)))
+      r.addBtn:Show()
       r.cost:SetText(ns.Money(it.cost))
       r:Show()
     end
@@ -1270,18 +1272,38 @@ local function FillPlan()
   end
 end
 
--- Adds day 1's writs to buy and items to buy to the cart (writs on CD only when shown).
+-- One plan entry's buys: the writ (unless you have it) and its fill: the item, or when the plan
+-- crafts it, the recipe's reagents for that many.
+local function EntryItems(it, items)
+  local e = it.e
+  if not it.owned then items[#items + 1] = { id = e.writ, name = "Craftsman's Writ: " .. e.name, qty = 1 } end
+  local r = it.crafted and ns.Crafts and ns.Crafts[e.item]
+  if r then
+    for i = 3, #r do
+      local id, n = r[i][1], r[i][2]
+      local name = C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(id)
+      items[#items + 1] = { id = id, name = name or ("item " .. id), qty = math.ceil(n * e.qty / r[1]) }
+    end
+  else
+    items[#items + 1] = { id = e.item, name = e.name, qty = e.qty }
+  end
+end
+
+-- Adds the whole plan's buys to the cart. Writs on CD only when they're shown.
 local function PlanToCart(p)
   local items = {}
   for _, it in ipairs(p.list) do
-    if it.day == 1 and (ShowCD() or not it.e.done) then
-      local e = it.e
-      if not it.owned then items[#items + 1] = { id = e.writ, name = "Craftsman's Writ: " .. e.name, qty = 1 } end
-      if not it.crafted then items[#items + 1] = { id = e.item, name = e.name, qty = e.qty } end
-    end
+    if ShowCD() or not it.e.done then EntryItems(it, items) end
   end
   local n = ns.CartAdd(items)
   ns.Print(string.format("added %d to the cart.", n))
+end
+
+local function RowToCart(it)
+  local items = {}
+  EntryItems(it, items)
+  ns.CartAdd(items)
+  ns.Print("added " .. it.e.name .. " to the cart.")
 end
 
 function ns.ShowWritPlan()
@@ -1361,7 +1383,33 @@ function ns.ShowWritPlan()
       r.per = Text(80, "RIGHT")
       r.per:SetPoint("LEFT", r.rep, "RIGHT", 6, 0)
       r.cost = Text(90, "RIGHT")
-      r.cost:SetPoint("RIGHT", 0, 0)
+      -- [+cart]: this writ and its fill
+      local add = CreateFrame("Button", nil, r, "UIPanelButtonTemplate")
+      add:SetSize(34, 17)
+      add:SetPoint("RIGHT", 0, 0)
+      add:SetText("")
+      local plus = add:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+      plus:SetPoint("LEFT", 6, 0)
+      plus:SetText("+")
+      local icon = add:CreateTexture(nil, "OVERLAY")
+      icon:SetSize(13, 13)
+      icon:SetPoint("LEFT", plus, "RIGHT", 2, 0)
+      if C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo("Perks-ShoppingCart") then
+        icon:SetAtlas("Perks-ShoppingCart")
+      else
+        icon:SetTexture("Interface\\AddOns\\CrateCost\\cart")
+      end
+      add:SetScript("OnClick", function() if r.it then RowToCart(r.it) end end)
+      add:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Add to cart", 1, 1, 1)
+        GameTooltip:AddLine("The writ (unless you have it) and its fill: the item, or its reagents when "
+          .. "the plan crafts it.", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+      end)
+      add:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      r.addBtn = add
+      r.cost:SetPoint("RIGHT", add, "LEFT", -6, 0)
       r:EnableMouse(true)
       -- the writ's full tooltip, as on the writ list, then its place in the plan
       r:SetScript("OnEnter", function(self)
@@ -1402,15 +1450,15 @@ function ns.ShowWritPlan()
     pf.cd:SetPoint("BOTTOMRIGHT", -14, 44)
     local add = CreateFrame("Button", nil, pf, "UIPanelButtonTemplate")
     pf.add = add
-    add:SetSize(170, 22)
+    add:SetSize(130, 22)
     add:SetPoint("BOTTOMLEFT", 12, 12)
-    add:SetText("Add day 1 to cart")
+    add:SetText("Add plan to cart")
     add:SetScript("OnClick", function()
       local p = CurrentPlan()
       if p then PlanToCart(p) end
     end)
-    ns.UI.Tip(add, "Add day 1 to cart", "The writs to buy and the items to buy for day 1 of the plan "
-      .. "(writs on CD only when shown). Crafted items aren't added.")
+    ns.UI.Tip(add, "Add plan to cart", "The plan's writs to buy and their fills: the item, or its reagents "
+      .. "when the plan crafts it (writs on CD only when shown).")
     local note = pf:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     note:SetPoint("LEFT", add, "RIGHT", 12, 0)
     note:SetPoint("RIGHT", pf, "RIGHT", -12, 0)

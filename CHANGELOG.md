@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.53.1
+- Checklists: a live favor step. Rep: **Favor for the receipts**, before buying them: the favor you have against 15 per receipt still to buy, so both go down as you buy and it stays green while you have enough. Favor: **Favor for the recipes**, the same against what the wanted recipes still to buy cost. Neither is ticked for good: it goes back to open if you fall short.
+
 ## 0.53.0
 - Favor plan: the Merchant's recipe list down the left. Search it, show only your professions, hide what you've learned, hover for the recipe, **Add** to want it (or **Drop**). On the right, the wanted list comes first with each recipe's favor and a running total of what's still to buy, then how to get the favor. The target follows it.
 

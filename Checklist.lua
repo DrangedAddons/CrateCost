@@ -82,11 +82,14 @@ local function State(kind, stamp, start)
 end
 
 -- A step: { id, text, have, need (counts; optional), done, tip = { lines } }
+-- s.live: a step that follows where you stand now (favor you have against what's still needed):
+-- green while it holds, back to open if it stops holding, never ticked for good.
 local function Mark(st, s)
   if s.need and s.have then
     s.have = math.max(0, math.min(s.need, math.floor(s.have)))
     if s.have >= s.need then s.done = true end
   end
+  if s.live then return s end
   if s.done then st.seen[s.id] = true end
   if st.seen[s.id] then
     s.done = true
@@ -168,6 +171,13 @@ local function RepSteps()
               .. pk.bundle .. ", hand them in (" .. pk.c.favor .. " favor each)." } })
       end
     end
+    -- the favor for the receipts still to buy: what you have against what's needed, as it is
+    -- now (it goes down as receipts are bought, and so does what you have)
+    local toBuy = math.max(0, c.n - (receipts + notarized + handed))
+    Add({ id = "favorHave", text = "Favor for the receipts", live = true,
+      have = FavorHave(), need = toBuy * RECEIPT_FAVOR, done = toBuy == 0,
+      tip = { "The Merchant's Favor you have, against what the receipts still to buy cost (15 each).",
+        "Green while you have enough." } })
     Add({ id = "receipts", text = "Buy Forged Delivery Receipts", unit = "",
       have = receipts + notarized + handed, need = c.n,
       buy = { match = RECEIPT, n = c.n - (receipts + notarized + handed) },
@@ -237,8 +247,20 @@ local function FavorSteps()
         "Fill each with " .. pick.qty .. " " .. pick.bundle .. ": " .. Num(pick.n * c.favor) .. " favor.",
         "Costs " .. ns.Money(pick.upFront or pick.cost) .. ". Counted from the favor you earn." } })
   end
-  Add({ id = "target", text = "Reach " .. Num(p.target) .. " favor", done = fs.have >= p.target,
-    tip = { "You have " .. Num(fs.have) .. "." } })
+  -- the favor for the wanted recipes not bought yet: what you have against what they cost, as
+  -- it is now (it goes down as you buy them); without a wanted list, the target
+  local wanted = ns.WantedRecipes and ns.WantedRecipes() or {}
+  local still = 0
+  for _, wr in ipairs(wanted) do if not wr.done then still = still + wr.cost end end
+  if #wanted > 0 then
+    Add({ id = "favorHave", text = "Favor for the recipes", live = true,
+      have = fs.have, need = still, done = still == 0,
+      tip = { "The Merchant's Favor you have, against what the wanted recipes still to buy cost.",
+        "Green while you have enough." } })
+  else
+    Add({ id = "target", text = "Reach " .. Num(p.target) .. " favor", done = fs.have >= p.target,
+      tip = { "You have " .. Num(fs.have) .. "." } })
+  end
   -- what the favor is for: each wanted recipe, done once learned (or owned)
   for _, wr in ipairs(ns.WantedRecipes and ns.WantedRecipes() or {}) do
     local rep = ns.WantedRepName and ns.WantedRepName(wr.rep) or ""

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.53.3
+- Rep checklist: the Shipping Label step sits indented under the first writ, as "Deliver its Shipping Label to Marcy Baker / Dokimi" with +2,000 rep beside it, since starting that writ is what gives you the label.
+
 ## 0.53.2
 - Favor plan's recipe browser: tidier (search and Hide learned on the first row, the filters on the second, headings on their own line), a scrollbar, and the Merchant view's filters: **profession** (or My professions), **type / slot**, **Stats** (tick a stat, optionally a minimum) and **Sort** by a stat (its value shows in place of the profession).
 - Rep checklist: the empty crates counted for the containers leave out the crates the favor steps still have to fill, kind by kind.

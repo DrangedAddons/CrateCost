@@ -125,11 +125,17 @@ local function RepSteps()
   local steps = {}
   local function Add(s) steps[#steps + 1] = Mark(st, s) end
 
-  if p.label then
-    Add({ id = "label", text = "Do the Shipping Label quest", done = ws.labelDone,
-      tip = { "+2,000 rep and 50 Merchant's Favor, once.",
-        "Start your first writ (or fill a crate) to get the label, then deliver it to "
-          .. (Horde() and "Dokimi" or "Marcy Baker") .. "." } })
+  -- the Shipping Label comes with the first writ: its step sits under that writ's, indented
+  local labelPending = p.label and true or false
+  local function Label(e)
+    labelPending = false
+    local npc = Horde() and "Dokimi" or "Marcy Baker"
+    Add({ id = "label", child = e and true or false, done = ws.labelDone,
+      text = e and ("Deliver its Shipping Label to " .. npc) or "Do the Shipping Label quest",
+      note = "+2,000 rep",
+      tip = { e and ("Starting " .. e.name .. " gives you a Shipping Label (once per character).")
+          or "Start a writ (or fill a crate) to get a Shipping Label.",
+        "Deliver it to " .. npc .. " at the camp: +2,000 rep and 50 Merchant's Favor." } })
   end
   local writRep = 0
   local function Writs(stage)
@@ -144,6 +150,7 @@ local function RepSteps()
               .. (e.qty > 1 and (e.qty .. "x ") or "") .. "the item: " .. ns.Money(it.cost),
             e.recipient ~= "" and ("Deliver to " .. e.recipient) or nil } })
         if steps[#steps].done then writRep = writRep + e.rep end
+        if labelPending then Label(e) end
       end
     end
   end
@@ -204,6 +211,7 @@ local function RepSteps()
         "50 rep each: counted from your rep since the plan was made." } })
   end
   Writs(2)
+  if labelPending then Label(nil) end
   if ws.targetName then
     Add({ id = "target", text = "Reach " .. ws.targetName, done = ws.need == nil,
       tip = { ws.need and (Num(ws.need) .. " rep to go.") or "Reached." } })
@@ -379,6 +387,9 @@ local function Fill(w)
     else
       local idx = ln.idx
       r.icon:Show()
+      -- a step that belongs to the one above it (the label, under its writ): indented
+      r.icon:ClearAllPoints()
+      r.icon:SetPoint("LEFT", s.child and 24 or 6, 0)
       -- a step about an item: its icon and its name in its quality colour
       local name, hex, icon
       if s.item then name, hex, icon = ItemBits(s.item) end
@@ -397,7 +408,7 @@ local function Fill(w)
       local label = s.text
       if name then label = (s.verb or "") .. "|r" .. (hex or "|cffffffff") .. name .. "|r" end
       local isCur = idx == current
-      local count = s.need and (s.have .. " / " .. s.need) or ""
+      local count = s.need and (s.have .. " / " .. s.need) or (s.note or "")
       if s.done then
         r.icon:SetTexture(ICON_DONE)
         r.icon:SetAlpha(1)

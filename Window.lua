@@ -275,6 +275,10 @@ function ns.InvalidateRatings() ratingCache = nil end
 -- favor elsewhere? Both are the same for everyone (a linked crate reads the same in any chat).
 -- The buy rating is the entry itself, the fill rating is its .fill.
 
+-- Every crate as the crate list knows it (name, rank, kind, id, favor, pay1, bundles), for the
+-- favor plan (FavorPlan.lua).
+function ns.CrateEntries() return CrateList() end
+
 -- For the Home view: { favor, owned (crates, every character), sealed (Sealed Crates in your
 -- bags), sealedFavor, best (cheapest favor crate), bestPer, scanAge }.
 function ns.CrateStatus()
@@ -1229,6 +1233,7 @@ function ns.OnDepthChanged()
   UpdateScanButton()
   if ns.Depth.state == "idle" and frame and frame:IsShown() then ns.RefreshWindow() end
   if ns.OnDepthChangedWrits then ns.OnDepthChangedWrits() end
+  if ns.OnDepthChangedFavor then ns.OnDepthChangedFavor() end
 end
 
 local function UpdateHeaders()

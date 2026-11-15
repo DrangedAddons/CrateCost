@@ -2,7 +2,7 @@
 ## Title: CrateCost
 ## Notes: Waylaid Crates: Auctionator prices for each bundle, Merchant's Favor, and a crate list sorted by cost per favor with a shopping cart, and every Merchant's Favor recipe.
 ## Author: Dranged
-## Version: 0.44.2
+## Version: 0.45.0
 ## Dependencies: Auctionator
 ## OptionalDeps: Syndicator, EllesmereUIBags
 ## X-DrangedAddons-Games: _forever_
@@ -26,6 +26,7 @@ Stats.lua
 RecipeWindow.lua
 Writs.lua
 WritWindow.lua
+FavorPlan.lua
 Home.lua
 Inventory.lua
 Config.lua

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.45.0
+- **Favor plan**: a view for a Merchant's Favor target. Your favor, Sealed Crates in your bags and the Shipping Label quest count first; then the cheapest crates to buy and fill, picked one by one by extra cost per favor up the AH listings, using crates you hold and materials in your bags first, less turn-in silver, only crates your level can fill. [+cart] per crate, Add plan to cart, Scan AH (deep enough for the plan, then remakes it), ~ where the scan didn't reach.
+- Home: four cards in a 2x2 grid (Crates, Merchant's Favor, Writs, Rep), the favor card leading to the favor plan.
+- **Open the plan with the AH** (Home and both plans, per character, on by default): opening the auction house opens the plan you used last.
+- Rep plan: the containers' favor shows in the Rep column, grey with the favor icon (+ earned at step 1, - spent at step 2), not counted as rep. Nav bar: Rep plan and Favor plan.
+- New file (FavorPlan.lua): restart the game client, /reload isn't enough.
+
 ## 0.44.2
 - Plan view: **Scan AH** button next to the target, the same scan as the writs view (writs, items, and the crates and bundles the plan's containers need), then the plan is made again.
 

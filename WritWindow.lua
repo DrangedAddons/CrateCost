@@ -1502,8 +1502,10 @@ local function FillPlan()
       r.addBtn:Hide()
       if step == "favor" then
         if c.src then
-          r.name:SetText("   1. Buy + fill " .. c.src.n .. "x " .. c.src.name)
+          r.name:SetText("   1. Buy + fill " .. c.src.n .. "x " .. c.src.name .. ", turn them in")
           r.how:SetText(GREY .. c.src.qty .. " " .. c.src.bundle .. " each|r")
+          -- the favor it earns, in the rep column for neatness: grey with the favor icon, not rep
+          r.rep:SetText(GREY .. "+" .. Num(c.src.n * c.src.favor) .. "|r" .. (ns.FavorIcon and ns.FavorIcon() or ""))
           r.cost:SetText((c.favorGuess and "~" or "") .. ns.Money(c.src.total))
           r.addBtn:Show()
         elseif c.earn == 0 then
@@ -1516,7 +1518,8 @@ local function FillPlan()
           r.cost:SetText(ns.Money(c.favorCost))
         end
       elseif step == "receipts" then
-        r.name:SetText("   2. Buy " .. c.n .. " Forged Delivery Receipts")
+        r.name:SetText("   2. Buy " .. c.n .. " Forged Delivery Receipts with the favor")
+        r.rep:SetText(GREY .. "-" .. Num(c.favor) .. "|r" .. (ns.FavorIcon and ns.FavorIcon() or ""))
         r.how:SetText(GREY .. Num(c.favor) .. " favor, " .. (horde and "Kurvelk Shadowhoof" or "Dianne Softstep") .. "|r")
         r.cost:SetText(GREY .. "favor|r")
       elseif step == "crates" then
@@ -1789,6 +1792,7 @@ function ns.ShowWritPlan()
     ns.UI.Tip(cb, "Show writs done today", "The writs the plan would have used today but you've already "
       .. "filled (red, outside the cost), and the ones handed in since the plan was made. Untick to hide them.")
     pf.showCD = cb
+    ns.UI.PlanAtAHCheck(pf, cb, -170)
     -- cooldowns change as writs are handed in
     pcall(pf.RegisterEvent, pf, "QUEST_TURNED_IN")
     pf:SetScript("OnEvent", function()
@@ -1815,7 +1819,7 @@ function ns.ShowWritPlan()
       r.how:SetPoint("LEFT", r.name, "RIGHT", 6, 0)
       r.cost = Text(110, "RIGHT")
       r.per = Text(80, "RIGHT")
-      r.rep = Text(46, "RIGHT")
+      r.rep = Text(70, "RIGHT")
       -- [+cart]: this writ and its fill
       local add = CreateFrame("Button", nil, r, "UIPanelButtonTemplate")
       add:SetSize(34, 17)
@@ -1973,6 +1977,8 @@ function ns.ShowWritPlan()
     pf.note = note
   end
   if frame and frame:IsShown() then ns.RefreshWrits() else Calc() Live() UpdateNeed() end
+  if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
+  CrateCostCharDB.lastPlan = "rep"
   pf.offset = 0
   FillPlan()
   UpdateWritScan()

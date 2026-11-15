@@ -104,15 +104,16 @@ function UI.Place(f, posKey)
   end
 end
 
--- The nav bar at the top right, the same on every window: Home, Crates, Writs, Plan, Merchant,
--- Cart (n), Refresh. The window's own button is greyed out. Returns the leftmost button.
+-- The nav bar at the top right, the same on every window: Home, Crates, Writs, Rep plan, Favor
+-- plan, Merchant, Cart (n), Refresh. The window's own button is greyed out. Returns the leftmost.
 local cartButtons = {}
 function UI.NavBar(f, current, onRefresh)
   local items = {
     { "home", "Home", 58, function() ns.ToggleHome() end, "Your favor, writs and rep at a glance" },
     { "crates", "Crates", 66, function() ns.ToggleWindow() end, "Waylaid Crates by cost per favor" },
     { "writs", "Writs", 60, function() ns.ToggleWrits() end, "Craftsman's Writs by cost per reputation" },
-    { "plan", "Plan", 54, function() ns.ShowWritPlan() end, "The cheapest way to your rep target" },
+    { "plan", "Rep plan", 74, function() ns.ShowWritPlan() end, "The cheapest way to your rep target" },
+    { "favor", "Favor plan", 84, function() ns.ShowFavorPlan() end, "The cheapest way to your Merchant's Favor target" },
     { "merchant", "Merchant", 76, function() ns.ToggleRecipes() end, "Every recipe sold for Merchant's Favor" },
     { "cart", "Cart", 72, function() ns.ShowCart() end, "The shopping list from the crate list's [+] buttons" },
     { "refresh", "Refresh", 66, onRefresh, "Read prices again" },
@@ -135,6 +136,45 @@ function UI.NavBar(f, current, onRefresh)
   f.count:SetPoint("RIGHT", prev, "LEFT", -12, 0)
   return prev
 end
+
+-- "Open the plan with the AH" (per character, on by default): opening the auction house opens
+-- the plan you used last (rep or favor). One setting, shown on Home and both plan views.
+local ahChecks = {}
+local function PlanAtAH()
+  return not (type(CrateCostCharDB) == "table" and CrateCostCharDB.planAtAH == false)
+end
+function UI.PlanAtAHCheck(f, anchor, x)
+  local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+  cb:SetSize(22, 22)
+  cb:SetPoint("RIGHT", anchor, "LEFT", x or -190, 0)
+  local l = cb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  l:SetPoint("LEFT", cb, "RIGHT", 2, 0)
+  l:SetText("Open the plan with the AH")
+  cb:SetChecked(PlanAtAH())
+  cb:SetScript("OnClick", function(self)
+    if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
+    CrateCostCharDB.planAtAH = self:GetChecked() and true or false
+    for _, other in ipairs(ahChecks) do other:SetChecked(PlanAtAH()) end
+  end)
+  cb:SetScript("OnShow", function(self) self:SetChecked(PlanAtAH()) end)
+  UI.Tip(cb, "Open the plan with the AH", "When you open the auction house, open the plan you used last "
+    .. "(rep or favor), ready to Scan AH and buy.")
+  ahChecks[#ahChecks + 1] = cb
+  return cb
+end
+local ahFrame = CreateFrame("Frame")
+pcall(ahFrame.RegisterEvent, ahFrame, "AUCTION_HOUSE_SHOW")
+ahFrame:SetScript("OnEvent", function()
+  if not PlanAtAH() then return end
+  C_Timer.After(0.3, function()
+    local last = type(CrateCostCharDB) == "table" and CrateCostCharDB.lastPlan
+    if last == "favor" then
+      if ns.ShowFavorPlan then ns.ShowFavorPlan() end
+    elseif ns.ShowWritPlan then
+      ns.ShowWritPlan()
+    end
+  end)
+end)
 
 function UI.UpdateCartButtons()
   local n = ns.CartCount and ns.CartCount() or 0

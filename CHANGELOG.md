@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.44.1
+- `/crate`, `/crates`, `/cratecost`, `/writ` and `/writs` on their own all open Home. The words after them work the same on all of them (`list`, `writs`, `plan`, `merchant`, `cart`, `config`).
+
 ## 0.44.0
 - **Home**: a landing view with three cards (Crates, Writs, Rep), each with where you stand and a button into its view. `/crates` and the minimap button open it; `/crates list` opens the crate list, `/crates plan` the plan.
 - The plan is a full view of the window (Plan on the nav bar), with its own Target picker and standing line, instead of a popup.

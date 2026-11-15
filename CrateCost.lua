@@ -508,17 +508,18 @@ SlashCmdList.CRATECOST = function(msg)
     Print("/crates list - crate list sorted by cost per favor")
     Print("/crates plan - the plan to your rep target")
     Print("/crates merchant - everything Merchant's Favor buys")
-    Print("/writs (or /crates writs) - Craftsman's Writs by cost per reputation")
+    Print("/crates writs - Craftsman's Writs by cost per reputation")
+    Print("/writ and /writs work the same as /crates")
     Print("/cratecost config - settings")
     Print("/cratecost cart - the shopping cart")
     Print("/cratecost debug - print the next crate tooltip's raw lines")
   end
 end
 
--- /writ and /writs open the writ list directly
+-- /writ and /writs work like /crates: Home on their own, the same words after them
 SLASH_CRATECOSTWRITS1 = "/writs"
 SLASH_CRATECOSTWRITS2 = "/writ"
-SlashCmdList.CRATECOSTWRITS = function() ns.ToggleWrits() end
+SlashCmdList.CRATECOSTWRITS = function(msg) SlashCmdList.CRATECOST(msg) end
 
 -- shared with Window.lua
 ns.TurnInPay = TurnInPay

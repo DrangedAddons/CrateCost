@@ -46,7 +46,7 @@ The **to Fill** rating is for a crate you already have: `cheapest bundle / favor
 
 Hovering a crate also saves its real bundle amounts for the crate list. The beta guides don't always match the live game (Journeyman Textiles wants 20 Wool Cloth, not 40).
 
-## Home: `/crates` (or the minimap button)
+## Home: `/crates`, `/crate`, `/writs`, `/writ` (or the minimap button)
 
 The landing view: three cards with where you stand and a button into each view.
 
@@ -100,7 +100,7 @@ The **Merchant** button on `/crates`, `/crates merchant`, or shift-click (or mid
 
 ## Writs
 
-The **Writs** button on `/crates`, `/writs` (or `/writ`, `/crates writs`), or ctrl-click the minimap button: all 150 Craftsman's Writs (Alchemy, Blacksmithing, Engineering, Leatherworking, Tailoring), sorted by the cheapest reputation.
+The **Writs** button on the nav bar, `/crates writs`, or ctrl-click the minimap button: all 150 Craftsman's Writs (Alchemy, Blacksmithing, Engineering, Leatherworking, Tailoring), sorted by the cheapest reputation.
 
 - **Buy items | Craft items** toggle (per character): which way the list gets each writ's item. Buy uses the AH price; Craft uses the item crafted from its reagents (needs the profession). The item, total, per rep, rating and target columns follow it. In craft mode a writ with no recipe data shows "-".
 - **Writ cost**: the writ on the AH. **Buy item**: the required item on the AH. **Craft item**: its reagents, each at the vendor price (from Auctionator's vendor cache), the AH price, or crafted when that's cheaper. The cheaper of buy and craft is gold.

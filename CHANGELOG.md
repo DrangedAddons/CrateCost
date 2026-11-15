@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.34.0
+- Writs: **Plan** button. The cheapest writs that reach your rep target in the fewest days: all today when today's writs can reach it, else the fewest days it takes, cheapest writs within them. Each writ once a day, not ones done today. Writs you hold are free, items in your bags count, items are crafted when you have the profession and it's cheaper, the rest is bought up the AH listings (Scan AH) or at Auctionator's price.
+- The plan window lists each day's writs by hand-in NPC with rep and cost. **Add today to cart** adds today's writs and items to buy.
+- The line under the envelopes sums up the plan (writs, cost, days) instead of naming one writ to repeat.
+
 ## 0.33.0
 - **Scan AH** button on /crates (at the auction house). Reads the real listings for every crate and bundle material, deep enough for the list (bundle amount x crates + 25%, at least 100 units), so fills are priced up the listings instead of the cheapest price x amount. The list, crate tooltips and ratings all use it.
 - Red bundle cost = not enough listed; a bundle the AH can fully supply wins over one it's short of.

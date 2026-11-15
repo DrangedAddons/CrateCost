@@ -373,6 +373,154 @@ local function MyProfessions()
 end
 ns.MyProfessions = MyProfessions
 
+
+---------------------------------------------------------------------------------------------
+-- Plan: the cheapest writs that reach the rep target in the fewest days. Each writ is a daily,
+-- so one day takes each writ at most once (not one already done today). Today first: more
+-- days only when every writ today can't reach the target.
+-- A writ's k-th copy costs what k copies cost less what k-1 cost: writs you have first (free),
+-- then bought up the AH listings (Depth.lua, else Auctionator's price); the item likewise,
+-- minus the items in your bags, or crafted when you have the profession and that's cheaper.
+-- Within a rank every writ gives the same rep, so the cheapest copies of each rank win; the
+-- only choice is how many of each rank, tried exhaustively.
+
+local PLAN_MAX_DAYS = 14
+
+-- Cost of k copies of writ e, and whether the item is crafted. nil = can't get k.
+local function CopiesCost(e, k, canCraft)
+  if k <= 0 then return 0, false end
+  local cost = 0
+  local buyWrits = math.max(0, k - (e.haveWrit or 0))
+  if buyWrits > 0 then
+    local c, how = ns.FillCost(e.writ, buyWrits)
+    if not c or how.short then return nil end
+    cost = c
+  end
+  local items = math.max(0, k * e.qty - (e.haveItem or 0))
+  local crafted = false
+  if items > 0 then
+    local ah, how = ns.FillCost(e.item, items)
+    if how.short then ah = nil end
+    local cr = canCraft and e.craft and e.craft * items or nil
+    if cr and (not ah or cr < ah) then ah, crafted = cr, true end
+    if not ah then return nil end
+    cost = cost + ah
+  end
+  return cost, crafted
+end
+
+-- copies[rep] = { { e, k, cost }, ... } for up to `days` days, cheapest first per rank.
+local function Copies(days, profs)
+  local groups, capacity = {}, 0
+  for _, e in ipairs(Entries()) do
+    local m = days - (e.done and 1 or 0)
+    local prev = 0
+    for k = 1, m do
+      local cum = CopiesCost(e, k, profs[e.prof])
+      if not cum then break end
+      groups[e.rep] = groups[e.rep] or {}
+      table.insert(groups[e.rep], { e = e, k = k, cost = cum - prev })
+      capacity = capacity + e.rep
+      prev = cum
+    end
+  end
+  for _, g in pairs(groups) do
+    table.sort(g, function(a, b)
+      if a.cost ~= b.cost then return a.cost < b.cost end
+      if a.e ~= b.e then return a.e.writ < b.e.writ end
+      return a.k < b.k
+    end)
+  end
+  return groups, capacity
+end
+
+-- How many of each rank: every count of the smaller ranks, the biggest filling the rest.
+local function Choose(groups, need)
+  local reps = {}
+  for r in pairs(groups) do reps[#reps + 1] = r end
+  table.sort(reps)
+  local prefix = {}
+  for _, r in ipairs(reps) do
+    local p = { [0] = 0 }
+    for i, c in ipairs(groups[r]) do p[i] = p[i - 1] + c.cost end
+    prefix[r] = p
+  end
+  local best, bestCost
+  local counts = {}
+  local function Try(i, got, cost)
+    local r = reps[i]
+    if i == #reps then
+      local n = math.max(0, math.ceil((need - got) / r))
+      if n > #groups[r] then return end
+      local total = cost + prefix[r][n]
+      if not bestCost or total < bestCost then
+        bestCost = total
+        best = {}
+        for k, v in pairs(counts) do best[k] = v end
+        best[r] = n
+      end
+      return
+    end
+    for n = 0, #groups[r] do
+      counts[r] = n
+      Try(i + 1, got + n * r, cost + prefix[r][n])
+      if got + n * r >= need then break end   -- more of this rank only adds cost
+    end
+    counts[r] = nil
+  end
+  if #reps > 0 then Try(1, 0, 0) end
+  return best, bestCost
+end
+
+-- { need, days, cost, rep, short, list = { { day, e, cost, crafted, owned }, ... } } or nil
+local function MakePlan(need)
+  local profs = MyProfessions()
+  local groups, capacity
+  local days = 1
+  repeat
+    groups, capacity = Copies(days, profs)
+    if capacity >= need then break end
+    days = days + 1
+  until days > PLAN_MAX_DAYS
+  local short = capacity < need
+  if short then days = PLAN_MAX_DAYS end
+  local counts, cost = Choose(groups, math.min(need, capacity))
+  if not counts then return nil end
+  local plan = { need = need, days = 0, cost = cost or 0, rep = 0, short = short, list = {} }
+  for r, n in pairs(counts) do
+    for i = 1, n do
+      local c = groups[r][i]
+      local e = c.e
+      -- copy k is done on day k (day k + 1 if it's done today already)
+      local day = c.k + (e.done and 1 or 0)
+      local _, crafted = CopiesCost(e, c.k, profs[e.prof])
+      table.insert(plan.list, { day = day, e = e, cost = c.cost, crafted = crafted,
+        owned = c.k <= (e.haveWrit or 0) })
+      plan.rep = plan.rep + e.rep
+      if day > plan.days then plan.days = day end
+    end
+  end
+  table.sort(plan.list, function(a, b)
+    if a.day ~= b.day then return a.day < b.day end
+    -- same hand-in NPC together
+    if a.e.recipient ~= b.e.recipient then return (a.e.recipient or "") < (b.e.recipient or "") end
+    return a.e.name < b.e.name
+  end)
+  return plan
+end
+
+local planMemo, planTime, planNeed
+local function CurrentPlan()
+  if not needRep or Owning() then return nil end
+  if planMemo ~= nil and planNeed == needRep and planTime and GetTime() - planTime < CALC_TTL then
+    return planMemo or nil
+  end
+  planMemo = MakePlan(needRep) or false
+  planTime, planNeed = GetTime(), needRep
+  return planMemo or nil
+end
+ns.WritPlan = function() return CurrentPlan() end
+
 local function SortValue(e, key)
   if key == "name" or key == "prof" then return e[key]:lower() end
   if key == "rank" then return RANK_ORDER[e.rank] * 1000 + e.skill end
@@ -843,19 +991,21 @@ function ns.RefreshWrits()
   -- target line: the cheapest shown writ to repeat daily until the target
   local plan = ""
   local t = Target()
-  if needRep then
-    local best
-    for _, e in ipairs(list) do
-      local n, cost = ToTarget(e)
-      if cost and (not best or cost < best.cost) then best = { e = e, cost = cost, n = n } end
-    end
+  frame.planBtn:SetEnabled(needRep ~= nil and not Owning())
+  if needRep and not Owning() then
     plan = STANDINGS[t][4] .. STANDINGS[t][2] .. "|r: " .. Num(needRep) .. " rep to go.  "
-    if best then
-      plan = plan .. string.format("Cheapest of the shown writs: %s, %dx %s (%d days, each writ is a daily).",
-        ns.Money(best.cost), best.n, best.e.name, best.n)
+    local p = CurrentPlan()
+    if p then
+      local today = 0
+      for _, it in ipairs(p.list) do if it.day == 1 then today = today + 1 end end
+      plan = plan .. string.format("Plan: %d writs, %s, %s%s.", #p.list, ns.Money(p.cost),
+        p.days <= 1 and "all today" or (p.days .. " days (" .. today .. " today)"),
+        p.short and (" |cffff4040- only " .. Num(p.rep) .. " rep in " .. PLAN_MAX_DAYS .. " days|r") or "")
     else
-      plan = plan .. GREY .. "No shown writ has a price yet.|r"
+      plan = plan .. GREY .. "No plan: no writ has a price yet.|r"
     end
+  elseif needRep then
+    plan = STANDINGS[t][4] .. STANDINGS[t][2] .. "|r: " .. Num(needRep) .. " rep to go."
   elseif t then
     plan = "|cff40ff40" .. STANDINGS[t][2] .. " reached.|r"
   end
@@ -1021,14 +1171,175 @@ local function Build()
     frame.sealed[i] = box
   end
 
+  local pbtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+  pbtn:SetSize(70, 20)
+  pbtn:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -TOP - VISIBLE * ROW_H - 58)
+  pbtn:SetText("Plan")
+  pbtn:SetScript("OnClick", function() ns.ShowWritPlan() end)
+  UI.Tip(pbtn, "Plan", "The cheapest writs that reach your target in the fewest days: all today "
+    .. "when today's writs can reach it. Writs you have come first; items are bought up the AH "
+    .. "listings (Scan AH on /crates) or crafted when you have the profession and it's cheaper.")
+  frame.planBtn = pbtn
   frame.plan = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  frame.plan:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -TOP - VISIBLE * ROW_H - 62)
+  frame.plan:SetPoint("LEFT", pbtn, "RIGHT", 10, 0)
   frame.plan:SetJustifyH("LEFT")
 
   local footer = ns.UI.Footer(frame)
   footer:SetText(GREY .. "Buy: writ + item. Owned: only writs you have (incl. bank, warband bank, alts), "
     .. "the item alone. Buy items / Craft items: the item from the AH or made from its reagents. "
     .. "* = writ not priced. Have: W = you hold the writ, then the item count. Data: wow.gg, endgametools.com.|r")
+end
+
+---------------------------------------------------------------------------------------------
+-- The plan's window: day by day, each writ, how to get it and its item, rep and cost.
+
+local PROWS, PROW_H, PTOP, PFOOT = 22, 18, 40, 70
+local pf
+local function PlanLines(p)
+  local lines, day = {}, nil
+  for _, it in ipairs(p.list) do
+    if it.day ~= day then
+      day = it.day
+      local n, cost = 0, 0
+      for _, x in ipairs(p.list) do if x.day == day then n, cost = n + 1, cost + x.cost end end
+      lines[#lines + 1] = { head = (day == 1 and "Today" or ("Day " .. day)) .. string.format("  -  %d writs", n), cost = cost }
+    end
+    lines[#lines + 1] = { it = it }
+  end
+  return lines
+end
+
+local function FillPlan()
+  local p = CurrentPlan()
+  local lines = p and PlanLines(p) or {}
+  pf.offset = math.max(0, math.min(pf.offset, #lines - PROWS))
+  for i = 1, PROWS do
+    local r, ln = pf.rows[i], lines[pf.offset + i]
+    r.it = ln and ln.it
+    if not ln then
+      r:Hide()
+    elseif ln.head then
+      r.name:SetText("|cffffd100" .. ln.head .. "|r")
+      r.how:SetText("")
+      r.rep:SetText("")
+      r.cost:SetText("|cffffd100" .. ns.Money(ln.cost) .. "|r")
+      r:Show()
+    else
+      local it, e = ln.it, ln.it.e
+      r.name:SetText("   " .. (RANK_COLOR[e.rank] or "") .. e.name .. "|r")
+      r.how:SetText(GREY .. (it.owned and "have writ" or "buy writ") .. " + "
+        .. (it.crafted and "craft" or "buy") .. " " .. (e.qty > 1 and (e.qty .. "x ") or "") .. "item|r")
+      r.rep:SetText(e.rep)
+      r.cost:SetText(ns.Money(it.cost))
+      r:Show()
+    end
+  end
+  if p then
+    pf.title:SetText(string.format("Plan to %s: %s rep", STANDINGS[Target()][2], Num(p.need)))
+    pf.total:SetText(string.format("%d writs, %s rep, %s%s   Total %s", #p.list, Num(p.rep),
+      p.days <= 1 and "all today" or (p.days .. " days"),
+      p.short and " |cffff4040(not enough writs listed)|r" or "", ns.Money(p.cost)))
+  else
+    pf.title:SetText("Plan")
+    pf.total:SetText(needRep and "No writ has a price yet." or "Pick a target standing first.")
+  end
+end
+
+-- Adds today's writs to buy and items to buy to the cart.
+local function PlanToCart(p)
+  local items = {}
+  for _, it in ipairs(p.list) do
+    if it.day == 1 then
+      local e = it.e
+      if not it.owned then items[#items + 1] = { id = e.writ, name = "Craftsman's Writ: " .. e.name, qty = 1 } end
+      if not it.crafted then items[#items + 1] = { id = e.item, name = e.name, qty = e.qty } end
+    end
+  end
+  local n = ns.CartAdd(items)
+  ns.Print(string.format("added %d to the cart.", n))
+end
+
+function ns.ShowWritPlan()
+  if not pf then
+    pf = CreateFrame("Frame", "CrateCostWritPlan", UIParent, "BackdropTemplate")
+    pf:SetSize(560, PTOP + PROWS * PROW_H + PFOOT)
+    pf:SetPoint("CENTER", 0, 80)
+    pf:SetFrameStrata("FULLSCREEN_DIALOG")
+    pf:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+    pf:SetBackdropColor(0.05, 0.05, 0.07, 0.97)
+    pf:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+    pf:EnableMouse(true)
+    pf:SetMovable(true)
+    pf:SetClampedToScreen(true)
+    pf:RegisterForDrag("LeftButton")
+    pf:SetScript("OnDragStart", pf.StartMoving)
+    pf:SetScript("OnDragStop", pf.StopMovingOrSizing)
+    tinsert(UISpecialFrames, "CrateCostWritPlan")
+    pf.title = pf:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    pf.title:SetPoint("TOPLEFT", 14, -12)
+    local close = CreateFrame("Button", nil, pf, "UIPanelCloseButton")
+    close:SetScript("OnClick", function() pf:Hide() end)
+    close:SetPoint("TOPRIGHT", 2, 2)
+    pf.offset, pf.rows = 0, {}
+    for i = 1, PROWS do
+      local r = CreateFrame("Frame", nil, pf)
+      r:SetHeight(PROW_H)
+      r:SetPoint("TOPLEFT", 12, -PTOP - (i - 1) * PROW_H)
+      r:SetPoint("RIGHT", pf, "RIGHT", -12, 0)
+      local function Text(w, justify)
+        local fs = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        fs:SetWidth(w)
+        fs:SetJustifyH(justify)
+        fs:SetWordWrap(false)
+        return fs
+      end
+      r.name = Text(230, "LEFT")
+      r.name:SetPoint("LEFT", 0, 0)
+      r.how = Text(170, "LEFT")
+      r.how:SetPoint("LEFT", r.name, "RIGHT", 6, 0)
+      r.rep = Text(30, "RIGHT")
+      r.rep:SetPoint("LEFT", r.how, "RIGHT", 4, 0)
+      r.cost = Text(90, "RIGHT")
+      r.cost:SetPoint("RIGHT", 0, 0)
+      r:EnableMouse(true)
+      r:SetScript("OnEnter", function(self)
+        if not self.it then return end
+        local e = self.it.e
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(e.name)
+        if e.recipient ~= "" then GameTooltip:AddLine("Hand in: " .. e.recipient, 1, 1, 1) end
+        GameTooltip:AddLine(e.prof .. ", " .. e.rank, 0.6, 0.6, 0.6)
+        GameTooltip:Show()
+      end)
+      r:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      r:EnableMouseWheel(true)
+      r:SetScript("OnMouseWheel", function(_, delta) pf.offset = pf.offset - delta * 3 FillPlan() end)
+      pf.rows[i] = r
+    end
+    pf:EnableMouseWheel(true)
+    pf:SetScript("OnMouseWheel", function(_, delta) pf.offset = pf.offset - delta * 3 FillPlan() end)
+    pf.total = pf:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    pf.total:SetPoint("BOTTOMLEFT", 14, 42)
+    local add = CreateFrame("Button", nil, pf, "UIPanelButtonTemplate")
+    add:SetSize(170, 22)
+    add:SetPoint("BOTTOMLEFT", 12, 12)
+    add:SetText("Add today to cart")
+    add:SetScript("OnClick", function()
+      local p = CurrentPlan()
+      if p then PlanToCart(p) end
+    end)
+    ns.UI.Tip(add, "Add today to cart", "The writs to buy and the items to buy for today's part of "
+      .. "the plan. Crafted items aren't added.")
+    local note = pf:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    note:SetPoint("LEFT", add, "RIGHT", 12, 0)
+    note:SetPoint("RIGHT", pf, "RIGHT", -12, 0)
+    note:SetJustifyH("LEFT")
+    note:SetText("Each writ is a daily. Prices: AH listings when scanned (Scan AH on /crates), else Auctionator.")
+  end
+  if frame and frame:IsShown() then ns.RefreshWrits() else Calc() Live() UpdateNeed() end
+  pf.offset = 0
+  FillPlan()
+  pf:Show()
 end
 
 function ns.ToggleWrits()

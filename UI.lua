@@ -28,6 +28,9 @@ function UI.Tip(w, title, text)
   w:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
+-- every view of the one window (UI.RegisterView), declared before UI.Window uses it
+local views = {}
+
 -- The window: dark panel, movable, Esc closes, close button, title at the top left. `posKey`
 -- remembers where it was dragged to (CrateCostDB[posKey], account-wide).
 function UI.Window(name, titleText, width, height, posKey)
@@ -50,6 +53,14 @@ function UI.Window(name, titleText, width, height, posKey)
   end)
   tinsert(UISpecialFrames, name)
   UI.RegisterView(f)
+  -- closing a view (its X or Escape) goes back to Home; closing Home closes the window
+  f:HookScript("OnHide", function(self)
+    if UI.switching or self.isHome or not ns.ShowHome then return end
+    C_Timer.After(0, function()
+      for _, v in ipairs(views) do if v:IsShown() then return end end
+      ns.ShowHome(self)
+    end)
+  end)
 
   f.title = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
   f.title:SetPoint("TOPLEFT", 12, -10)
@@ -65,7 +76,6 @@ end
 -- The Crates, Writs and Merchant views act as one window: they share one saved position, and
 -- opening one swaps it in where the shown one was.
 UI.POS_KEY = "windowPos"
-local views = {}
 function UI.RegisterView(f) views[#views + 1] = f end
 
 function UI.Open(f)
@@ -80,9 +90,11 @@ function UI.Open(f)
   else
     UI.Place(f, UI.POS_KEY)
   end
+  UI.switching = true   -- swapping views isn't closing one
   for _, v in ipairs(views) do
     if v ~= f then v:Hide() end
   end
+  UI.switching = false
   f:Show()
   f:Raise()
 end
@@ -298,6 +310,109 @@ end
 
 -- The plans' width: narrower than the lists.
 UI.PLAN_W = 860
+
+-- Buying from the open vendor (as CraftRoute does): find an item on its list by item ID, or by
+-- name (a recipe "Mender's Potion" matches "Recipe: Mender's Potion"), and buy n of it, in
+-- bundles or stacks as the vendor sells it. Listeners hear when a vendor opens, changes or closes.
+local merchantOpen = false
+local merchantListeners = {}
+function UI.OnMerchant(fn) merchantListeners[#merchantListeners + 1] = fn end
+function ns.MerchantOpen() return merchantOpen end
+
+local function SlotName(i)
+  if GetMerchantItemInfo then
+    local ok, name = pcall(GetMerchantItemInfo, i)
+    if ok and type(name) == "string" then return name end
+  end
+  if C_MerchantFrame and C_MerchantFrame.GetItemInfo then
+    local ok, info = pcall(C_MerchantFrame.GetItemInfo, i)
+    if ok and type(info) == "table" then return info.name end
+  end
+end
+
+-- price, batch (sold in), available (-1 = unlimited)
+local function SlotInfo(i)
+  if GetMerchantItemInfo then
+    local ok, _, _, price, quantity, avail = pcall(GetMerchantItemInfo, i)
+    if ok then return price, quantity, avail end
+  end
+  if C_MerchantFrame and C_MerchantFrame.GetItemInfo then
+    local ok, info = pcall(C_MerchantFrame.GetItemInfo, i)
+    if ok and type(info) == "table" then return info.price, info.stackCount, info.numAvailable end
+  end
+end
+
+function ns.MerchantFind(match)
+  if not merchantOpen or not match then return nil end
+  local n = (GetMerchantNumItems and GetMerchantNumItems()) or 0
+  local m = type(match) == "string" and match:lower()
+  for i = 1, n do
+    if type(match) == "number" then
+      if GetMerchantItemID and GetMerchantItemID(i) == match then return i end
+    else
+      local name = SlotName(i)
+      if name then
+        local l = name:lower()
+        if l == m or l:sub(-(#m + 2)) == ": " .. m then return i end
+      end
+    end
+  end
+end
+
+-- Buys `count` of slot i (capped by stock); returns how many purchases went out.
+function ns.MerchantBuy(i, count)
+  if not (i and count and count > 0 and BuyMerchantItem) then return 0 end
+  local _, batch, avail = SlotInfo(i)
+  batch = math.max(1, batch or 1)
+  local purchases = math.ceil(count / batch)
+  if avail and avail >= 0 then purchases = math.min(purchases, avail) end
+  if purchases <= 0 then return 0 end
+  if batch > 1 then
+    for _ = 1, purchases do BuyMerchantItem(i) end   -- sold in bundles: one call per bundle
+  else
+    local maxStack = math.max(1, GetMerchantItemMaxStack and GetMerchantItemMaxStack(i) or 1)
+    local left = purchases
+    while left > 0 do
+      local k = math.min(left, maxStack)
+      BuyMerchantItem(i, k)
+      left = left - k
+    end
+  end
+  return purchases
+end
+
+local mFrame = CreateFrame("Frame")
+for _, ev in ipairs({ "MERCHANT_SHOW", "MERCHANT_CLOSED", "MERCHANT_UPDATE" }) do pcall(mFrame.RegisterEvent, mFrame, ev) end
+mFrame:SetScript("OnEvent", function(_, ev)
+  if ev == "MERCHANT_SHOW" then merchantOpen = true elseif ev == "MERCHANT_CLOSED" then merchantOpen = false end
+  C_Timer.After(0.2, function()
+    for _, fn in ipairs(merchantListeners) do pcall(fn) end
+  end)
+end)
+
+-- A small Buy button for a row: shown while the open vendor sells `match`, buys `count` on click.
+function UI.BuyButton(parent)
+  local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+  b:SetSize(40, 17)
+  b:SetText("Buy")
+  b:Hide()
+  b:SetScript("OnClick", function(self)
+    local i = self.match and ns.MerchantFind(self.match)
+    if i then
+      ns.MerchantBuy(i, self.count or 1)
+    end
+  end)
+  UI.Tip(b, "Buy", "Buys it from the vendor you have open.")
+  return b
+end
+
+-- Shows `b` for `match` x `count` when the open vendor sells it; returns whether it's shown.
+function UI.SetBuy(b, match, count)
+  b.match, b.count = match, count
+  local ok = match and count and count > 0 and ns.MerchantFind(match) ~= nil
+  b:SetShown(ok and true or false)
+  return ok
+end
 
 function UI.UpdateCartButtons()
   local n = ns.CartCount and ns.CartCount() or 0

@@ -25,7 +25,29 @@ local function CharDB()
 end
 
 -- The favor target (per character), or nil.
+-- The wanted list (the Merchant view's stars): still to buy, and the favor they cost together.
+local function Wanted()
+  local all = ns.WantedRecipes and ns.WantedRecipes() or {}
+  local left, sum = {}, 0
+  for _, r in ipairs(all) do
+    if not r.done then
+      left[#left + 1] = r
+      sum = sum + r.cost
+    end
+  end
+  return left, sum, all
+end
+
+-- The target from the wanted list (per character, on by default): what the wanted recipes cost.
+local function FromWanted() return CharDB().favorFromWanted ~= false end
+
+-- The favor target (per character), or nil: the wanted recipes' cost while there are any and
+-- that's on, else the number typed.
 local function Target()
+  if FromWanted() then
+    local _, sum = Wanted()
+    if sum > 0 then return sum end
+  end
   local t = CharDB().favorTarget
   return (type(t) == "number" and t > 0) and t or nil
 end
@@ -194,6 +216,12 @@ local function Lines(p)
   if p.sealed > 0 then lines[#lines + 1] = { sealed = true } end
   if p.label then lines[#lines + 1] = { label = true } end
   for _, pick in ipairs(p.picks) do lines[#lines + 1] = { pick = pick } end
+  -- what the favor is for: the wanted recipes, learned ones too (greyed)
+  local _, sum, all = Wanted()
+  if #all > 0 then
+    lines[#lines + 1] = { head = "Recipes to buy: " .. Num(sum) .. " favor" }
+    for _, w in ipairs(all) do lines[#lines + 1] = { want = w } end
+  end
   return lines
 end
 
@@ -209,6 +237,8 @@ local function Fill()
   local p = plan
   local t = Target()
   if not f.box:HasFocus() then f.box:SetText(t and tostring(t) or "") end
+  local _, wsum = Wanted()
+  f.wantedCheck:SetChecked(FromWanted() and wsum > 0)
   local sealedN, sealedFavor = Sealed()
   local have = FavorHave()
   local icon = ns.FavorIcon and ns.FavorIcon() or ""
@@ -224,13 +254,33 @@ local function Fill()
   for i = 1, PROWS do
     local r, ln = f.rows[i], lines[f.offset + i]
     r.pick = (ln and ln.pick) or false
+    r.want = (ln and ln.want) or false
     r.kind = (ln and ((ln.sealed and "sealed") or (ln.label and "label"))) or false
     if not ln then
       r:Hide()
     else
       r.add:Hide()
+      r.buy:Hide()
       r.per:SetText("")
-      if ln.sealed then
+      if ln.head then
+        r.name:SetText("|cffffd100" .. ln.head .. "|r")
+        r.how:SetText("")
+        r.favor:SetText("")
+        r.cost:SetText("")
+      elseif ln.want then
+        -- a wanted recipe: Buy while its vendor is open
+        local w = ln.want
+        local rep = ns.WantedRepName and ns.WantedRepName(w.rep) or ""
+        if w.done then
+          r.name:SetText("   " .. GREY .. w.name .. "  (learned)|r")
+        else
+          r.name:SetText("   " .. w.name)
+        end
+        r.how:SetText(GREY .. w.prof .. (rep ~= "" and (", " .. rep) or "") .. "|r")
+        r.favor:SetText(w.done and (GREY .. Num(w.cost) .. "|r") or Num(w.cost))
+        r.cost:SetText("")
+        if not w.done then ns.UI.SetBuy(r.buy, w.item or w.name, 1) end
+      elseif ln.sealed then
         r.name:SetText("   |cffffd100Hand in " .. p.sealed .. " Sealed Crates|r")
         r.how:SetText(GREY .. "already filled, in your bags|r")
         r.favor:SetText(Num(p.sealedFavor))
@@ -325,6 +375,7 @@ local function Build()
     if t == 0 then t = nil end
     if t == Target() then return end
     CharDB().favorTarget = t
+    CharDB().favorFromWanted = false
     Regenerate()
     f.offset = 0
     Fill()
@@ -332,7 +383,8 @@ local function Build()
   box:SetScript("OnEnterPressed", function(self) Save(self) self:ClearFocus() end)
   box:SetScript("OnEditFocusLost", Save)
   box:SetScript("OnEscapePressed", function(self) self:SetText(Target() and tostring(Target()) or "") self:ClearFocus() end)
-  UI.Tip(box, "Target favor", "How much Merchant's Favor you want in all (what you have counts). Enter to plan.")
+  UI.Tip(box, "Target favor", "How much Merchant's Favor you want in all (what you have counts). Enter to "
+    .. "plan. Typing one stops the target following the wanted recipes.")
   f.box = box
 
   local scan = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
@@ -344,6 +396,28 @@ local function Build()
   UI.Tip(scan, "Scan AH", "Reads the auction house listings for every crate and its bundles, deep enough for "
     .. "what's left to earn, then remakes the plan with them.")
   f.scan = scan
+  -- the target from the wanted recipes, and the way to pick them (the Merchant view's stars)
+  local wcb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+  wcb:SetSize(22, 22)
+  wcb:SetPoint("LEFT", scan, "RIGHT", 12, 0)
+  local wl = wcb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  wl:SetPoint("LEFT", wcb, "RIGHT", 1, 0)
+  wl:SetText("Target = wanted recipes")
+  wcb:SetScript("OnClick", function(self)
+    CharDB().favorFromWanted = self:GetChecked() and true or false
+    Regenerate()
+    f.offset = 0
+    Fill()
+  end)
+  UI.Tip(wcb, "Target = wanted recipes", "The target is what your wanted recipes cost (the stars in the "
+    .. "Merchant view). Untick to type your own.")
+  f.wantedCheck = wcb
+  local pick = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+  pick:SetSize(100, 20)
+  pick:SetPoint("LEFT", wl, "RIGHT", 10, 0)
+  pick:SetText("Add recipes")
+  pick:SetScript("OnClick", function() ns.ToggleRecipes() end)
+  UI.Tip(pick, "Add recipes", "Opens the Merchant view: star what you want to buy and the plan saves for it.")
   -- use what you have / materials you have (shared with the rep plan)
   UI.PlanOptions(f, 14, 34, function()
     Regenerate()
@@ -407,6 +481,8 @@ local function Build()
     end)
     UI.Tip(add, "Add to cart", "The crates to buy (not the ones you hold) and the bundle materials not in your bags.")
     r.add = add
+    r.buy = UI.BuyButton(r)
+    r.buy:SetPoint("RIGHT", 0, 0)
     r.cost = Text(110, "RIGHT")
     r.cost:SetPoint("RIGHT", add, "LEFT", -6, 0)
     r.per = Text(80, "RIGHT")
@@ -416,7 +492,18 @@ local function Build()
     r:EnableMouse(true)
     r:SetScript("OnEnter", function(self)
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-      if self.kind == "sealed" then
+      if self.want then
+        local w = self.want
+        if not (w.item and pcall(GameTooltip.SetItemByID, GameTooltip, w.item)) then GameTooltip:AddLine(w.name) end
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddDoubleLine("Favor", Num(w.cost), 1, 1, 1, 1, 1, 1)
+        local rep = ns.WantedRepName and ns.WantedRepName(w.rep) or ""
+        if rep ~= "" then GameTooltip:AddDoubleLine("Needs", rep, 1, 1, 1, 1, 1, 1) end
+        GameTooltip:AddLine(w.done and "Learned." or "Buy it with Buy while its vendor is open. Right-click to drop it.",
+          0.6, 0.8, 1, true)
+        GameTooltip:Show()
+        return
+      elseif self.kind == "sealed" then
         GameTooltip:AddLine("Sealed Crates")
         GameTooltip:AddLine("Crates you've already filled. Hand them in at the camp for their favor.", 1, 1, 1, true)
       elseif self.kind == "label" then
@@ -445,6 +532,9 @@ local function Build()
     r:SetScript("OnLeave", function() GameTooltip:Hide() end)
     r:EnableMouseWheel(true)
     r:SetScript("OnMouseWheel", function(_, delta) f.offset = f.offset - delta * 3 Fill() end)
+    r:SetScript("OnMouseUp", function(self, button)
+      if button == "RightButton" and self.want and ns.UnwantRecipe then ns.UnwantRecipe(self.want.key) end
+    end)
     f.rows[i] = r
   end
   f:EnableMouseWheel(true)
@@ -479,6 +569,16 @@ local function Build()
     C_Timer.After(0.5, function() pending = false if f:IsShown() then Fill() end end)
   end)
 end
+
+function ns.OnWantedChanged()
+  Regenerate()
+  if f and f:IsShown() then Fill() end
+  if ns.RefreshHome then ns.RefreshHome() end
+end
+
+ns.UI.OnMerchant(function()
+  if f and f:IsShown() then Fill() end
+end)
 
 function ns.ShowFavorPlan()
   if not f then

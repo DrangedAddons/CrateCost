@@ -266,6 +266,7 @@ local function Build()
   local UI = ns.UI
   -- tight: the cards fill the window, the header bar holds the rest
   frame = UI.Window("CrateCostHome", "CrateCost", WIDTH, TOP + HERO_H + GAP + TILE_H + GAP, UI.POS_KEY)
+  frame.isHome = true   -- closing Home closes the window
   frame:Hide()
   -- see-through enough for the stone to read
   frame:SetBackdropColor(0.05, 0.05, 0.07, 0.4)
@@ -347,6 +348,26 @@ local function Build()
     pending = true
     C_Timer.After(0.5, function() pending = false ns.RefreshHome() end)
   end)
+end
+
+-- Opens Home (in place of `from`, the view just closed, when there is one).
+function ns.ShowHome(from)
+  if not frame then
+    local ok, err = pcall(Build)
+    if not ok then
+      frame = nil
+      ns.Print("couldn't open the home view: " .. tostring(err))
+      return
+    end
+  end
+  if from and from.GetLeft and from:GetLeft() then
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", from:GetLeft(), from:GetTop())
+    frame:Show()
+    frame:Raise()
+  else
+    ns.UI.Open(frame)
+  end
 end
 
 function ns.ToggleHome()

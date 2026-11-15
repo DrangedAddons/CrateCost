@@ -213,12 +213,15 @@ local function MakeRow(i)
     local favs, k = Favorites(), e.key
     favs[k] = (not favs[k]) and true or nil
     if view.favOnly or view.sort == "fav" then ns.RefreshRecipes() else Draw() end
+    -- the stars are what the favor plan saves for
+    if ns.OnWantedChanged then ns.OnWantedChanged() end
   end)
   star:SetScript("OnEnter", function(self)
     local e = row.entry
     PaintStar(self, e and Favorites()[e.key])
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
     GameTooltip:SetText(e and Favorites()[e.key] and "Remove from favorites" or "Add to favorites", 1, 1, 1)
+    GameTooltip:AddLine("Favorites are what the favor plan saves for, and buys.", 0.8, 0.8, 0.8, true)
     GameTooltip:Show()
   end)
   star:SetScript("OnLeave", function(self)
@@ -812,3 +815,35 @@ function ns.ToggleRecipes()
   end
   ns.UI.ToggleView(frame)
 end
+
+-- For the favor plan: the starred recipes and items (this character's wanted list), each
+-- { name, cost, rep (0 none .. 4 Exalted), prof, type, key, spell, item, done = learned or owned },
+-- cheapest first.
+function ns.WantedRecipes()
+  local favs, out = Favorites(), {}
+  for _, e in ipairs(Entries()) do
+    if favs[e.key] then
+      local owned = false
+      if e.item and C_Item and C_Item.GetItemCount then
+        local ok, n = pcall(C_Item.GetItemCount, e.item, true)
+        owned = ok and (n or 0) > 0
+      end
+      out[#out + 1] = { name = e.name, cost = e.cost, rep = e.rep, prof = e.prof, type = e.type, key = e.key,
+        spell = e.spell, item = e.item, done = Known(e) or owned }
+    end
+  end
+  table.sort(out, function(a, b)
+    if a.cost ~= b.cost then return a.cost < b.cost end
+    return a.name < b.name
+  end)
+  return out
+end
+
+-- Takes a recipe off the wanted list (its star).
+function ns.UnwantRecipe(key)
+  Favorites()[key] = nil
+  if frame and frame:IsShown() then ns.RefreshRecipes() end
+  if ns.OnWantedChanged then ns.OnWantedChanged() end
+end
+
+ns.WantedRepName = function(rep) return REP_NAME[rep] or "" end

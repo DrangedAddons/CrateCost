@@ -161,6 +161,7 @@ local function RepSteps()
     end
     Add({ id = "receipts", text = "Buy Forged Delivery Receipts", unit = "",
       have = receipts + notarized + handed, need = c.n,
+      buy = { match = RECEIPT, n = c.n - (receipts + notarized + handed) },
       tip = { "15 favor each from " .. (Horde() and "Kurvelk Shadowhoof" or "Dianne Softstep") .. ". Needs Friendly.",
         "Counted in your bags, with the containers you've made and handed in." } })
     Add({ id = "crates", text = "Buy empty Waylaid Crates", unit = "",
@@ -229,6 +230,14 @@ local function FavorSteps()
   end
   Add({ id = "target", text = "Reach " .. Num(p.target) .. " favor", done = fs.have >= p.target,
     tip = { "You have " .. Num(fs.have) .. "." } })
+  -- what the favor is for: each wanted recipe, done once learned (or owned)
+  for _, wr in ipairs(ns.WantedRecipes and ns.WantedRecipes() or {}) do
+    local rep = ns.WantedRepName and ns.WantedRepName(wr.rep) or ""
+    Add({ id = "want:" .. wr.key, text = "Buy " .. wr.name, done = wr.done, item = wr.item, verb = "Buy ",
+      buy = { match = wr.item or wr.name, n = 1 },
+      tip = { Num(wr.cost) .. " Merchant's Favor" .. (rep ~= "" and (", needs " .. rep) or "") .. ".",
+        wr.prof .. (wr.type and (" " .. wr.type) or "") .. ". Buy shows while its vendor is open." } })
+  end
   local bar = {
     value = math.max(0, math.min(1, fs.have / math.max(1, p.target))),
     color = "|cffffd100",
@@ -285,6 +294,7 @@ local function Fill(w)
     local s = ln and ln.step
     r.step = s or false
     r.sub = (ln and ln.sub) or false
+    r.buy:Hide()
     if ln and ln.sub then
       -- the fill: icon, name in its colour, how many you have of what's still needed
       local sub = ln.sub
@@ -352,6 +362,10 @@ local function Fill(w)
         r.count:SetText(GREY .. count .. "|r")
         r.bg:SetColorTexture(0, 0, 0, 0)
         r.accent:Hide()
+      end
+      -- at the vendor that sells it: Buy, in place of the count
+      if s.buy and not s.done and s.buy.n and s.buy.n > 0 and ns.UI.SetBuy(r.buy, s.buy.match, s.buy.n) then
+        r.count:SetText("")
       end
       -- a step with a count fills as it goes
       local frac = (s.need and s.need > 0 and not s.done) and (s.have / s.need) or 0
@@ -471,6 +485,8 @@ local function Build(kind)
     r.itemIcon:Hide()
     r.count = r:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     r.count:SetPoint("RIGHT", -6, 0)
+    r.buy = ns.UI.BuyButton(r)
+    r.buy:SetPoint("RIGHT", -2, 0)
     r.count:SetJustifyH("RIGHT")
     r.text = r:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     r.text:SetPoint("LEFT", r.icon, "RIGHT", 6, 0)
@@ -554,6 +570,8 @@ function ns.RefreshChecklists()
     if w:IsShown() then w.scrolled = false Fill(w) end
   end
 end
+
+ns.UI.OnMerchant(function() ns.RefreshChecklists() end)
 
 -- reopen the checklists that were open
 local boot = CreateFrame("Frame")

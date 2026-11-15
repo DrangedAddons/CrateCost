@@ -264,7 +264,7 @@ end
 ------------------------------------------------------------------------------------------------
 -- Running a job: a section with a secure button, one item per click, and a progress bar. A job is
 --   { title, verb, total, start(bags) -> state, done(bags, state) -> n, next(bags, state) -> macro }
--- A section can sit in any window (the fill window has one); the runner is a small window with one.
+-- A section sits in a window: the fill and container windows have one each.
 
 local sections = {}
 local RefreshFill, RefreshContainers   -- forward: windows refresh as the bags change
@@ -348,34 +348,6 @@ bagWatch:SetScript("OnEvent", function()
     if RefreshContainers then RefreshContainers() end
   end)
 end)
-
--- The runner: a small window with a section, for jobs started elsewhere (containers).
-local runner
-local function StartJob(j)
-  if Combat() then ns.Print("not in combat.") return end
-  if not runner then
-    runner = Panel("CrateCostRunner", 300, 128, "")
-    runner.note = Text(runner, "GameFontDisableSmall")
-    runner.note:SetPoint("TOPLEFT", 14, -30)
-    runner.note:SetWidth(272)
-    runner.note:SetText("The game lets an addon use an item only on a click: click once per item. "
-      .. "The button works out the next one each time.")
-    runner.sec = RunSection(runner, "CrateCostRunButton", 272)
-    runner.sec:SetPoint("BOTTOM", 0, 6)
-    runner.sec.onFinish = function() if not Combat() then runner:Hide() end end
-    runner.close:SetScript("OnClick", function()
-      if Combat() then return end
-      runner.sec.job = false
-      runner:Hide()
-    end)
-  end
-  runner.title:SetText(j.title)
-  runner:ClearAllPoints()
-  runner:SetPoint("CENTER", UIParent, "CENTER", 0, -120)
-  runner:Show()
-  runner:Raise()
-  Begin(runner.sec, j)
-end
 
 local function Use(s) return "/use " .. s.bag .. " " .. s.slot end
 
@@ -711,7 +683,6 @@ end
 -- Containers: a receipt on each empty crate you pick.
 
 local contWin
-local CONT_ROWS = 10
 
 -- receipts still wanted by the rep plan (its containers less what's in your bags), or nil
 local function PlanReceipts(bags)
@@ -769,6 +740,49 @@ local function ContainerJob(picks)
   }
 end
 
+local CONT_W, CONT_ROWS, CONT_ROW_H = 560, 8, 30
+
+local function Chosen(f)
+  local n = 0
+  for _, e in ipairs(f.list or {}) do if e.on then n = n + (e.pick or 0) end end
+  return n
+end
+
+-- the picked crates for the job: { id, n }, no more than the receipts you hold
+local function Picks(f)
+  local picks, receipts = {}, BagCountByName(RECEIPT)
+  for _, e in ipairs(f.list or {}) do
+    if e.on and (e.pick or 0) > 0 and receipts > 0 then
+      local n = math.min(e.pick, receipts)
+      picks[#picks + 1] = { id = e.id, n = n }
+      receipts = receipts - n
+    end
+  end
+  return picks
+end
+
+-- the panel below the list: receipts, how many, the Make button
+local function RefreshContPanel(f)
+  local p = f.panel
+  local receipts = BagCountByName(RECEIPT)
+  local chosen = Chosen(f)
+  local over = chosen > receipts
+  p.receipts:SetText("Receipts in your bags:  " .. (receipts > 0 and (GOLD .. Num(receipts) .. "|r") or (RED .. "none|r")))
+  p.making:SetText("Containers to make:  " .. (over and RED or GOLD) .. Num(math.min(chosen, receipts)) .. "|r"
+    .. (over and (RED .. "  (you picked " .. chosen .. ", more than your receipts)|r") or ""))
+  p.plan:SetText(f.planNote and f.planNote > 0
+    and (GREY .. "The rep plan wants " .. f.planNote .. " more receipts than you hold.|r") or "")
+  if f.sec.job or Combat() then return end
+  local n = math.min(chosen, receipts)
+  if n > 0 then
+    f.sec.run:Enable()
+    f.sec.run:SetText("Make container 1 of " .. n)
+  else
+    f.sec.run:Disable()
+    f.sec.run:SetText(receipts == 0 and "No receipts in your bags" or "Pick crates above")
+  end
+end
+
 RefreshContainers = function(reset)
   local f = contWin
   if not (f and f:IsShown()) then return end
@@ -781,10 +795,15 @@ RefreshContainers = function(reset)
       e.price = ns.Price and ns.Price(e.id)
       list[#list + 1] = e
     end
-    local want = PlanReceipts(bags)
     DefaultSplit(list, receipts)
+    -- the list in the order the receipts go: crates you can't fill, cheapest first
+    table.sort(list, function(a, b)
+      if (a.can > 0) ~= (b.can > 0) then return a.can == 0 end
+      return (a.price or math.huge) < (b.price or math.huge)
+    end)
     f.list = list
-    f.planNote = want or false
+    f.planNote = PlanReceipts(bags) or false
+    f.offset = 0
   else
     -- keep the picks, refresh what you hold
     local now = {}
@@ -794,9 +813,10 @@ RefreshContainers = function(reset)
       e.pick = math.min(e.pick or 0, e.n)
     end
   end
-  local chosen = 0
+  local maxOff = math.max(0, #f.list - CONT_ROWS)
+  f.offset = math.min(f.offset or 0, maxOff)
   for i = 1, CONT_ROWS do
-    local r, e = f.rows[i], f.list[i]
+    local r, e = f.rows[i], f.list[f.offset + i]
     r.entry = e or false
     if e then
       r.check:SetChecked(e.on and true or false)
@@ -805,53 +825,60 @@ RefreshContainers = function(reset)
         .. (e.can > 0 and (GREY .. "  (you can fill " .. e.can .. ")|r") or ""))
       if not r.box:HasFocus() then r.box:SetText(tostring(e.pick or 0)) end
       r.of:SetText(GREY .. "of " .. e.n .. "|r")
-      if e.on then chosen = chosen + (e.pick or 0) end
       r:Show()
     else
       r:Hide()
     end
   end
+  if maxOff > 0 then
+    local trackH = CONT_ROWS * CONT_ROW_H - 2
+    local thumbH = math.max(16, trackH * CONT_ROWS / #f.list)
+    f.thumb:SetHeight(thumbH)
+    f.thumb:SetPoint("TOP", f.track, "TOP", 0, -(trackH - thumbH) * f.offset / maxOff)
+    f.track:Show()
+    f.thumb:Show()
+  else
+    f.track:Hide()
+    f.thumb:Hide()
+  end
   f.empty:SetShown(#f.list == 0)
-  local over = chosen > receipts
-  f.summary:SetText("Receipts in your bags: " .. (receipts > 0 and Num(receipts) or (RED .. "none|r"))
-    .. "     Containers to make: " .. (over and RED or GOLD) .. chosen .. "|r"
-    .. (over and (RED .. "  (more than your receipts)|r") or "")
-    .. (f.planNote and (GREY .. "\nThe rep plan wants " .. f.planNote .. " more receipts than you hold.|r") or ""))
-  f.go:SetEnabled(chosen > 0 and receipts > 0)
-  f.go:SetText("Make " .. math.min(chosen, receipts) .. " containers")
+  RefreshContPanel(f)
 end
 
 local function ContRow(f, i)
   local r = CreateFrame("Frame", nil, f)
-  r:SetSize(f:GetWidth() - 24, 24)
-  r:SetPoint("TOPLEFT", 12, -70 - (i - 1) * 26)
+  r:SetSize(CONT_W - 24 - 12, CONT_ROW_H - 2)
+  r:SetPoint("TOPLEFT", 12, -LIST_TOP - (i - 1) * CONT_ROW_H)
+  r.bg = r:CreateTexture(nil, "BACKGROUND")
+  r.bg:SetAllPoints()
+  r.bg:SetColorTexture(1, 1, 1, i % 2 == 0 and 0.03 or 0)
   r.check = CreateFrame("CheckButton", nil, r, "UICheckButtonTemplate")
   r.check:SetSize(22, 22)
   r.check:SetPoint("LEFT", 0, 0)
   r.check:SetScript("OnClick", function(self)
     local e = r.entry
-    if e then
-      e.on = self:GetChecked() and true or false
-      if e.on and (e.pick or 0) == 0 then e.pick = e.n end
-      RefreshContainers()
-    end
+    if not e then return end
+    if f.sec.job then RefreshContainers() return end   -- not while making them
+    e.on = self:GetChecked() and true or false
+    if e.on and (e.pick or 0) == 0 then e.pick = e.n end
+    RefreshContainers()
   end)
   r.icon = r:CreateTexture(nil, "ARTWORK")
-  r.icon:SetSize(20, 20)
+  r.icon:SetSize(22, 22)
   r.icon:SetPoint("LEFT", r.check, "RIGHT", 4, 0)
   r.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-  r.name = Text(r, "GameFontHighlight")
-  r.name:SetPoint("LEFT", r.icon, "RIGHT", 6, 0)
-  r.name:SetWidth(300)
-  r.name:SetWordWrap(false)
   r.of = Text(r)
   r.of:SetPoint("RIGHT", -4, 0)
   r.of:SetWidth(44)
   r.box = NumBox(r, 44)
   r.box:SetPoint("RIGHT", r.of, "LEFT", -6, 0)
+  r.name = Text(r, "GameFontHighlight")
+  r.name:SetPoint("LEFT", r.icon, "RIGHT", 6, 0)
+  r.name:SetPoint("RIGHT", r.box, "LEFT", -10, 0)
+  r.name:SetWordWrap(false)
   local function Save(self)
     local e = r.entry
-    if not e then return end
+    if not e or f.sec.job then RefreshContainers() return end
     e.pick = math.min(e.n, math.max(0, tonumber(self:GetText()) or 0))
     e.on = e.pick > 0
     RefreshContainers()
@@ -863,33 +890,66 @@ end
 
 function ns.ShowContainers()
   if not contWin then
-    local f = Panel("CrateCostContainers", 480, 70 + CONT_ROWS * 26 + 44, "Notarized Shipping Containers")
-    f.list, f.planNote = false, false
-    f.summary = Text(f)
-    f.summary:SetPoint("TOPLEFT", 14, -32)
-    f.summary:SetWidth(452)
+    local listH = CONT_ROWS * CONT_ROW_H
+    local f = Panel("CrateCostContainers", CONT_W, LIST_TOP + listH + 10 + PANEL_H + 40, "Notarized Shipping Containers")
+    f.list, f.planNote, f.offset = false, false, 0
     f.rows = {}
     for i = 1, CONT_ROWS do f.rows[i] = ContRow(f, i) end
+    f.track = f:CreateTexture(nil, "ARTWORK")
+    f.track:SetPoint("TOPRIGHT", -12, -LIST_TOP)
+    f.track:SetSize(6, listH - 2)
+    f.track:SetColorTexture(0.12, 0.12, 0.12, 1)
+    f.thumb = f:CreateTexture(nil, "OVERLAY")
+    f.thumb:SetWidth(6)
+    f.thumb:SetColorTexture(0.55, 0.55, 0.55, 1)
     f.empty = Text(f, "GameFontDisable")
-    f.empty:SetPoint("TOP", 0, -90)
+    f.empty:SetPoint("TOP", 0, -60)
     f.empty:SetText("No empty Waylaid Crates in your bags.")
-    f.go = Button(f, "Make containers", 170, function()
-      local picks, receipts = {}, BagCountByName(RECEIPT)
-      for _, e in ipairs(f.list or {}) do
-        if e.on and (e.pick or 0) > 0 and receipts > 0 then
-          local n = math.min(e.pick, receipts)
-          picks[#picks + 1] = { id = e.id, n = n }
-          receipts = receipts - n
-        end
-      end
-      if #picks > 0 then StartJob(ContainerJob(picks)) end
-    end, "Puts a receipt on each picked crate, one click each.")
-    f.go:SetPoint("BOTTOMRIGHT", -12, 10)
+    f:EnableMouseWheel(true)
+    f:SetScript("OnMouseWheel", function(self, d)
+      self.offset = math.max(0, (self.offset or 0) - d)
+      RefreshContainers()
+    end)
+
+    -- below the list: receipts, how many, the Make button and its progress
+    local p = CreateFrame("Frame", nil, f, "BackdropTemplate")
+    p:SetPoint("TOPLEFT", 12, -LIST_TOP - listH - 10)
+    p:SetPoint("TOPRIGHT", -12, -LIST_TOP - listH - 10)
+    p:SetHeight(PANEL_H)
+    p:SetBackdrop({ bgFile = WHITE, edgeFile = WHITE, edgeSize = 1 })
+    p:SetBackdropColor(0.03, 0.03, 0.035, 0.95)
+    p:SetBackdropBorderColor(0.25, 0.25, 0.28, 1)
+    f.panel = p
+    p.icon = p:CreateTexture(nil, "ARTWORK")
+    p.icon:SetSize(36, 36)
+    p.icon:SetPoint("TOPLEFT", 10, -10)
+    p.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    p.icon:SetTexture("Interface\\Icons\\INV_Misc_Note_02")
+    p.receipts = Text(p, "GameFontHighlight")
+    p.receipts:SetPoint("TOPLEFT", p.icon, "TOPRIGHT", 10, -1)
+    p.making = Text(p, "GameFontHighlight")
+    p.making:SetPoint("TOPLEFT", p.receipts, "BOTTOMLEFT", 0, -8)
+    p.plan = Text(p)
+    p.plan:SetPoint("TOPLEFT", p.making, "BOTTOMLEFT", 0, -8)
+    p.plan:SetWidth(270)
+    f.sec = RunSection(p, "CrateCostContainerButton", 200)
+    f.sec:SetPoint("TOPRIGHT", -12, -14)
+    f.sec.makeJob = function()
+      local picks = Picks(f)
+      if #picks > 0 then return ContainerJob(picks) end
+    end
+    f.sec.idle = function() RefreshContPanel(f) end
+    f.sec.onFinish = function() C_Timer.After(0, function() RefreshContainers(true) end) end
+    local note = Text(p, "GameFontDisableSmall")
+    note:SetPoint("TOPRIGHT", f.sec, "BOTTOMRIGHT", 0, -20)
+    note:SetWidth(200)
+    note:SetJustifyH("RIGHT")
+    note:SetText("One click per container: the game only lets an addon use an item on a click.")
+
     local hint = Text(f, "GameFontDisableSmall")
     hint:SetPoint("BOTTOMLEFT", 14, 16)
-    hint:SetText("Any crate takes a receipt: crates you can't fill go first, cheapest first.")
-    f:RegisterEvent("BAG_UPDATE_DELAYED")
-    f:SetScript("OnEvent", function() C_Timer.After(0.2, function() RefreshContainers() end) end)
+    hint:SetText("Any crate takes a receipt: crates you can't fill go first, cheapest first. Tick and set how many of each.")
+    f:SetScript("OnHide", function() if not Combat() then f.sec.job = false end end)
     contWin = f
   end
   contWin:Show()

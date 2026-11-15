@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.59.0
+- Notarized Shipping Containers work like Fill crates: the empty crates on top (scrolling, with a scrollbar when they don't fit), each ticked with how many, and a panel below with your receipts, how many containers that makes, and the Make button with its progress. No separate window.
+
 ## 0.58.0
 - Fill crates is one window: the crate list on top scrolls (with a scrollbar when it doesn't fit), and the crate you pick shows in the panel below with How many, Max and the Fill button and its progress. No separate prompt or runner window.
 - Fill crates: the bundle text no longer runs into "fills"; an item that stacks smaller than its bundle counts every stack.

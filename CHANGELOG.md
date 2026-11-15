@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.54.1
+- Cart and the shopping list review price each item up the scanned AH listings for its amount, as the plans do (before: Auctionator's lowest price x amount, which came out lower than the plan's up-front cost). ~ marks prices past what the scan read.
+
 ## 0.54.0
 - Plans: **Create shopping list** (was Add plan to cart, which didn't add anything: fixed) gathers the whole plan's buys, merged by item: each writ and its fill (less what's in your bags), the containers' favor crates and bundles, the empty crates; or the favor plan's crates and bundles. It opens a review, as in CraftRoute: untick items, change amounts, name the list, then **Create Shopping List** makes the Auctionator list. Your cart isn't touched.
 - The per-row cart buttons in the plans are gone: the plan is bought as a whole.

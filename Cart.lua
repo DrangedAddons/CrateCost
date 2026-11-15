@@ -58,9 +58,17 @@ end
 function ns.CartCount() return #Cart() end
 
 local function UnitPrice(it) return it.id and ns.Price(it.id) end
+-- What `qty` of it costs: up the scanned AH listings when there's a fresh scan (Depth.lua), as
+-- the plans price it, else Auctionator's lowest price x qty. `guess` when that goes past what
+-- the scan read (or there's no scan).
 local function Cost(it)
+  if not it.id or (it.qty or 0) <= 0 then return nil end
+  if ns.FillCost then
+    local c, how = ns.FillCost(it.id, it.qty)
+    return c, (how and (how.guess or not how.depth)) or false
+  end
   local p = UnitPrice(it)
-  return p and p * it.qty or nil
+  return p and p * it.qty or nil, true
 end
 
 -- The list CrateCost made last time is replaced, unless you named it yourself.
@@ -176,8 +184,8 @@ local function Build()
       local n = tonumber(self:GetText())
       if r.it and n then
         r.it.qty = n
-        local c = Cost(r.it)
-        r.cost:SetText(c and ns.Money(c) or "|cff808080?|r")
+        local c, g = Cost(r.it)
+        r.cost:SetText(c and ((g and "|cffff9933~|r" or "") .. ns.Money(c)) or "|cff808080?|r")
         f:Totals()
       end
     end
@@ -272,16 +280,18 @@ local function Build()
   f.create:SetScript("OnClick", Create)
 
   function f:Totals()
-    local n, total, unknown = 0, 0, false
+    local n, total, unknown, guess = 0, 0, false, false
     for _, it in ipairs(List()) do
       if it.on and it.qty > 0 then
         n = n + 1
-        local c = Cost(it)
+        local c, g = Cost(it)
         if c then total = total + c else unknown = true end
+        if g then guess = true end
       end
     end
     self.summary:SetText(string.format("%d item%s", n, n == 1 and "" or "s"))
-    self.total:SetText(ns.Money(total) .. (unknown and " |cff808080+?|r" or ""))
+    -- ~: past what the AH scan read, so too low (Scan AH)
+    self.total:SetText((guess and "|cffff9933~|r" or "") .. ns.Money(total) .. (unknown and " |cff808080+?|r" or ""))
     self.create:SetEnabled(n > 0)
   end
 
@@ -298,8 +308,8 @@ local function Build()
         r.name:SetText(ItemName(it.id, it.name) or "?")
         r.name:SetAlpha(it.on and 1 or 0.45)
         if not r.qty:HasFocus() then r.qty:SetText(tostring(it.qty)) end
-        local c = Cost(it)
-        r.cost:SetText(c and ns.Money(c) or "|cff808080?|r")
+        local c, g = Cost(it)
+        r.cost:SetText(c and ((g and "|cffff9933~|r" or "") .. ns.Money(c)) or "|cff808080?|r")
         r.cost:SetAlpha(it.on and 1 or 0.45)
         r:Show()
       else

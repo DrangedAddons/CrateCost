@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.56.1
+- Shopping dock (ShoppingDock 0.3.0): the list picker is a solid dropdown grouped by the addon that made each list; Rescan list moved to the top right of the summary, Rescan item to the top right of the item; the dock no longer shows the AH through it.
+
 ## 0.56.0
 - The buy panel is replaced by **ShoppingDock** (carried inside CrateCost as `ShoppingDock.lua`): the same dock beside the auction house, plus a menu on the list name to pick any Auctionator shopping list, **Rescan item**, and **Rescan list** (what each item costs now, on its row). The cart and rep plan lists still carry CrateCost's planned prices into it. With CraftRoute (or ShoppingDock) installed too, there's still one dock.
 - Options: **Show shopping list dock** (on by default).

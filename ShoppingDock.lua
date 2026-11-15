@@ -19,7 +19,7 @@
 -- Buying needs a click (the game only allows a purchase from one). A commodity is two clicks:
 -- Buy now asks the AH for the exact price (StartCommoditiesPurchase), then Confirm buys at it.
 
-local MINOR = 2
+local MINOR = 3
 
 local _, NS = ...
 NS = type(NS) == "table" and NS or {}
@@ -36,7 +36,7 @@ local function Active() return _G.ShoppingDock == SD end
 local CALLER = "ShoppingDock"
 -- C_AuctionHouse, looked up when used (not when this file loads)
 local AH = setmetatable({}, { __index = function(_, k) return C_AuctionHouse and C_AuctionHouse[k] end })
-local W, ROW_H, MAX_ROWS, LIST_TOP, FOOT = 380, 18, 40, 298, 40
+local W, ROW_H, MAX_ROWS, LIST_TOP, FOOT = 380, 18, 40, 268, 40
 local GREY, GREEN, RED, GOLD = "|cff8a8a8a", "|cff40ff40", "|cffff5050", "|cffffd100"
 local ICON_DONE = "Interface\\RaidFrame\\ReadyCheck-Ready"
 local BUY_TIMEOUT = 10 -- seconds before a purchase with no answer counts as failed
@@ -779,7 +779,7 @@ Refresh = function()
   end
   panel.skip:SetEnabled(x ~= nil)
   panel.rescanItem:SetEnabled(atAH and x ~= nil and ph ~= "buying" and ph ~= "scan")
-  panel.rescanList:SetText(ph == "scan" and "Stop rescan" or "Rescan list")
+  panel.rescanList:SetText(ph == "scan" and "Stop" or "Rescan list")
   panel.rescanList:SetEnabled(atAH and x ~= nil and ph ~= "buying")
   -- the list: done, current, to come
   local n = #items
@@ -838,59 +838,127 @@ local function SaveAmount(box)
   end
 end
 
--- The list picker: every Auctionator shopping list, with how far along each is. A click
--- anywhere else closes it; the wheel scrolls it when there are more lists than rows.
-local MENU_ROWS, MENU_ROW_H = 16, 20
+-- The list picker: a dropdown under the list name with every Auctionator shopping list, grouped
+-- under the addon that made it (CraftRoute, CrateCost...; lists made by hand go under "Other
+-- lists"), with how far along each is. A click anywhere else closes it; the wheel scrolls it.
+local MENU_ROWS, MENU_ROW_H = 18, 20
+local OTHER = "Other lists"
 local menu
 
 local function CloseMenu()
   if menu then menu.catcher:Hide() end
 end
 
+local function AddonLoaded(name)
+  local f = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
+  if not f then return false end
+  local ok, loaded = pcall(f, name)
+  return ok and loaded and true or false
+end
+
+-- Which addon made a list: the one that called SetListPlan for it, else the name's first word
+-- when that's a loaded addon ("CraftRoute: ...", "CrateCost crates ..."), else OTHER.
+local function SourceOf(name)
+  local L = Store().lists[name]
+  if L and type(L.source) == "string" then return L.source end
+  local word = name:match("^([%w_%-]+)")
+  if word and AddonLoaded(word) then return word end
+  return OTHER
+end
+
+-- headers and lists in menu order: sources A-Z (OTHER last), each source's lists A-Z
+local function MenuEntries()
+  local groups, order = {}, {}
+  for _, l in ipairs(RawLists()) do
+    local src = SourceOf(l.name)
+    if not groups[src] then
+      groups[src] = {}
+      order[#order + 1] = src
+    end
+    table.insert(groups[src], l.name)
+  end
+  table.sort(order, function(a, b)
+    if (a == OTHER) ~= (b == OTHER) then return b == OTHER end
+    return a:lower() < b:lower()
+  end)
+  local out = {}
+  for _, src in ipairs(order) do
+    out[#out + 1] = { header = src }
+    table.sort(groups[src], function(a, b) return a:lower() < b:lower() end)
+    for _, n in ipairs(groups[src]) do out[#out + 1] = { name = n } end
+  end
+  return out
+end
+
 local function FillMenu()
-  local lists = RawLists()
-  menu.offset = math.max(0, math.min(menu.offset, #lists - MENU_ROWS))
+  local entries = menu.entries
+  menu.offset = math.max(0, math.min(menu.offset, #entries - MENU_ROWS))
   local cur = ActiveName()
-  local shown = math.min(#lists, MENU_ROWS)
+  local shown = math.min(#entries, MENU_ROWS)
   for i, row in ipairs(menu.rows) do
-    local l = lists[menu.offset + i]
-    if i > shown or not l then
+    local e = entries[menu.offset + i]
+    if i > shown or not e then
       row:Hide()
+    elseif e.header then
+      row.text:SetPoint("LEFT", 6, 0)
+      row.text:SetText(GOLD .. e.header .. "|r")
+      row.sel:Hide()
+      row.name = nil
+      row:EnableMouse(false)
+      row:Show()
     else
-      local items = Items(l.name) or {}
+      local items = Items(e.name) or {}
       local done = 0
       for _, it in ipairs(items) do
         if IsDone(it) then done = done + 1 end
       end
-      row.text:SetText((l.name == cur and GOLD or "|cffdddddd") .. l.name .. "|r"
+      row.text:SetPoint("LEFT", 18, 0)
+      row.text:SetText((e.name == cur and "|cffffffff" or "|cffcccccc") .. e.name .. "|r"
         .. GREY .. "  " .. done .. " / " .. #items .. "|r")
-      row.sel:SetShown(l.name == cur)
-      row.name = l.name
+      row.sel:SetShown(e.name == cur)
+      row.name = e.name
+      row:EnableMouse(true)
       row:Show()
     end
   end
+  menu.bar:SetShown(#entries > MENU_ROWS)
+  if #entries > MENU_ROWS then
+    local trackH = shown * MENU_ROW_H
+    local h = math.max(12, trackH * MENU_ROWS / #entries)
+    menu.bar:SetHeight(h)
+    menu.bar:SetPoint("TOPRIGHT", -2, -4 - (trackH - h) * menu.offset / (#entries - MENU_ROWS))
+  end
   menu:SetHeight(math.max(1, shown) * MENU_ROW_H + 8)
-  menu.empty:SetShown(#lists == 0)
+  menu.empty:SetShown(#entries == 0)
 end
 
 local function BuildMenu()
   local catcher = CreateFrame("Button", nil, UIParent)
   catcher:SetAllPoints(UIParent)
-  catcher:SetFrameStrata("DIALOG")
+  catcher:SetFrameStrata("FULLSCREEN_DIALOG")
   catcher:SetScript("OnClick", function(self) self:Hide() end)
   catcher:Hide()
-  local m = CreateFrame("Frame", nil, catcher, "BackdropTemplate")
+  local m = CreateFrame("Frame", nil, catcher)
+  m:SetFrameStrata("FULLSCREEN_DIALOG")
   m:SetFrameLevel(catcher:GetFrameLevel() + 10)
-  m:SetBackdrop({ bgFile = "Interface\Buttons\WHITE8X8", edgeFile = "Interface\Buttons\WHITE8X8", edgeSize = 1 })
-  m:SetBackdropColor(0.03, 0.03, 0.035, 0.95)
-  m:SetBackdropBorderColor(0.25, 0.25, 0.28, 1)
+  -- a solid fill and a 1px border, drawn as textures so nothing behind shows through
+  local bg = m:CreateTexture(nil, "BACKGROUND", nil, -8)
+  bg:SetAllPoints()
+  bg:SetColorTexture(0.25, 0.25, 0.28, 1)
+  local fill = m:CreateTexture(nil, "BACKGROUND", nil, -7)
+  fill:SetPoint("TOPLEFT", 1, -1)
+  fill:SetPoint("BOTTOMRIGHT", -1, 1)
+  fill:SetColorTexture(0.03, 0.03, 0.035, 1)
   m:EnableMouse(true)
   m:EnableMouseWheel(true)
   m:SetScript("OnMouseWheel", function(_, d)
     m.offset = m.offset - d * 3
     FillMenu()
   end)
-  m.catcher, m.offset, m.rows = catcher, 0, {}
+  m.catcher, m.offset, m.rows, m.entries = catcher, 0, {}, {}
+  m.bar = m:CreateTexture(nil, "ARTWORK")
+  m.bar:SetWidth(4)
+  m.bar:SetColorTexture(0.55, 0.55, 0.55, 1)
   m.empty = m:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
   m.empty:SetPoint("LEFT", 8, 0)
   m.empty:SetText(GREY .. "No shopping lists yet.|r")
@@ -898,7 +966,7 @@ local function BuildMenu()
     local row = CreateFrame("Button", nil, m)
     row:SetHeight(MENU_ROW_H)
     row:SetPoint("TOPLEFT", 4, -4 - (i - 1) * MENU_ROW_H)
-    row:SetPoint("RIGHT", m, "RIGHT", -4, 0)
+    row:SetPoint("RIGHT", m, "RIGHT", -10, 0)
     row.sel = row:CreateTexture(nil, "BACKGROUND")
     row.sel:SetAllPoints()
     row.sel:SetColorTexture(1, 0.82, 0, 0.25)
@@ -906,11 +974,12 @@ local function BuildMenu()
     hl:SetAllPoints()
     hl:SetColorTexture(1, 1, 1, 0.08)
     row.text = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    row.text:SetPoint("LEFT", 6, 0)
+    row.text:SetPoint("LEFT", 18, 0)
     row.text:SetPoint("RIGHT", -6, 0)
     row.text:SetJustifyH("LEFT")
     row.text:SetWordWrap(false)
     row:SetScript("OnClick", function(self)
+      if not self.name then return end
       catcher:Hide()
       SelectList(self.name)
     end)
@@ -929,11 +998,12 @@ local function ToggleMenu(anchor)
   menu:ClearAllPoints()
   menu:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -2)
   menu:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, -2)
+  menu.entries = MenuEntries()
   -- start with the current list in view
   menu.offset = 0
   local cur = ActiveName()
-  for i, l in ipairs(RawLists()) do
-    if l.name == cur then menu.offset = i - 3 end
+  for i, e in ipairs(menu.entries) do
+    if e.name == cur then menu.offset = i - 4 end
   end
   FillMenu()
   menu.catcher:Show()
@@ -948,6 +1018,11 @@ local function Build()
   p:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
   p:SetBackdropColor(0.06, 0.06, 0.07, 0.95)
   p:SetBackdropBorderColor(0.25, 0.25, 0.28, 1)
+  -- a solid fill under the backdrop (or a theme's shell), so the AH never shows through
+  local base = p:CreateTexture(nil, "BACKGROUND", nil, -8)
+  base:SetPoint("TOPLEFT", 4, -4)
+  base:SetPoint("BOTTOMRIGHT", -4, 4)
+  base:SetColorTexture(0.04, 0.04, 0.05, 0.97)
   p:EnableMouse(true)
   p.offset = 0
   p.nsTitle = p:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
@@ -986,6 +1061,14 @@ local function Build()
   -- summary
   p.summary = p:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
   p.summary:SetPoint("TOPLEFT", 18, -74)
+  -- Rescan list: top right of the summary
+  p.rescanList = Button(p, "Rescan list", 96, 20, function()
+    if state.phase == "scan" then StopScan() else StartScan() end
+  end)
+  p.rescanList:SetPoint("TOPRIGHT", -16, -72)
+  Tip(p.rescanList, "Rescan list", "Search the AH for every item still to buy, one after another, and show what "
+    .. "each costs now on its row. Red is over what the list expected, green under. A number in brackets "
+    .. "is all the AH has.")
   p.summary:SetPoint("RIGHT", -18, 0)
   p.summary:SetJustifyH("LEFT")
   p.summary:SetSpacing(3)
@@ -999,9 +1082,13 @@ local function Build()
   p.icon:SetSize(30, 30)
   p.icon:SetPoint("TOPLEFT", 18, -136)
   p.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+  -- Rescan item: top right of the item area
+  p.rescanItem = Button(p, "Rescan item", 96, 20, function() if Active() then Search() end end)
+  p.rescanItem:SetPoint("TOPRIGHT", -16, -134)
+  Tip(p.rescanItem, "Rescan item", "Search the AH again for the item you're on.")
   p.item = p:CreateFontString(nil, "ARTWORK", "GameFontNormal")
   p.item:SetPoint("TOPLEFT", p.icon, "TOPRIGHT", 8, 0)
-  p.item:SetPoint("RIGHT", -18, 0)
+  p.item:SetPoint("RIGHT", p.rescanItem, "LEFT", -6, 0)
   p.item:SetJustifyH("LEFT")
   p.item:SetWordWrap(false)
   p.itemInfo = p:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
@@ -1034,18 +1121,6 @@ local function Build()
   p.skip = Button(p, "Skip", 62, 24, Skip)
   p.skip:SetPoint("TOPRIGHT", -16, -218)
   Tip(p.skip, "Skip", "Move on without buying this one.")
-  -- Rescan item, Rescan list
-  local half = math.floor((W - 32 - 8) / 2)
-  p.rescanItem = Button(p, "Rescan item", half, 22, function() if Active() then Search() end end)
-  p.rescanItem:SetPoint("TOPLEFT", 16, -248)
-  Tip(p.rescanItem, "Rescan item", "Search the AH again for the item you're on.")
-  p.rescanList = Button(p, "Rescan list", half, 22, function()
-    if state.phase == "scan" then StopScan() else StartScan() end
-  end)
-  p.rescanList:SetPoint("TOPRIGHT", -16, -248)
-  Tip(p.rescanList, "Rescan list", "Search the AH for every item still to buy, one after another, and show what "
-    .. "each costs now on its row. Red is over what the list expected, green under. A number in brackets "
-    .. "is all the AH has.")
   -- the list
   local lt = p:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
   lt:SetPoint("TOPLEFT", 18, -LIST_TOP + 16)
@@ -1208,10 +1283,26 @@ end
 --
 --   ShoppingDock.ShowShoppingList(listName)  opens the dock on that list.
 
-function SD.SetListPlan(listName, plan)
+-- The addon that called: the first stack line outside this file names its folder
+-- (Interface/AddOns/<folder>/...). Read from the whole stack, so the level doesn't matter.
+local function CallerAddon()
+  if not debugstack then return nil end
+  local ok, st = pcall(debugstack, 1, 12, 0)
+  if not (ok and type(st) == "string") then return nil end
+  for line in st:gmatch("[^\n]+") do
+    if not line:find("ShoppingDock%.lua") then
+      local folder = line:match("AddOns[/\\]([^/\\]+)[/\\]")
+      if folder then return folder end
+    end
+  end
+end
+
+function SD.SetListPlan(listName, plan, source)
   if not (Active() and type(listName) == "string" and type(plan) == "table") then return false end
   local L = Track(listName)
   L.plan = {}
+  -- which addon made the list, for the list picker's groups
+  L.source = type(source) == "string" and source ~= "" and source or CallerAddon() or L.source
   local function Add(id, e)
     id = tonumber(id)
     if not (id and type(e) == "table") then return end

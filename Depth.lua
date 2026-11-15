@@ -45,16 +45,17 @@ local function Fresh(id)
   if it and it.t and time() - it.t < Depth.TTL then return it end
 end
 
--- The fresh scanned listings for `id` ({ {unit price, units}, ... } cheapest first) and whether
--- that's all of them; nil without a fresh scan.
+-- The fresh scanned listings for `id` ({ {unit price, units}, ... } cheapest first), whether
+-- that's all of them, and how many the survey saw listed; nil without a fresh scan.
 function Depth.Rows(id)
   local it = Fresh(id)
-  if it then return it.rows, it.full end
+  if it then return it.rows, it.full, it.total end
 end
 
 -- Cost of `n` units of `id`, and how it was priced:
 --   { depth = true } walked the scanned listings, cheapest first;
 --     .short = fewer listed than needed (the rest priced at the dearest listing),
+--     .guess = more than was read: the rest at the dearest price read (Scan AH deeper),
 --     .none = none listed (cost nil)
 --   {} = no fresh scan: Auctionator's lowest price x n.
 -- nil cost = no price at all.
@@ -71,9 +72,11 @@ function ns.FillCost(id, n)
       cost, left, last = cost + take * r[1], left - take, r[1]
       if left == 0 then break end
     end
-    -- past what was read: at the dearest price seen. Short only when that was every listing.
+    -- past what was read: at the dearest price seen, a guess (too low) unless that was every
+    -- listing, when there aren't enough. More than the survey saw listed is short too.
     if left > 0 then cost = cost + left * last end
-    return cost, { depth = true, short = left > 0 and it.full }
+    local short = (left > 0 and it.full) or (it.total ~= nil and n > it.total)
+    return cost, { depth = true, short = short, guess = left > 0 and not short }
   end
   local p = ns.Price and ns.Price(id)
   return p and p * n, {}
@@ -122,9 +125,10 @@ end
 
 local Next, Ask
 
-local function Save(id, rows, full)
+-- `total`: units listed in all (from the survey), when the rows don't cover them all.
+local function Save(id, rows, full, total)
   local s = Store()
-  s.items[id] = { t = time(), full = full, rows = rows }
+  s.items[id] = { t = time(), full = full, rows = rows, total = total }
 end
 
 local function Finished(entry)
@@ -152,7 +156,7 @@ local function Unanswered(entry)
     Depth.failed = Depth.failed + 1
     -- what the survey saw is better than nothing: its lowest price, not the depth
     local seen = Depth.seen and Depth.seen[entry.id]
-    if seen then Save(entry.id, { { seen.min, seen.total } }, false) end
+    if seen then Save(entry.id, { { seen.min, 1 } }, false, seen.total) end
   end
   Next()
 end
@@ -246,7 +250,7 @@ local function OnAnswer(id, rows, full, more)
     end
   end
   Finished(entry)
-  Save(id, keep, full and true or false)
+  Save(id, keep, full and true or false, Depth.seen and Depth.seen[id] and Depth.seen[id].total)
   Next()
 end
 
@@ -258,8 +262,8 @@ Next = function()
     for id, seen in pairs(Depth.seen) do
       local want = Depth.wants[id] or 1
       if want <= 1 then
-        -- one unit: the lowest price is exact
-        Save(id, { { seen.min, seen.total } }, false)
+        -- one unit: the lowest price is exact; more than that would be a guess
+        Save(id, { { seen.min, 1 } }, false, seen.total)
       else
         table.insert(Depth.queue, { id = id, want = want, tries = 0, pages = 0 })
       end

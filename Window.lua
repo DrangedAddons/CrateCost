@@ -275,10 +275,28 @@ function ns.InvalidateRatings() ratingCache = nil end
 -- favor elsewhere? Both are the same for everyone (a linked crate reads the same in any chat).
 -- The buy rating is the entry itself, the fill rating is its .fill.
 
+-- Units a writ-plan scan should read so the containers' favor is priced right: for every crate,
+-- the crates (and bundles, 25% spare) it would take to earn `favor`; every crate also `empty`
+-- deep, as the containers' empty crates can be any of them.
+function ns.FavorDepthWants(favor, empty, wants)
+  for _, c in ipairs(CrateList()) do
+    if c.id then
+      local n = (c.favor and favor > 0) and math.ceil(favor / c.favor) or 0
+      wants[c.id] = math.max(wants[c.id] or 0, n + (empty or 0))
+      if n > 0 then
+        for _, b in ipairs(c.bundles) do
+          local id = ns.ItemIDs[b[1]]
+          if id then wants[id] = math.max(wants[id] or 0, math.ceil(b[2] * n * 1.25)) end
+        end
+      end
+    end
+  end
+end
+
 -- The cheapest way to earn `favor` Merchant's Favor by buying and filling crates of one kind:
 -- n crates up their scanned AH listings (Depth.lua, else Auctionator), the bundle that's cheapest
 -- for all n (one the AH can fully supply), less n turn-in silvers. { name, id, n, favor (per
--- crate), bundle, qty (per crate), bundleID, crateCost, bundleCost, pay, total } or nil.
+-- crate), bundle, qty (per crate), bundleID, crateCost, bundleCost, pay, total, guess, scanned }.
 function ns.FavorSource(favor)
   if not favor or favor <= 0 then return nil end
   local best
@@ -287,21 +305,23 @@ function ns.FavorSource(favor)
       local n = math.ceil(favor / c.favor)
       local crateCost, how = ns.FillCost(c.id, n)
       if crateCost and not how.short then
-        local bCost, bName, bQty, bID
+        local bCost, bName, bQty, bID, bGuess
         for _, b in ipairs(c.bundles) do
           local id = ns.ItemIDs[b[1]]
           local cost, bh
           if id then cost, bh = ns.FillCost(id, b[2] * n) end
           if cost and not bh.short and (not bCost or cost < bCost) then
-            bCost, bName, bQty, bID = cost, b[1], b[2], id
+            bCost, bName, bQty, bID, bGuess = cost, b[1], b[2], id, bh.guess
           end
         end
         if bCost then
           local pay = (c.pay1 or 0) * n
           local total = math.max(0, crateCost + bCost - pay)
           if not best or total < best.total then
+            -- guess: more than the scan read, so the price is a floor (Scan AH deeper)
             best = { name = c.name, id = c.id, n = n, favor = c.favor, bundle = bName, qty = bQty,
-              bundleID = bID, crateCost = crateCost, bundleCost = bCost, pay = pay, total = total }
+              bundleID = bID, crateCost = crateCost, bundleCost = bCost, pay = pay, total = total,
+              guess = (how.guess or bGuess) and true or false, scanned = how.depth and true or false }
           end
         end
       end

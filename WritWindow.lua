@@ -537,22 +537,33 @@ end
 local CONTAINER_REP, CONTAINER_FAVOR = 50, 15
 local FRIENDLY = 3000   -- absolute standing where Friendly starts (STANDINGS[5])
 
--- { pf, crate (name of the cheapest favor crate), cum[k] = cost of k containers, ids[k] } for up
--- to `kmax` containers, or nil when there's no favor or crate price.
+-- { crates[k] = k empty crates, cum[k] = that + the favor to earn, ids[k], guess[k] } for up to
+-- `kmax` containers. Listings read only part way go on at their dearest price read, as a guess.
 local function ContainerPricing(kmax, pf, have)
   local rows = {}
   for _, id in pairs(ns.CrateIDs or {}) do
-    local listed = ns.Depth and ns.Depth.Rows and ns.Depth.Rows(id)
+    local listed, full, total
+    if ns.Depth and ns.Depth.Rows then listed, full, total = ns.Depth.Rows(id) end
     if listed then
-      for _, x in ipairs(listed) do rows[#rows + 1] = { x[1], x[2], id } end
+      local units = 0
+      for _, x in ipairs(listed) do
+        rows[#rows + 1] = { x[1], x[2], id }
+        units = units + x[2]
+      end
+      local last = listed[#listed]
+      if not full and last then
+        local more = total and (total - units) or math.huge
+        if more > 0 then rows[#rows + 1] = { last[1], more, id, true } end
+      end
     else
+      -- not scanned: Auctionator's lowest for any number, a guess
       local price = ns.Price(id)
-      if price then rows[#rows + 1] = { price, math.huge, id } end
+      if price then rows[#rows + 1] = { price, math.huge, id, true } end
     end
   end
   table.sort(rows, function(a, b) return a[1] < b[1] end)
   -- crates[k] = k empty crates; cum[k] = that + the favor still to earn for k receipts
-  local crates, cum, ids = { [0] = 0 }, { [0] = 0 }, {}
+  local crates, cum, ids, guess = { [0] = 0 }, { [0] = 0 }, {}, { [0] = false }
   local k = 0
   for _, r in ipairs(rows) do
     local left = r[2]
@@ -561,11 +572,12 @@ local function ContainerPricing(kmax, pf, have)
       crates[k] = crates[k - 1] + r[1]
       cum[k] = crates[k] + math.max(0, CONTAINER_FAVOR * k - have) * pf
       ids[k] = r[3]
+      guess[k] = guess[k - 1] or r[4] or false
       left = left - 1
     end
     if k >= kmax then break end
   end
-  return { crates = crates, cum = cum, ids = ids }
+  return { crates = crates, cum = cum, ids = ids, guess = guess }
 end
 
 -- Merchant's Favor this character has.
@@ -666,7 +678,8 @@ local function MakePlan(need)
     -- favor to earn: the crates to fill (src); without one, at the first guess per favor
     local favorCost = src and src.total or earn * pf
     plan.containers = { n = nCont, favor = favor, have = have, earn = earn, src = src,
-      crateCost = cont.crates[nCont], favorCost = favorCost, cost = cont.crates[nCont] + favorCost, byId = byId }
+      crateCost = cont.crates[nCont], favorCost = favorCost, cost = cont.crates[nCont] + favorCost, byId = byId,
+      crateGuess = cont.guess[nCont], favorGuess = (not src and earn > 0) or (src and (src.guess or not src.scanned)) or false }
     plan.cost = plan.cost + plan.containers.cost
     plan.rep = plan.rep + nCont * CONTAINER_REP
     -- the target's reached with containers, whatever the writs alone could do
@@ -1483,7 +1496,7 @@ local function FillPlan()
         if c.src then
           r.name:SetText("   1. Buy + fill " .. c.src.n .. "x " .. c.src.name)
           r.how:SetText(GREY .. c.src.qty .. " " .. c.src.bundle .. " each|r")
-          r.cost:SetText(ns.Money(c.src.total))
+          r.cost:SetText((c.favorGuess and "~" or "") .. ns.Money(c.src.total))
           r.addBtn:Show()
         elseif c.earn == 0 then
           r.name:SetText("   1. Favor: you have " .. Num(c.have))
@@ -1501,23 +1514,40 @@ local function FillPlan()
       elseif step == "crates" then
         r.name:SetText("   3. Buy " .. c.n .. " empty Waylaid Crates")
         r.how:SetText(GREY .. "the cheapest on the AH|r")
-        r.cost:SetText(ns.Money(c.crateCost))
+        r.cost:SetText((c.crateGuess and "~" or "") .. ns.Money(c.crateCost))
         r.addBtn:Show()
       else
         r.name:SetText("   |cffffd1004. Hand in " .. c.n .. " containers|r")
         r.how:SetText(GREY .. (horde and "Dokimi" or "Marcy Baker") .. "|r")
         r.rep:SetText(Num(c.n * CONTAINER_REP))
         r.per:SetText(ns.Money(math.floor(c.cost / (c.n * CONTAINER_REP) + 0.5)))
-        r.cost:SetText(ns.Money(c.cost))
+        r.cost:SetText(((c.crateGuess or c.favorGuess) and "~" or "") .. ns.Money(c.cost))
       end
       r:Show()
     elseif ln.label then
       -- the one-time Shipping Label quest, before any writ
       r.name:SetText("   |cffffd100Shipping Label quest (one time)|r")
-      r.how:SetText(ln.label.have and "|cff40ff40deliver your label|r" or (GREY .. "fill a crate or start a writ|r"))
+      -- the label comes with the plan's first writ (starting it gives one), else filling a crate
+      local first
+      for _, x in ipairs(p.list) do
+        if not x.spent and not x.e.done then first = x break end
+      end
+      local src = not ln.label.have and not first and ns.FavorSource and ns.FavorSource(1) or nil
+      if ln.label.have then
+        r.how:SetText("|cff40ff40deliver your label|r")
+        r.cost:SetText(GREY .. "free|r")
+      elseif first then
+        r.how:SetText(GREY .. "start " .. first.e.name .. "|r")
+        r.cost:SetText(GREY .. "with the writ|r")
+      elseif src then
+        r.how:SetText(GREY .. "buy + fill 1 " .. src.name .. "|r")
+        r.cost:SetText(ns.Money(src.total))
+      else
+        r.how:SetText(GREY .. "fill a crate or start a writ|r")
+        r.cost:SetText("")
+      end
       r.rep:SetText("|cffffd100" .. Num(ln.label.rep) .. "|r")
       r.per:SetText("")
-      r.cost:SetText(GREY .. "free|r")
       r.addBtn:Hide()
       r:Show()
     else
@@ -1546,6 +1576,10 @@ local function FillPlan()
     end
   end
   pf.showCD:SetChecked(ShowCD())
+  local guess = p and p.containers and (p.containers.crateGuess or p.containers.favorGuess)
+  pf.note:SetText(guess and "|cffff9933~ = more than the AH scan read, so the price is too low: Scan AH on the writs "
+    .. "window (it reads what the plan needs, then remakes it).|r"
+    or "Each writ is a daily. Prices: AH listings when scanned (Scan AH), else Auctionator.")
   local cd = p and p.spent or 0
   pf.cd:SetText(cd > 0 and string.format("|cffff4040%d of the best already filled today|r%s", cd,
     ShowCD() and "" or " (hidden)") or "")
@@ -1612,7 +1646,8 @@ local function RowToCart(it)
 end
 
 -- Units to read per item for a writ scan: as many writs as the plan has days (one without a
--- plan), their items for that many with 25% to spare.
+-- plan), their items for that many with 25% to spare; with containers in the plan, the crates
+-- and bundles for their favor and the empty crates.
 function ns.WritDepthWants()
   local n = (planMemo and planMemo.days and planMemo.days > 0) and planMemo.days or 1
   local wants = {}
@@ -1622,6 +1657,9 @@ function ns.WritDepthWants()
     if items > 1 then items = math.ceil(items * 1.25) end
     wants[e.item] = math.max(wants[e.item] or 0, items)
   end
+  -- the containers: every crate deep enough to earn their favor, and for the empty crates
+  local c = planMemo and planMemo.containers
+  if c and ns.FavorDepthWants then ns.FavorDepthWants(c.earn, c.n, wants) end
   return wants
 end
 
@@ -1641,7 +1679,10 @@ ns.OnDepthChangedWrits = function()
   UpdateWritScan()
   if ns.Depth.state == "idle" then
     ns.InvalidateWrits()
+    -- the scan was for the plan: make it again with the listings it read
+    if planMemo then ns.RegenerateWritPlan() end
     if frame and frame:IsShown() then ns.RefreshWrits() end
+    if pf and pf:IsShown() then pf.offset = 0 FillPlan() end
   end
 end
 
@@ -1772,7 +1813,12 @@ function ns.ShowWritPlan()
             .. "Shipping Label. Deliver it to " .. (horde and "Dokimi at Durotar Supply and Logistics"
             or "Marcy Baker at the Azeroth Commerce Authority") .. " for 2,000 reputation and 50 Merchant's "
             .. "Favor. Once per character, so do it first: the plan's writs cover the rest.", 1, 1, 1, true)
-          if self.label.have then GameTooltip:AddLine("You have the label: deliver it.", 0.25, 1, 0.25) end
+          if self.label.have then
+            GameTooltip:AddLine("You have the label: deliver it.", 0.25, 1, 0.25)
+          else
+            GameTooltip:AddLine("Starting the plan's first writ gives you the label, so it costs nothing extra.",
+              0.6, 0.6, 0.6, true)
+          end
           GameTooltip:Show()
           return
         end
@@ -1871,7 +1917,7 @@ function ns.ShowWritPlan()
     note:SetPoint("LEFT", add, "RIGHT", 12, 0)
     note:SetPoint("RIGHT", pf, "RIGHT", -12, 0)
     note:SetJustifyH("LEFT")
-    note:SetText("Each writ is a daily. Prices: AH listings when scanned (Scan AH on /crates), else Auctionator.")
+    pf.note = note
   end
   if frame and frame:IsShown() then ns.RefreshWrits() else Calc() Live() UpdateNeed() end
   pf.offset = 0

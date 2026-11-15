@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.43.0
+- Writ plan costs are scan-accurate. Writs Scan AH now also reads every crate and bundle deep enough for the plan's containers (the crates to fill for the favor, and the empty crates), then remakes the plan with what it read.
+- Costs priced past what the scan read, or not scanned at all, are marked **~** with a note to Scan AH. A crate the scan only surveyed is no longer priced as if every listed one cost the lowest price; asking for more than the survey saw listed counts as short.
+- Shipping Label row: names the writ that gets you the label (start the plan's first writ: no extra cost), or the crate to fill when the plan has no writ.
+
 ## 0.42.0
 - Writ plan: the containers are laid out as steps. **1. Buy + fill** N of the crate that earns the favor cheapest, picked from the AH listings for that many crates and bundles, less the turn-in silver, with the favor you already have subtracted. **2. Buy** the receipts (your camp's scribe). **3. Buy** the cheapest empty crates. **4. Hand in** the containers. Steps 1 and 3 have [+cart]; each step's tooltip breaks it down.
 - The containers are re-costed at the real favor price for that amount, so the writ / container split uses it.

@@ -538,7 +538,8 @@ local function Build(kind)
       if sc == old then return end
       -- keep the point under the cursor where it is: work in screen pixels
       local eff = tonumber(w:GetEffectiveScale()) or 1
-      local cx, cy = GetCursorPosition()
+      local cx, cy
+      if GetCursorPosition then cx, cy = GetCursorPosition() end
       local left, top = tonumber(w:GetLeft()), tonumber(w:GetTop())
       w:SetScale(sc)
       if left and top and cx then

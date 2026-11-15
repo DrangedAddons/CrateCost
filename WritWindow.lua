@@ -377,18 +377,17 @@ ns.MyProfessions = MyProfessions
 
 
 ---------------------------------------------------------------------------------------------
--- Plan: the cheapest writs that reach the rep target in the fewest days. Each writ is a daily,
--- so one day takes each writ at most once; more days only when every writ once can't reach the
--- target. Writs done today wait for tomorrow. The writs the plan would have used today if they
--- weren't done yet are listed too, in red, outside the cost: they show when the best writs are
--- already used up. The plan is kept until Regenerate (or a new target).
+-- Plan: the cheapest writs you can do now that reach the rep target. Each writ is a daily, so
+-- each is used once and writs done today are left out; when they can't reach the target the
+-- plan says how far they get, and Regenerate the next day plans the rest. The writs it would
+-- have used if they weren't done yet are listed too, in red, outside the cost: they show when
+-- the best writs are already used up. The plan is kept until Regenerate (or a new target).
 -- A writ's k-th copy costs what k copies cost less what k-1 cost: writs you have first (free),
 -- then bought up the AH listings (Depth.lua, else Auctionator's price); the item likewise,
 -- minus the items in your bags, or crafted when you have the profession and that's cheaper.
 -- Within a rank every writ gives the same rep, so the cheapest copies of each rank win; the
 -- only choice is how many of each rank, tried exhaustively.
 
-local PLAN_MAX_DAYS = 14
 
 -- Cost of k copies of writ e, and whether the item is crafted. nil = can't get k.
 local function CopiesCost(e, k, canCraft)
@@ -477,16 +476,8 @@ local function Choose(groups, need)
   return best, bestCost
 end
 
--- The plan's days by name: Today, Tomorrow, then Day 3 on.
-local function DayName(day)
-  if day == 1 then return "Today" end
-  if day == 2 then return "Tomorrow" end
-  return "Day " .. day
-end
-
 local function SortPlan(list)
   table.sort(list, function(a, b)
-    if a.day ~= b.day then return a.day < b.day end
     -- best value first: cost per rep
     local pa, pb = a.cost / a.e.rep, b.cost / b.e.rep
     if pa ~= pb then return pa < pb end
@@ -498,15 +489,9 @@ end
 -- { need, days, cost, rep, short, list = { { day, e, cost, crafted, owned }, ... } } or nil
 -- `cd`: writs done today miss day 1 (their copies start on day 2).
 local function BuildPlan(need, profs, cd)
-  local groups, capacity
-  local days = 1
-  repeat
-    groups, capacity = Copies(days, profs, cd)
-    if capacity >= need then break end
-    days = days + 1
-  until days > PLAN_MAX_DAYS
+  -- one day: each writ once. Regenerate tomorrow for the rest.
+  local groups, capacity = Copies(1, profs, cd)
   local short = capacity < need
-  if short then days = PLAN_MAX_DAYS end
   local counts, cost = Choose(groups, math.min(need, capacity))
   if not counts then return nil end
   local plan = { need = need, days = 0, cost = cost or 0, rep = 0, short = short, list = {} }
@@ -514,8 +499,7 @@ local function BuildPlan(need, profs, cd)
     for i = 1, n do
       local c = groups[r][i]
       local e = c.e
-      -- copy k is done on day k (a day later when it's done today)
-      local day = c.k + ((cd and e.done) and 1 or 0)
+      local day = 1
       local _, crafted = CopiesCost(e, c.k, profs[e.prof])
       table.insert(plan.list, { day = day, e = e, cost = c.cost, crafted = crafted,
         owned = c.k <= (e.haveWrit or 0) })
@@ -1046,10 +1030,9 @@ function ns.RefreshWrits()
     plan = STANDINGS[t][4] .. STANDINGS[t][2] .. "|r: " .. Num(needRep) .. " rep to go.  "
     local p = CurrentPlan()
     if p then
-      plan = plan .. string.format("Plan: %d writs, %s, %s%s%s.", PlanCount(p), ns.Money(p.cost),
-        p.days <= 1 and "one day" or (p.days .. " days"),
+      plan = plan .. string.format("Plan: %d writs, %s%s%s.", PlanCount(p), ns.Money(p.cost),
         (p.spent or 0) > 0 and string.format(", |cffff4040%d of the best already done today|r", p.spent) or "",
-        p.short and (" |cffff4040- only " .. Num(p.rep) .. " rep in " .. PLAN_MAX_DAYS .. " days|r") or "")
+        p.short and (" |cffff4040- gets " .. Num(p.rep) .. " rep; regenerate tomorrow for the rest|r") or "")
     else
       plan = plan .. GREY .. "No plan: no writ has a price yet.|r"
     end
@@ -1271,21 +1254,11 @@ ShowCD = function()
   return not (type(CrateCostCharDB) == "table" and CrateCostCharDB.planHideCD)
 end
 
+-- The plan's rows, best value first. Writs done today show only when ShowCD(); the footer has
+-- the totals.
 local function PlanLines(p)
-  local lines, day = {}, nil
+  local lines = {}
   for _, it in ipairs(p.list) do
-    if it.day ~= day then
-      day = it.day
-      local n, cost, rep, spent = 0, 0, 0, 0
-      for _, x in ipairs(p.list) do
-        if x.day == day then
-          if x.spent then spent = spent + 1
-          else n, cost, rep = n + 1, cost + x.cost, rep + x.e.rep end
-        end
-      end
-      lines[#lines + 1] = { head = DayName(day) .. string.format("  -  %d writs", n)
-        .. (spent > 0 and string.format("  |cffff4040(+%d done today)|r", spent) or ""), cost = cost, rep = rep }
-    end
     if ShowCD() or not it.e.done then lines[#lines + 1] = { it = it } end
   end
   return lines
@@ -1300,14 +1273,6 @@ local function FillPlan()
     r.it = ln and ln.it
     if not ln then
       r:Hide()
-    elseif ln.head then
-      r.name:SetText("|cffffd100" .. ln.head .. "|r")
-      r.how:SetText("")
-      r.rep:SetText("|cffffd100" .. Num(ln.rep) .. "|r")
-      r.per:SetText(ln.rep > 0 and ("|cffffd100" .. ns.Money(math.floor(ln.cost / ln.rep + 0.5)) .. "|r") or "")
-      r.cost:SetText("|cffffd100" .. ns.Money(ln.cost) .. "|r")
-      r.addBtn:Hide()
-      r:Show()
     else
       local it, e = ln.it, ln.it.e
       local per = ns.Money(math.floor(it.cost / e.rep + 0.5))
@@ -1339,9 +1304,8 @@ local function FillPlan()
     ShowCD() and "" or " (hidden)") or "")
   if p then
     pf.title:SetText(string.format("Plan to %s: %s rep", STANDINGS[Target()][2], Num(p.need)))
-    pf.total:SetText(string.format("%d writs, %s rep, %s%s   Total %s", PlanCount(p), Num(p.rep),
-      p.days <= 1 and "one day" or (p.days .. " days"),
-      p.short and " |cffff4040(not enough writs listed)|r" or "", ns.Money(p.cost)))
+    pf.total:SetText(string.format("%d writs, %s rep%s   Total %s", PlanCount(p), Num(p.rep),
+      p.short and " |cffff4040(short of the target: regenerate tomorrow)|r" or "", ns.Money(p.cost)))
   else
     pf.title:SetText("Plan")
     pf.total:SetText(needRep and "No writ has a price yet." or "Pick a target standing first.")
@@ -1531,7 +1495,7 @@ function ns.ShowWritPlan()
         self.entry = e
         ShowRowTooltip(self)
         GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("In the plan: " .. DayName(it.day), 1, 0.82, 0)
+        GameTooltip:AddLine("In the plan", 1, 0.82, 0)
         GameTooltip:AddDoubleLine((it.owned and "Have writ" or "Buy writ") .. " + "
           .. (it.crafted and "craft" or "buy") .. " " .. (e.qty > 1 and (e.qty .. "x ") or "") .. "item",
           ns.Money(it.cost), 1, 1, 1, 1, 1, 1)

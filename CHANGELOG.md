@@ -1,7 +1,7 @@
 # Changelog
 
-## 0.38.1
-- Writ plan: days are named Today, Tomorrow, then Day 3 on (was Day 1, Day 2).
+## 0.39.0
+- Writ plan: one day. The cheapest writs you can do now (not done today), each once; if they can't reach the target it says how far they get, and Regenerate the next day plans the rest. No day headings: the writs are listed best value first, with the totals at the bottom.
 
 ## 0.38.0
 - Writ plan: writs done today are left out of the plan's cost and rep (they wait for tomorrow). The ones it would have picked for day 1 still show, in red as "already filled today", outside the cost and cart, so you can tell when the best writs are used up. Writs handed in after the plan was made show (done). **Show writs done today** hides them.

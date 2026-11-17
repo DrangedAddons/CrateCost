@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.56.10
+- Shopping dock (ShoppingDock 0.7.0): **Reset list** starts a list over so you can buy it again; Forget list is now **Delete list**, bottom left with a trash icon.
+
 ## 0.59.0
 - Notarized Shipping Containers work like Fill crates: the empty crates on top (scrolling, with a scrollbar when they don't fit), each ticked with how many, and a panel below with your receipts, how many containers that makes, and the Make button with its progress. No separate window.
 

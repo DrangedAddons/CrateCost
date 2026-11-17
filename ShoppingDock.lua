@@ -19,7 +19,7 @@
 -- Buying needs a click (the game only allows a purchase from one). A commodity is two clicks:
 -- Buy now asks the AH for the exact price (StartCommoditiesPurchase), then Confirm buys at it.
 
-local MINOR = 12
+local MINOR = 13
 
 local _, NS = ...
 NS = type(NS) == "table" and NS or {}
@@ -365,7 +365,7 @@ local function CancelQuote()
   end
 end
 
-local Refresh, UpdateButton, ForgetList
+local Refresh, UpdateButton, ForgetList, ResetList
 
 local function SendQuery()
   if state.phase == "find" then
@@ -1065,8 +1065,23 @@ local function ToggleMenu(anchor)
   menu.catcher:Show()
 end
 
--- Forget list: the list goes from Auctionator and the dock, progress and all. If Auctionator
+-- Delete list: the list goes from Auctionator and the dock, progress and all. If Auctionator
 -- won't delete it, the dock still drops it (hidden from the menu) and tries again next login.
+-- Reset list: the list's progress back to zero so it can be bought again. The plan, the prices
+-- it was listed at and Auctionator's list stay; the rescan prices go (they were for the old amounts).
+ResetList = function(name)
+  if not (Active() and type(name) == "string") then return end
+  local L = Track(name)
+  for _, rec in pairs(L.items) do
+    rec.bought, rec.spent, rec.skipped, rec.want = 0, 0, nil, nil
+    rec.now, rec.nowN, rec.nowFor = nil, nil, nil
+  end
+  L.focus, L.forgotten = nil, nil
+  if panel then panel.scrolled = false end
+  Search()
+  UpdateButton()
+end
+
 ForgetList = function(name)
   if not (Active() and type(name) == "string") then return end
   local s = Store()
@@ -1276,21 +1291,31 @@ local function Build()
   p.thumb:SetScript("OnHide", function(self) self:SetScript("OnUpdate", nil) end)
   p:EnableMouseWheel(true)
   p:SetScript("OnMouseWheel", Wheel)
-  local forget = Button(p, "Forget list", 120, 22, function()
+  -- Reset list (bottom right): start the list over, to buy it again
+  local reset = Button(p, "Reset list", 120, 22, function()
+    local name = ActiveName()
+    if not name then return end
+    ResetList(name)
+  end)
+  reset:SetPoint("BOTTOMRIGHT", -16, 14)
+  Tip(reset, "Reset list", "Start this list over: what's been bought, spent and skipped goes back to zero, so you "
+    .. "can buy it all again. The list and its expected prices stay.")
+  -- Delete list (bottom left), with Auctionator's own trash icon
+  local del = Button(p, "|TInterface\\AddOns\\Auctionator\\Images\\Trash_Icon:14:14|t Delete list", 120, 22, function()
     local name = ActiveName()
     if not name then return end
     -- defined at the click, so it's always the running copy's dialog
     StaticPopupDialogs["SHOPPINGDOCK_FORGET"] = {
-      text = "Forget the shopping list \"%s\"?\n\nIt's deleted from Auctionator's shopping lists too.",
-      button1 = "Forget",
+      text = "Delete the shopping list \"%s\"?\n\nIt's deleted from Auctionator's shopping lists too.",
+      button1 = DELETE or "Delete",
       button2 = CANCEL or "Cancel",
       OnAccept = function(_, listName) ForgetList(listName) end,
       timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
     }
     StaticPopup_Show("SHOPPINGDOCK_FORGET", name, nil, name)
   end)
-  forget:SetPoint("BOTTOMRIGHT", -16, 14)
-  Tip(forget, "Forget list", "Delete this list: from the dock, with what's been bought on it, and from "
+  del:SetPoint("BOTTOMLEFT", 16, 14)
+  Tip(del, "Delete list", "Delete this list: from the dock, with what's been bought on it, and from "
     .. "Auctionator's shopping lists. Asks first.")
   p:SetScript("OnShow", function() UpdateButton() end)
   p:SetScript("OnHide", function()

@@ -19,7 +19,7 @@
 -- Buying needs a click (the game only allows a purchase from one). A commodity is two clicks:
 -- Buy now asks the AH for the exact price (StartCommoditiesPurchase), then Confirm buys at it.
 
-local MINOR = 13
+local MINOR = 14
 
 local _, NS = ...
 NS = type(NS) == "table" and NS or {}
@@ -1068,7 +1068,9 @@ end
 -- Delete list: the list goes from Auctionator and the dock, progress and all. If Auctionator
 -- won't delete it, the dock still drops it (hidden from the menu) and tries again next login.
 -- Reset list: the list's progress back to zero so it can be bought again. The plan, the prices
--- it was listed at and Auctionator's list stay; the rescan prices go (they were for the old amounts).
+-- it was listed at and Auctionator's list stay. Every rescan price and the more/less-than-expected
+-- marks go too: a running rescan or search is dropped (late answers are ignored while idle) and
+-- the dock doesn't search again until Rescan item, Rescan list or Search again.
 ResetList = function(name)
   if not (Active() and type(name) == "string") then return end
   local L = Track(name)
@@ -1078,7 +1080,11 @@ ResetList = function(name)
   end
   L.focus, L.forgotten = nil, nil
   if panel then panel.scrolled = false end
-  Search()
+  if name == ActiveName() then
+    CancelQuote()
+    state = { phase = "idle" }
+  end
+  Refresh()
   UpdateButton()
 end
 

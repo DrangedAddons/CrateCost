@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.59.3
+- Shopping dock (ShoppingDock 0.7.2): a purchase the AH answers with an error but still completes ("You won an auction for ..." in chat) now counts as bought instead of "didn't go through", so pressing Buy again no longer buys it twice.
+
 ## 0.59.2
 - Shopping dock (ShoppingDock 0.7.1): **Reset list** also clears the rescan prices and the more/less-than-expected marks, and stops a rescan in progress.
 

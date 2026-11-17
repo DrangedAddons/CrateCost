@@ -19,7 +19,7 @@
 -- Buying needs a click (the game only allows a purchase from one). A commodity is two clicks:
 -- Buy now asks the AH for the exact price (StartCommoditiesPurchase), then Confirm buys at it.
 
-local MINOR = 14
+local MINOR = 15
 
 local _, NS = ...
 NS = type(NS) == "table" and NS or {}
@@ -39,13 +39,16 @@ local AH = setmetatable({}, { __index = function(_, k) return C_AuctionHouse and
 local W, ROW_H, MAX_ROWS, LIST_TOP, FOOT = 380, 18, 40, 268, 40
 local GREY, GREEN, RED, GOLD = "|cff8a8a8a", "|cff40ff40", "|cffff5050", "|cffffd100"
 local ICON_DONE = "Interface\\RaidFrame\\ReadyCheck-Ready"
-local BUY_TIMEOUT = 10 -- seconds before a purchase with no answer counts as failed
+local BUY_TIMEOUT = 8 -- seconds a purchase waits for its answer before the dock checks again
+local CHECK_WAIT = 5 -- after an AH error or no answer, seconds more to wait for a success signal
+local LATE_WINDOW = 120 -- seconds a success signal still counts a purchase the dock gave up on
 local SCAN_TIMEOUT = 5 -- seconds a list rescan waits on one item before moving on
 
 local panel
 local atAH = false
 -- the current item: phase = idle | find (looking up an unknown item's ID) | search | start
--- (a commodity: Buy now asks for the quote) | price (waiting for the quote) | ready | buying | none
+-- (a commodity: Buy now asks for the quote) | price (waiting for the quote) | ready | buying |
+-- checking (an AH error or no answer: waiting a little longer for a success signal) | none
 local state = { phase = "idle" }
 
 local function Print(msg)
@@ -506,23 +509,89 @@ local function OnItem(itemKey)
   Refresh()
 end
 
-local function Bought(amount, paid)
-  local x = Current()
-  if not x then return end
-  x.rec.bought = x.rec.bought + amount
-  x.rec.spent = x.rec.spent + (paid or 0)
-  state = { phase = "idle" }
-  Search()
+-- The purchase waiting for its answer: { list, key, name, need, paid, kind, auctionID, t }.
+-- An AH error or silence doesn't prove a purchase failed (the AH can send an error and still sell
+-- it), so the dock never counts one as failed outright. It waits for a success signal: the AH's
+-- purchase event, or the "You won an auction for ..." chat line. If none comes it searches again,
+-- but keeps the purchase for LATE_WINDOW seconds so a late success still counts it once.
+local pending
+
+-- credit the pending purchase to its item, once
+local function Settle()
+  local p = pending
+  pending = nil
+  if not p then return end
+  for _, x in ipairs(Items(p.list) or {}) do
+    if x.key == p.key then
+      x.rec.bought = x.rec.bought + p.need
+      x.rec.spent = x.rec.spent + (p.paid or 0)
+      break
+    end
+  end
+  if state.phase == "buying" or state.phase == "checking" or state.key == p.key then
+    state = { phase = "idle" }
+    Search()
+  else
+    Refresh()
+  end
+  UpdateButton()
 end
 
--- a purchase that never answers: search again instead of sitting on "Buying..."
-local function WatchPurchase()
+-- "You won an auction for %s" as a pattern; the item name comes back lower case, without its
+-- link colours or a " (x235)" count
+local WON_PATTERN
+local function WonName(msg)
+  if type(msg) ~= "string" then return end
+  if not WON_PATTERN then
+    local f = type(_G.ERR_AUCTION_WON_S) == "string" and _G.ERR_AUCTION_WON_S or "You won an auction for %s"
+    local p = f:gsub("([%^%$%(%)%.%[%]%*%+%-%?])", "%%%1")
+    p = p:gsub("%%s", "(.+)")
+    WON_PATTERN = "^" .. p .. "$"
+  end
+  local name = msg:match(WON_PATTERN)
+  if not name then return end
+  name = name:gsub("|H.-|h%[?(.-)%]?|h", "%1"):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+  name = name:gsub("%s*%(x?%d+%)%s*$", "")
+  return name:lower()
+end
+
+-- does this event say the pending purchase went through?
+local function PurchaseSignal(e, a)
+  local p = pending
+  if GetTime() - p.t > LATE_WINDOW then
+    pending = nil
+    return false
+  end
+  if e == "COMMODITY_PURCHASE_SUCCEEDED" then return p.kind == "commodity" end
+  if e == "AUCTION_HOUSE_PURCHASE_COMPLETED" then return p.kind == "item" and (a == nil or a == p.auctionID) end
+  if e == "CHAT_MSG_SYSTEM" then
+    local won = WonName(a)
+    return won ~= nil and (won == p.key or won == (p.name or ""):lower())
+  end
+  return false
+end
+
+-- An error, or no answer: wait CHECK_WAIT more for a success signal before searching again.
+local function Unsure(why)
   local st = state
-  C_Timer.After(BUY_TIMEOUT, function()
-    if Active() and state == st and st.phase == "buying" then
-      Print("no answer from the auction house; searching again.")
+  if st.phase ~= "buying" then return end
+  st.phase = "checking"
+  Refresh()
+  C_Timer.After(CHECK_WAIT, function()
+    if Active() and state == st and st.phase == "checking" then
+      Print(why .. "; searching again. If the auction house says you won it, the dock counts it then.")
       Search()
     end
+  end)
+end
+
+local function StartPending(x, kind)
+  pending = { list = ActiveName(), key = x.key, name = x.name, need = state.need or 0, kind = kind,
+    paid = kind == "item" and state.auction.buyout or state.quote,
+    auctionID = kind == "item" and state.auction.auctionID or nil, t = GetTime() }
+  local st = state
+  C_Timer.After(BUY_TIMEOUT, function()
+    if Active() and state == st and st.phase == "buying" then Unsure("no answer from the auction house") end
   end)
 end
 
@@ -544,8 +613,8 @@ local function BuyClick()
       return
     end
     state.phase = "buying"
+    StartPending(x, "commodity")
     pcall(AH.ConfirmCommoditiesPurchase, state.id, state.need)
-    WatchPurchase()
     Refresh()
   elseif ph == "ready" and state.kind == "item" and state.auction then
     if GetMoney and GetMoney() < state.auction.buyout then
@@ -553,8 +622,8 @@ local function BuyClick()
       return
     end
     state.phase = "buying"
+    StartPending(x, "item")
     pcall(AH.PlaceBid, state.auction.auctionID, state.auction.buyout)
-    WatchPurchase()
     Refresh()
   elseif ph == "none" or ph == "idle" or ph == "search" or ph == "find" then
     Search()
@@ -584,7 +653,7 @@ end
 -- has nothing left to work on. Not while a purchase is waiting for its answer.
 local function FocusItem(key)
   local name = ActiveName()
-  if not (Active() and name and key) or state.phase == "buying" then return end
+  if not (Active() and name and key) or state.phase == "buying" or state.phase == "checking" then return end
   local x = FindItem(key)
   if not x then return end
   x.rec.skipped = nil
@@ -792,8 +861,13 @@ Refresh = function()
       lines[#lines + 1] = "Each " .. Money(per) .. "  " .. Diff(per, Each(x))
       if state.need > need then lines[#lines + 1] = GREY .. "The smallest stack up is more than you need.|r" end
     elseif ph == "buying" then lines[#lines + 1] = GREY .. "Buying...|r"
+    elseif ph == "checking" then lines[#lines + 1] = GREY .. "Checking the purchase went through...|r"
     elseif ph == "none" then lines[#lines + 1] = RED .. "None on the AH.|r"
     elseif not atAH then lines[#lines + 1] = GREY .. "Open the auction house to buy.|r" end
+    if pending and pending.key == x.key and pending.list == name and ph ~= "buying" and ph ~= "checking"
+      and GetTime() - pending.t <= LATE_WINDOW then
+      lines[#lines + 1] = RED .. "The last purchase of this wasn't confirmed. Check chat for \"You won\" before buying again.|r"
+    end
     panel.itemInfo:SetText(table.concat(lines, "\n"))
   else
     panel.icon:Hide()
@@ -820,9 +894,9 @@ Refresh = function()
     panel.buy:SetText(atAH and "..." or "Buy") panel.buy:Disable()
   end
   panel.skip:SetEnabled(x ~= nil)
-  panel.rescanItem:SetEnabled(atAH and x ~= nil and ph ~= "buying" and ph ~= "scan")
+  panel.rescanItem:SetEnabled(atAH and x ~= nil and ph ~= "buying" and ph ~= "checking" and ph ~= "scan")
   panel.rescanList:SetText(ph == "scan" and "Stop" or "Rescan list")
-  panel.rescanList:SetEnabled(atAH and x ~= nil and ph ~= "buying")
+  panel.rescanList:SetEnabled(atAH and x ~= nil and ph ~= "buying" and ph ~= "checking")
   -- the list: done, current, to come
   local n = #items
   local rows = panel.visible or 12
@@ -1079,6 +1153,7 @@ ResetList = function(name)
     rec.now, rec.nowN, rec.nowFor = nil, nil, nil
   end
   L.focus, L.forgotten = nil, nil
+  if pending and pending.list == name then pending = nil end
   if panel then panel.scrolled = false end
   if name == ActiveName() then
     CancelQuote()
@@ -1647,7 +1722,7 @@ for _, e in ipairs({ "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED", "AUCTION_HOUS
   "AUCTION_HOUSE_BROWSE_RESULTS_UPDATED", "COMMODITY_SEARCH_RESULTS_UPDATED", "COMMODITY_SEARCH_RESULTS_ADDED",
   "ITEM_SEARCH_RESULTS_UPDATED", "COMMODITY_PRICE_UPDATED", "COMMODITY_PRICE_UNAVAILABLE",
   "COMMODITY_PURCHASE_SUCCEEDED", "COMMODITY_PURCHASE_FAILED", "AUCTION_HOUSE_PURCHASE_COMPLETED",
-  "AUCTION_HOUSE_SHOW_ERROR" }) do
+  "AUCTION_HOUSE_SHOW_ERROR", "CHAT_MSG_SYSTEM" }) do
   if not (C_EventUtils and C_EventUtils.IsEventValid) or C_EventUtils.IsEventValid(e) then
     pcall(ev.RegisterEvent, ev, e)
   end
@@ -1699,6 +1774,20 @@ local function OnEvent(e, a, b)
     state = { phase = "idle" }
     return
   end
+  -- purchase answers count even with the dock closed
+  if e == "COMMODITY_PURCHASE_SUCCEEDED" or e == "AUCTION_HOUSE_PURCHASE_COMPLETED" or e == "CHAT_MSG_SYSTEM" then
+    if pending and PurchaseSignal(e, a) then Settle() end
+    return
+  elseif e == "COMMODITY_PURCHASE_FAILED" or e == "AUCTION_HOUSE_SHOW_ERROR" then
+    if state.phase == "buying" then
+      Unsure("couldn't confirm the purchase" .. (a ~= nil and (" (AH error " .. tostring(a) .. ")") or ""))
+    elseif state.phase == "price" then
+      -- the quote was refused: nothing was bought
+      Print("the auction house wouldn't price that; searching again.")
+      Search()
+    end
+    return
+  end
   if not (panel and panel:IsShown()) then return end
   if e == "AUCTION_HOUSE_THROTTLED_SYSTEM_READY" then
     if state.waiting then
@@ -1729,17 +1818,6 @@ local function OnEvent(e, a, b)
     if state.phase == "price" then
       state = { phase = "none", id = state.id, key = state.key, kind = "commodity" }
       Refresh()
-    end
-  elseif e == "COMMODITY_PURCHASE_SUCCEEDED" then
-    if state.phase == "buying" and state.kind == "commodity" then Bought(state.need or 0, state.quote) end
-  elseif e == "COMMODITY_PURCHASE_FAILED" or e == "AUCTION_HOUSE_SHOW_ERROR" then
-    if state.phase == "buying" or state.phase == "price" then
-      Print("the purchase didn't go through; searching again.")
-      Search()
-    end
-  elseif e == "AUCTION_HOUSE_PURCHASE_COMPLETED" then
-    if state.phase == "buying" and state.kind == "item" and state.auction and a == state.auction.auctionID then
-      Bought(state.need or 0, state.auction.buyout)
     end
   end
 end

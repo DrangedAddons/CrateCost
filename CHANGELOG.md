@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.56.10
+## 0.59.1
 - Shopping dock (ShoppingDock 0.7.0): **Reset list** starts a list over so you can buy it again; Forget list is now **Delete list**, bottom left with a trash icon.
 
 ## 0.59.0

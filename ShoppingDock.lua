@@ -19,7 +19,7 @@
 -- Buying needs a click (the game only allows a purchase from one). A commodity is two clicks:
 -- Buy now asks the AH for the exact price (StartCommoditiesPurchase), then Confirm buys at it.
 
-local MINOR = 15
+local MINOR = 16
 
 local _, NS = ...
 NS = type(NS) == "table" and NS or {}
@@ -93,6 +93,9 @@ end
 --   L = { items = { [key] = rec }, plan = { [itemID] = { qty, planned, name } }, forgotten,
 --         focus = key of the item picked from the plan rows, source = the addon that made it }
 --   rec = { id, bought, spent, base (price each when first seen), want (amount set here), skipped }
+--   L.craft (a craft list, from SetCraftList) = { id, name, icon, makes, count, sell, reagents =
+--     { { id, name, per, have, price, vendor } } }: one craft's reagents and how many crafts; what
+--     to buy is per x count - have. count is kept here, so the dock opens on the last one you set.
 -- Only touched from PLAYER_LOGIN on: SavedVariables load after this file runs.
 
 function SD.DB()
@@ -225,6 +228,28 @@ local function Items(name)
   if not raw then return nil end
   local L = Track(name)
   local out, byKey = {}, {}
+  if L.craft then
+    -- a craft list: its reagents, in the recipe's order. Vendor ones aren't bought here (the
+    -- craft header lists them); one you have enough of is on the plan, already ticked.
+    local c = L.craft
+    for _, r in ipairs(c.reagents) do
+      if not r.vendor then
+        local nm = r.name or ItemName(r.id) or ("item " .. r.id)
+        local key = nm:lower()
+        local rec = L.items[key]
+        if not rec then
+          rec = { bought = 0, spent = 0 }
+          L.items[key] = rec
+        end
+        rec.id = r.id
+        local x = { key = key, name = nm, rec = rec, craft = r, qty = math.max(0, r.per * c.count - (r.have or 0)) }
+        if r.price then x.plan = { qty = 1, planned = r.price } end
+        if not rec.base then rec.base = AuctionPrice(r.id) end
+        out[#out + 1] = x
+      end
+    end
+    return out, L
+  end
   for _, str in ipairs(raw.items) do
     if type(str) == "string" then
       local itemName, qty = ParseTerm(str)
@@ -328,6 +353,53 @@ local function Current()
 end
 
 local function Remaining(x) return Want(x) - x.rec.bought end
+
+-- how many of an item you have: bags and bank
+local function Owned(id)
+  local f = (C_Item and C_Item.GetItemCount) or GetItemCount
+  if not (f and id) then return 0 end
+  local ok, n = pcall(f, id, true)
+  return ok and tonumber(n) or 0
+end
+
+-- A craft list's Auctionator list: every reagent still to buy at the current crafts count
+-- (vendor ones left off). The dock writes it, through Auctionator's API, which replaces the list
+-- under the same name; its list events for that name are ignored while it does (`writing`), so
+-- the rewrite doesn't reset the list's progress.
+local writing
+local function WriteCraftList(name)
+  local api = Auctionator and Auctionator.API and Auctionator.API.v1
+  local L = Store().lists[name]
+  if not (api and api.CreateShoppingList and api.ConvertToSearchString and L and L.craft) then return false end
+  local terms = {}
+  for _, r in ipairs(L.craft.reagents) do
+    local need = math.max(0, r.per * L.craft.count - (r.have or 0))
+    local nm = r.name or ItemName(r.id)
+    if not r.vendor and need > 0 and nm then
+      local ok, str = pcall(api.ConvertToSearchString, CALLER,
+        { searchString = nm, isExact = true, categoryKey = "", quantity = need })
+      terms[#terms + 1] = ok and str or ('"' .. nm .. '"')
+    end
+  end
+  writing = name
+  local ok, err = pcall(api.CreateShoppingList, CALLER, name, terms)
+  writing = nil
+  if not ok then Log("craft list", err) end
+  return ok
+end
+
+-- the Auctionator list is rewritten a moment after the last change, not on every + click
+local writeToken
+local function QueueCraftWrite(name)
+  local token = {}
+  writeToken = token
+  C_Timer.After(0.6, function()
+    if writeToken == token and Active() then
+      writeToken = nil
+      WriteCraftList(name)
+    end
+  end)
+end
 
 local function FindItem(key)
   for _, x in ipairs(Items(ActiveName()) or {}) do
@@ -773,6 +845,86 @@ end
 ------------------------------------------------------------------------------------------------
 -- The panel
 
+-- Everything under the list picker hangs off panel.below; a craft list's header pushes it down.
+local function SetShift(h)
+  if panel.shift == h then return end
+  panel.shift = h
+  panel.below:ClearAllPoints()
+  panel.below:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, -h)
+  panel.below:SetPoint("TOPRIGHT", panel, "TOPRIGHT", 0, -h)
+end
+
+-- plan rows that fit under the header
+local function VisibleRows()
+  return math.max(3, (panel.visible or 12) - math.ceil((panel.shift or 0) / ROW_H))
+end
+
+local function Signed(v)
+  if v >= 0 then return GREEN .. "+" .. Money(v) .. "|r" end
+  return RED .. "-" .. Money(-v) .. "|r"
+end
+
+-- the craft header: what it makes, the crafts count, what it costs and makes you
+local function CraftHeader(c)
+  local h = panel.craft
+  if not c then
+    h:Hide()
+    panel.cols:Hide()
+    SetShift(0)
+    return
+  end
+  local icon = c.icon or (c.id and C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(c.id))
+  h.icon.tex:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+  h.icon.id = c.id
+  local q = c.id and C_Item and C_Item.GetItemQualityByID and C_Item.GetItemQualityByID(c.id)
+  local qc = q and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[q]
+  h.name:SetText((qc and qc.hex or GOLD) .. (c.name or "?") .. "|r")
+  if not h.box:HasFocus() then h.box:SetText(tostring(c.count)) end
+  local busy = state.phase == "buying" or state.phase == "checking"
+  h.minus:SetEnabled(not busy and c.count > 1)
+  h.plus:SetEnabled(not busy and c.count < 999)
+  h.box:SetEnabled(not busy)
+  -- one craft: every reagent at the price the list was made with (vendor ones too)
+  local one, unpriced, vend = 0, 0, {}
+  for _, r in ipairs(c.reagents) do
+    local each = r.price or AuctionPrice(r.id)
+    if each then one = one + each * r.per else unpriced = unpriced + 1 end
+    if r.vendor then vend[#vend + 1] = (r.per * c.count) .. " " .. (r.name or "?") end
+  end
+  local n = c.count
+  local lines = { "Cost 1: " .. Money(one) .. (n > 1 and ("    Cost " .. n .. ": " .. Money(one * n)) or "")
+    .. (unpriced > 0 and (GREY .. "  (" .. unpriced .. " unpriced)|r") or "") }
+  if c.sell then
+    local p1 = c.sell - one
+    lines[#lines + 1] = "Profit 1: " .. Signed(p1) .. (n > 1 and ("    Profit " .. n .. ": " .. Signed(p1 * n)) or "")
+  end
+  if c.makes > 1 then lines[#lines + 1] = GREY .. "Each craft makes " .. c.makes .. ".|r" end
+  if #vend > 0 then lines[#lines + 1] = GREY .. "From a vendor: " .. table.concat(vend, ", ") .. "|r" end
+  h.info:SetText(table.concat(lines, "\n"))
+  local hh = math.max(40, 24 + math.ceil(h.info:GetStringHeight() or 14))
+  h:SetHeight(hh)
+  h:Show()
+  panel.cols:Show()
+  SetShift(hh + 8)
+end
+
+-- the crafts count changed (box, + or -): what to buy follows, and the Auctionator list with it
+local function SetCraftCount(n)
+  local name = ActiveName()
+  local L = name and Track(name)
+  local c = L and L.craft
+  n = math.floor(tonumber(n) or 0)
+  if not c or n < 1 or n == c.count then
+    if panel then Refresh() end
+    return
+  end
+  c.count = math.min(999, n)
+  for _, rec in pairs(L.items) do rec.want = nil end -- amounts typed for the old count
+  QueueCraftWrite(name)
+  if state.phase == "buying" or state.phase == "checking" or state.phase == "scan" then Refresh() else Search() end
+  UpdateButton()
+end
+
 Refresh = function()
   if not (panel and panel:IsShown()) then return end
   local name = ActiveName()
@@ -786,11 +938,14 @@ Refresh = function()
     panel.item:SetText("") panel.itemInfo:SetText("") panel.icon:Hide()
     panel.buy:Disable() panel.buy:SetText("Buy") panel.skip:Disable() panel.amount:Hide()
     panel.rescanItem:Disable() panel.rescanList:Disable() panel.rescanList:SetText("Rescan list")
+    CraftHeader(nil)
     for _, r in ipairs(panel.rows) do r:Hide() end
     panel.track:Hide()
     return
   end
   panel.listName:SetText(GOLD .. name .. "|r")
+  local craft = Track(name).craft
+  CraftHeader(craft)
   -- summary: expected, spent (against what the bought part was expected to cost), left
   local expected, spent, expectedDone, doneN, left, anyPlan, unknown = 0, 0, 0, 0, 0, false, 0
   for _, it in ipairs(items) do
@@ -899,7 +1054,7 @@ Refresh = function()
   panel.rescanList:SetEnabled(atAH and x ~= nil and ph ~= "buying" and ph ~= "checking")
   -- the list: done, current, to come
   local n = #items
-  local rows = panel.visible or 12
+  local rows = VisibleRows()
   if not panel.scrolled and idx then panel.offset = idx - 3 end
   panel.offset = math.max(0, math.min(panel.offset, n - rows))
   -- the scrollbar: only when the plan has more rows than fit
@@ -925,6 +1080,22 @@ Refresh = function()
       r.check:SetShown(done)
       local label = it.name .. " x" .. Want(it)
       r.key, r.label, r.done = it.key, label, done
+      -- a craft list's columns: have/need for the crafts count, price each
+      r.text:SetPoint("RIGHT", craft and r.mid or r.cost, "LEFT", -6, 0)
+      if craft and it.craft then
+        local cr = it.craft
+        local need = cr.per * craft.count
+        local have = (cr.have or 0) + rec.bought
+        r.mid:SetText((have >= need and GREEN or "|cffffffff") .. have .. "/" .. need .. "|r")
+        local each = Each(it)
+        r.each:SetText(each and (GREY .. Money(each) .. "|r") or "")
+        r.detail = cr.per .. " per craft x " .. craft.count .. " = " .. need .. ". You had " .. (cr.have or 0)
+          .. ", bought " .. rec.bought .. "."
+      else
+        r.mid:SetText("")
+        r.each:SetText("")
+        r.detail = nil
+      end
       if it == x then
         r.text:SetText(GOLD .. label .. "|r")
         r.bg:SetColorTexture(1, 0.82, 0, 0.08)
@@ -1154,6 +1325,11 @@ ResetList = function(name)
   end
   L.focus, L.forgotten = nil, nil
   if pending and pending.list == name then pending = nil end
+  if L.craft then
+    -- what you have now (bags and bank), so what you bought last time counts
+    for _, r in ipairs(L.craft.reagents) do r.have = Owned(r.id) end
+    WriteCraftList(name)
+  end
   if panel then panel.scrolled = false end
   if name == ActiveName() then
     CancelQuote()
@@ -1225,14 +1401,83 @@ local function Build()
   arrow:SetText("v")
   p.pick:SetScript("OnClick", function(self) ToggleMenu(self) end)
   Tip(p.pick, "Shopping lists", "Click to pick which Auctionator shopping list the dock works through.")
+  -- everything under the picker hangs off this; a craft list's header moves it down (SetShift)
+  p.below = CreateFrame("Frame", nil, p)
+  p.below:SetHeight(1)
+  p.below:SetPoint("TOPLEFT", p, "TOPLEFT", 0, 0)
+  p.below:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, 0)
+  p.shift = 0
+  -- the craft header (craft lists only): icon, name, crafts count, cost and profit
+  local ch = CreateFrame("Frame", nil, p)
+  p.craft = ch
+  ch:SetPoint("TOPLEFT", p, "TOPLEFT", 16, -74)
+  ch:SetPoint("TOPRIGHT", p, "TOPRIGHT", -16, -74)
+  ch:SetHeight(40)
+  ch.icon = CreateFrame("Button", nil, ch)
+  ch.icon:SetSize(36, 36)
+  ch.icon:SetPoint("TOPLEFT", 2, -2)
+  ch.icon.tex = ch.icon:CreateTexture(nil, "ARTWORK")
+  ch.icon.tex:SetAllPoints()
+  ch.icon.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+  ch.icon:SetScript("OnEnter", function(self)
+    if not self.id then return end
+    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+    GameTooltip:SetItemByID(self.id)
+    GameTooltip:Show()
+  end)
+  ch.icon:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  ch.plus = Button(ch, "+", 22, 20, function()
+    local L = ActiveName() and Track(ActiveName())
+    if L and L.craft then SetCraftCount(L.craft.count + (IsShiftKeyDown() and 10 or 1)) end
+  end)
+  ch.plus:SetPoint("TOPRIGHT", 0, 0)
+  ch.box = CreateFrame("EditBox", nil, ch, "InputBoxTemplate")
+  ch.box:SetSize(34, 20)
+  ch.box:SetPoint("RIGHT", ch.plus, "LEFT", -4, 0)
+  ch.box:SetAutoFocus(false)
+  ch.box:SetNumeric(true)
+  ch.box:SetMaxLetters(3)
+  ch.box:SetJustifyH("CENTER")
+  ch.box:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+  ch.box:SetScript("OnEscapePressed", function(self) self.cancelled = true self:ClearFocus() end)
+  ch.box:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+  ch.box:SetScript("OnEditFocusLost", function(self)
+    if self.cancelled then
+      self.cancelled = nil
+      Refresh()
+    else
+      SetCraftCount(self:GetText())
+    end
+  end)
+  ch.minus = Button(ch, "-", 22, 20, function()
+    local L = ActiveName() and Track(ActiveName())
+    if L and L.craft then SetCraftCount(math.max(1, L.craft.count - (IsShiftKeyDown() and 10 or 1))) end
+  end)
+  ch.minus:SetPoint("RIGHT", ch.box, "LEFT", -8, 0)
+  local cl = ch:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+  cl:SetPoint("RIGHT", ch.minus, "LEFT", -6, 0)
+  cl:SetText("Crafts")
+  Tip(ch.box, "Crafts", "How many to make. What to buy is worked out from it, and the Auctionator list follows. "
+    .. "+ and - change it by 1 (10 with Shift).")
+  ch.name = ch:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+  ch.name:SetPoint("TOPLEFT", ch.icon, "TOPRIGHT", 8, -1)
+  ch.name:SetPoint("RIGHT", cl, "LEFT", -6, 0)
+  ch.name:SetJustifyH("LEFT")
+  ch.name:SetWordWrap(false)
+  ch.info = ch:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  ch.info:SetPoint("TOPLEFT", ch.name, "BOTTOMLEFT", 0, -4)
+  ch.info:SetWidth(W - 32 - 46)
+  ch.info:SetJustifyH("LEFT")
+  ch.info:SetSpacing(2)
+  ch:Hide()
   -- summary
   p.summary = p:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  p.summary:SetPoint("TOPLEFT", 18, -74)
+  p.summary:SetPoint("TOPLEFT", p.below, "TOPLEFT", 18, -74)
   -- Rescan list: top right of the summary
   p.rescanList = Button(p, "Rescan list", 96, 20, function()
     if state.phase == "scan" then StopScan() else StartScan() end
   end)
-  p.rescanList:SetPoint("TOPRIGHT", -16, -72)
+  p.rescanList:SetPoint("TOPRIGHT", p.below, "TOPRIGHT", -16, -72)
   Tip(p.rescanList, "Rescan list", "Search the AH for every item still to buy, one after another, and show what "
     .. "each costs now on its row. Red is over what the list expected, green under. A number in brackets "
     .. "is all the AH has.")
@@ -1241,17 +1486,17 @@ local function Build()
   p.summary:SetSpacing(3)
   local rule = p:CreateTexture(nil, "ARTWORK")
   rule:SetHeight(1)
-  rule:SetPoint("TOPLEFT", 16, -126)
-  rule:SetPoint("TOPRIGHT", -16, -126)
+  rule:SetPoint("TOPLEFT", p.below, "TOPLEFT", 16, -126)
+  rule:SetPoint("TOPRIGHT", p.below, "TOPRIGHT", -16, -126)
   rule:SetColorTexture(1, 0.82, 0, 0.25)
   -- the current item
   p.icon = p:CreateTexture(nil, "ARTWORK")
   p.icon:SetSize(30, 30)
-  p.icon:SetPoint("TOPLEFT", 18, -136)
+  p.icon:SetPoint("TOPLEFT", p.below, "TOPLEFT", 18, -136)
   p.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
   -- Rescan item: top right of the item area
   p.rescanItem = Button(p, "Rescan item", 96, 20, function() if Active() then Search() end end)
-  p.rescanItem:SetPoint("TOPRIGHT", -16, -134)
+  p.rescanItem:SetPoint("TOPRIGHT", p.below, "TOPRIGHT", -16, -134)
   Tip(p.rescanItem, "Rescan item", "Search the AH again for the item you're on.")
   p.item = p:CreateFontString(nil, "ARTWORK", "GameFontNormal")
   p.item:SetPoint("TOPLEFT", p.icon, "TOPRIGHT", 8, 0)
@@ -1265,7 +1510,7 @@ local function Build()
   p.itemInfo:SetSpacing(2)
   -- Buy, amount, Skip
   p.buy = Button(p, "Buy", W - 152, 24, BuyClick)
-  p.buy:SetPoint("TOPLEFT", 16, -218)
+  p.buy:SetPoint("TOPLEFT", p.below, "TOPLEFT", 16, -218)
   p.amount = CreateFrame("EditBox", nil, p, "InputBoxTemplate")
   p.amount:SetSize(40, 22)
   p.amount:SetPoint("LEFT", p.buy, "RIGHT", 10, 0)
@@ -1286,12 +1531,21 @@ local function Build()
   end)
   Tip(p.amount, "Amount", "How many more of this item to buy. Type a number and press Enter.")
   p.skip = Button(p, "Skip", 62, 24, Skip)
-  p.skip:SetPoint("TOPRIGHT", -16, -218)
+  p.skip:SetPoint("TOPRIGHT", p.below, "TOPRIGHT", -16, -218)
   Tip(p.skip, "Skip", "Move on without buying this one.")
   -- the list
   local lt = p:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-  lt:SetPoint("TOPLEFT", 18, -LIST_TOP + 16)
+  lt:SetPoint("TOPLEFT", p.below, "TOPLEFT", 18, -LIST_TOP + 16)
   lt:SetText("The plan")
+  -- column heads for a craft list's rows (lined up with r.mid, r.each, r.cost)
+  p.cols = CreateFrame("Frame", nil, p)
+  p.cols:SetAllPoints(p.below)
+  for _, col in ipairs({ { "have/need", -172 }, { "each", -108 }, { "total", -30 } }) do
+    local fs = p.cols:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    fs:SetPoint("TOPRIGHT", p.below, "TOPRIGHT", col[2], -LIST_TOP + 14)
+    fs:SetText(col[1])
+  end
+  p.cols:Hide()
   local function Wheel(_, d)
     p.offset = p.offset - d * 3
     p.scrolled = true
@@ -1301,7 +1555,7 @@ local function Build()
   for i = 1, MAX_ROWS do
     local r = CreateFrame("Button", nil, p)
     r:SetHeight(ROW_H)
-    r:SetPoint("TOPLEFT", 14, -LIST_TOP - (i - 1) * ROW_H)
+    r:SetPoint("TOPLEFT", p.below, "TOPLEFT", 14, -LIST_TOP - (i - 1) * ROW_H)
     r:SetPoint("RIGHT", p, "RIGHT", -26, 0)
     r.bg = r:CreateTexture(nil, "BACKGROUND")
     r.bg:SetAllPoints()
@@ -1312,6 +1566,17 @@ local function Build()
     r.cost = r:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     r.cost:SetPoint("RIGHT", -4, 0)
     r.cost:SetJustifyH("RIGHT")
+    -- a craft list's columns: price each, and have/need
+    r.each = r:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    r.each:SetPoint("RIGHT", -82, 0)
+    r.each:SetWidth(60)
+    r.each:SetJustifyH("RIGHT")
+    r.each:SetWordWrap(false)
+    r.mid = r:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    r.mid:SetPoint("RIGHT", -146, 0)
+    r.mid:SetWidth(56)
+    r.mid:SetJustifyH("RIGHT")
+    r.mid:SetWordWrap(false)
     r.text = r:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     r.text:SetPoint("LEFT", 20, 0)
     r.text:SetPoint("RIGHT", r.cost, "LEFT", -6, 0)
@@ -1325,6 +1590,7 @@ local function Build()
       if not self.key then return end
       GameTooltip:SetOwner(self, "ANCHOR_LEFT")
       GameTooltip:SetText(self.label or "")
+      if self.detail then GameTooltip:AddLine(self.detail, 0.8, 0.8, 0.8, true) end
       GameTooltip:AddLine(self.done and "Bought." or "Click to buy this one next.", 1, 1, 1, true)
       GameTooltip:Show()
     end)
@@ -1336,7 +1602,7 @@ local function Build()
   -- scrollbar beside the plan: a 6px track, a thumb you can drag
   p.track = CreateFrame("Frame", nil, p)
   p.track:SetWidth(6)
-  p.track:SetPoint("TOPRIGHT", -14, -LIST_TOP)
+  p.track:SetPoint("TOPRIGHT", p.below, "TOPRIGHT", -14, -LIST_TOP)
   local tbg = p.track:CreateTexture(nil, "BACKGROUND")
   tbg:SetAllPoints()
   tbg:SetColorTexture(0.12, 0.12, 0.12, 1)
@@ -1356,7 +1622,7 @@ local function Build()
     self.startY, self.startOff = CursorY(), p.offset
     self:SetScript("OnUpdate", function()
       local items = Items(ActiveName()) or {}
-      local rows = p.visible or 12
+      local rows = VisibleRows()
       local over = #items - rows
       local free = p.track:GetHeight() - self:GetHeight()
       if over <= 0 or free <= 0 then return end
@@ -1573,7 +1839,7 @@ local function Follow(name, fresh)
   local L = Track(name, fresh)
   L.forgotten = nil
   Store().active = name
-  if not fresh then
+  if not fresh and not L.craft then
     -- items the list no longer has drop out of its progress
     local raw = FindRaw(name)
     if raw then
@@ -1649,6 +1915,47 @@ function SD.SetListPlan(listName, plan, source)
   return true
 end
 
+-- A craft list: one craft's reagents and a crafts count the player changes in the dock.
+--   craft = { id = itemID made (nil for an enchant), name, icon, makes = items per craft,
+--     count = crafts to start on, sell = copper one craft's items sell for (optional),
+--     reagents = { { id, name, per = needed per craft, have, price = copper each, vendor = true
+--     when a vendor sells it } } }
+-- The dock makes (or replaces) the Auctionator list under listName itself, and keeps it in step
+-- when the count changes. have defaults to bags + bank.
+function SD.SetCraftList(listName, craft, source)
+  if not (Active() and type(listName) == "string" and type(craft) == "table" and type(craft.reagents) == "table") then
+    return false
+  end
+  local c = { id = tonumber(craft.id), name = type(craft.name) == "string" and craft.name or nil,
+    icon = (type(craft.icon) == "number" or type(craft.icon) == "string") and craft.icon or nil,
+    makes = math.max(1, math.floor(tonumber(craft.makes) or 1)),
+    count = math.max(1, math.min(999, math.floor(tonumber(craft.count) or 1))),
+    sell = tonumber(craft.sell), reagents = {} }
+  if not c.name and c.id then c.name = ItemName(c.id) end
+  for _, r in ipairs(craft.reagents) do
+    local id, per = tonumber(type(r) == "table" and r.id), tonumber(type(r) == "table" and r.per)
+    if id and per and per > 0 then
+      local nm = type(r.name) == "string" and r.name or ItemName(id)
+      c.reagents[#c.reagents + 1] = { id = id, name = nm, per = per,
+        have = math.max(0, math.floor(tonumber(r.have) or Owned(id))),
+        price = tonumber(r.price), vendor = r.vendor and true or nil }
+      IndexName(nm, id)
+    end
+  end
+  if #c.reagents == 0 then return false end
+  local L = Track(listName, true)
+  L.craft = c
+  L.source = type(source) == "string" and source ~= "" and source or CallerAddon()
+  if not WriteCraftList(listName) then
+    Store().lists[listName] = nil
+    return false
+  end
+  local ok, err = pcall(Follow, listName, false)
+  if not ok then Log("SetCraftList", err) end
+  UpdateButton()
+  return true
+end
+
 function SD.ShowShoppingList(listName)
   if not Active() then return end
   if type(listName) == "string" and FindRaw(listName) then
@@ -1672,6 +1979,7 @@ end
 local listListener = {}
 function listListener:ReceiveEvent(event, name)
   if not Active() then return end
+  if writing and name == writing then return end -- the dock rewriting a craft list
   local ok, err = pcall(function()
     local ev = Auctionator.Shopping.Events
     if event == ev.ListImportFinished then

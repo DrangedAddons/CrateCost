@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.59.5
+- Shopping dock (ShoppingDock 0.8.0): craft lists for addons that send one craft (CraftRoute's single-recipe cart). CrateCost's lists work as before.
+
 ## 0.59.4
 - Plans no longer count the same materials twice. The bars (or any material) in your bags are shared out over the plan's steps in order: with an Artisan Ingots crate (Thorium Bars) and an Artisan Parts crate (Thorium Widgets) in one plan, the bars you hold go to the first step and only what's left goes to the next.
 - Crafted bundles and crafted writ items now put their reagents on the shopping list (Thorium Bars and Runecloth for the widgets you don't have). Before, a crafted bundle added nothing, so the list asked for too few bars.

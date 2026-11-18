@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.59.4
+- Plans no longer count the same materials twice. The bars (or any material) in your bags are shared out over the plan's steps in order: with an Artisan Ingots crate (Thorium Bars) and an Artisan Parts crate (Thorium Widgets) in one plan, the bars you hold go to the first step and only what's left goes to the next.
+- Crafted bundles and crafted writ items now put their reagents on the shopping list (Thorium Bars and Runecloth for the widgets you don't have). Before, a crafted bundle added nothing, so the list asked for too few bars.
+- The favor plan's pricing splits held materials between crate kinds that take the same bundle.
+- Checklist fill lines show each step's share of your bags, with the reagents under a crafted bundle.
+
 ## 0.59.3
 - Shopping dock (ShoppingDock 0.7.2): a purchase the AH answers with an error but still completes ("You won an auction for ..." in chat) now counts as bought instead of "didn't go through", so pressing Buy again no longer buys it twice.
 

@@ -78,6 +78,19 @@ end
 
 local function Horde() return UnitFactionGroup and UnitFactionGroup("player") == "Horde" end
 
+-- A step's fill lines, from the plan's shared pool of your bags (ns.MatPool, taken in step
+-- order), so two steps that use the same bars each show only their share. Crafted: the item,
+-- then the reagents for the ones you don't have.
+local function Subs(pool, id, name, n, crafted)
+  local out = {}
+  if not (pool and id) then return out end
+  for _, x in ipairs(pool.Need(id, name, n, crafted)) do
+    out[#out + 1] = { item = x.id, name = x.name, need = x.need, have = x.have,
+      crafted = x.crafted, reagent = x.reagent }
+  end
+  return out
+end
+
 -- Per plan: where you stood when it was made, and the steps seen done (they stay done).
 local function State(kind, stamp, start)
   if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
@@ -124,6 +137,7 @@ local function RepSteps()
   local start = st.start
   local steps = {}
   local function Add(s) steps[#steps + 1] = Mark(st, s) end
+  local pool = ns.MatPool(ns.PlanUseMats())
 
   -- the Shipping Label comes with the first writ: its step sits under that writ's, indented
   local labelPending = p.label and true or false
@@ -144,12 +158,15 @@ local function RepSteps()
         local e = it.e
         local s = Add({ id = "writ:" .. e.writ, text = "Fulfil writ: " .. e.name, done = e.done,
           item = e.writ, verb = "Fulfil ",
-          sub = { item = e.item, name = e.name, need = e.qty, crafted = it.crafted },
           tip = { e.name .. " (" .. e.rank .. ", " .. e.rep .. " rep)",
             (it.owned and "Have the writ" or "Buy the writ") .. ", " .. (it.crafted and "craft" or "buy") .. " "
               .. (e.qty > 1 and (e.qty .. "x ") or "") .. "the item: " .. ns.Money(it.cost),
             e.recipient ~= "" and ("Deliver to " .. e.recipient) or nil } })
-        if steps[#steps].done then writRep = writRep + e.rep end
+        if steps[#steps].done then
+          writRep = writRep + e.rep
+        else
+          steps[#steps].subs = Subs(pool, e.item, e.name, e.qty, it.crafted)
+        end
         if labelPending then Label(e) end
       end
     end
@@ -182,8 +199,7 @@ local function RepSteps()
         earned = earned - filled * pk.c.favor
         Add({ id = "favor:" .. pk.c.name, text = "Fill " .. pk.c.name .. " crates, hand in", unit = "crates",
           have = filled, need = pk.n, item = pk.c.id, verb = "Fill ", act = { "Fill", function() ns.ShowFillCrates() end },
-          sub = { item = pk.bundleID, name = pk.bundle, need = pk.crafted and 0 or pk.qty * (pk.n - filled),
-            crafted = pk.crafted },
+          subs = Subs(pool, pk.bundleID, pk.bundle, pk.qty * (pk.n - filled), pk.crafted),
           tip = { "Earn favor for the receipts: " .. Num(pk.n * pk.c.favor) .. " from these.",
             "Buy " .. pk.n .. " Waylaid Crate: " .. pk.c.name .. ", fill each with " .. pk.qty .. " "
               .. pk.bundle .. ", hand them in (" .. pk.c.favor .. " favor each)." } })
@@ -241,6 +257,7 @@ local function FavorSteps()
   local start = st.start
   local steps = {}
   local function Add(s) steps[#steps + 1] = Mark(st, s) end
+  local pool = ns.MatPool(ns.PlanUseMats())
   local earned = fs.have - start.favor
   if p.sealed > 0 then
     local handed = math.max(0, (start.sealed or p.sealed) - fs.sealed)
@@ -261,7 +278,7 @@ local function FavorSteps()
     earned = earned - n * c.favor
     Add({ id = "pick:" .. c.name, text = "Fill " .. c.name .. " crates, hand in", unit = "",
       have = n, need = pick.n, item = c.id, verb = "Fill ",
-      sub = { item = pick.bundleID, name = pick.bundle, need = pick.qty * (pick.n - n) },
+      subs = Subs(pool, pick.bundleID, pick.bundle, pick.qty * (pick.n - n), pick.crafted),
       tip = { pick.n .. " Waylaid Crate: " .. c.name .. (pick.held > 0 and (" (" .. pick.held .. " you have)") or ""),
         "Fill each with " .. pick.qty .. " " .. pick.bundle .. ": " .. Num(pick.n * c.favor) .. " favor.",
         "Costs " .. ns.Money(pick.upFront or pick.cost) .. ". Counted from the favor you earn." } })
@@ -334,7 +351,11 @@ local function Fill(w)
   for idx, s in ipairs(steps) do
     lines[#lines + 1] = { step = s, idx = idx }
     if idx == current then curLine = #lines end
-    if s.sub and not s.done and s.sub.need and s.sub.need > 0 then lines[#lines + 1] = { sub = s.sub } end
+    if not s.done then
+      for _, sub in ipairs(s.subs or {}) do
+        if sub.need and sub.need > 0 then lines[#lines + 1] = { sub = sub } end
+      end
+    end
   end
   if not w.scrolled then w.offset = math.max(0, (curLine or #lines) - 3) end
   local visible = w.visible or ROWS
@@ -368,10 +389,11 @@ local function Fill(w)
       -- the fill: icon, name in its colour, how many you have of what's still needed
       local sub = ln.sub
       local name, hex, icon = ItemBits(sub.item)
-      local have = Count(sub.item)
+      -- this step's share of what's in your bags (other steps may use the rest)
+      local have = sub.have or Count(sub.item)
       r.icon:Hide()
       r.itemIcon:ClearAllPoints()
-      r.itemIcon:SetPoint("LEFT", 30, 0)
+      r.itemIcon:SetPoint("LEFT", sub.reagent and 46 or 30, 0)
       r.itemIcon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
       r.itemIcon:Show()
       r.text:ClearAllPoints()
@@ -655,8 +677,11 @@ local function Build(kind)
       if sub then
         if not pcall(GameTooltip.SetItemByID, GameTooltip, sub.item) then GameTooltip:AddLine(sub.name or "?") end
         GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("You have " .. Count(sub.item) .. ", this step still needs " .. sub.need
-          .. (sub.crafted and " (the plan crafts it)" or "") .. ".", 0.6, 0.8, 1, true)
+        GameTooltip:AddLine("This step still needs " .. sub.need .. (sub.crafted and " (the plan crafts it)" or "")
+          .. (sub.reagent and " to craft what you don't have" or "") .. ".", 0.6, 0.8, 1, true)
+        local bags = Count(sub.item)
+        GameTooltip:AddLine("You have " .. bags .. (sub.have and sub.have < bags
+          and (": " .. sub.have .. " for this step, the rest for the steps above it") or "") .. ".", 0.6, 0.8, 1, true)
         GameTooltip:Show()
         return
       end

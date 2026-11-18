@@ -1675,32 +1675,25 @@ end
 
 -- One plan entry's buys: the writ (unless you have it) and its fill: the item, or when the plan
 -- crafts it, the recipe's reagents for that many.
-local function EntryItems(it, items)
+-- `pool` (ns.MatPool): your bags' materials shared over the whole plan in step order, so a writ's
+-- item, a crate's bundle and a crafted item's reagents never count the same bars twice.
+local function EntryItems(it, items, pool)
   local e = it.e
   if not it.owned then items[#items + 1] = { id = e.writ, name = "Craftsman's Writ: " .. e.name, qty = 1 } end
-  local r = it.crafted and ns.Crafts and ns.Crafts[e.item]
-  if r then
-    for i = 3, #r do
-      local id, n = r[i][1], r[i][2]
-      local name = C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(id)
-      items[#items + 1] = { id = id, name = name or ("item " .. id), qty = math.ceil(n * e.qty / r[1]) }
-    end
-  else
-    -- the item, less what's in your bags when the plan uses your materials
-    local need = e.qty - (ns.PlanUseMats() and math.min(e.qty, e.haveItem or 0) or 0)
-    if need > 0 then items[#items + 1] = { id = e.item, name = e.name, qty = need } end
-  end
+  -- the item (or its reagents when crafted), less what's in your bags when the plan uses them
+  pool = pool or ns.MatPool(ns.PlanUseMats())
+  pool.Buy(e.item, e.name, e.qty, it.crafted, items)
 end
 
-local function ContainerItems(c, items, step, onlyPick)
+local function ContainerItems(c, items, step, onlyPick, pool)
+  pool = pool or ns.MatPool(ns.PlanUseMats())
   if (not step or step == "favor") and c.mix then
     -- each kind's crates and bundles: not the crates you hold or the materials in your bags
     for _, pk in ipairs(c.mix.picks) do
       if not onlyPick or onlyPick == pk then
         local crates = pk.n - (pk.held or 0)
-        local mats = pk.crafted and 0 or math.max(0, pk.n * pk.qty - (ns.PlanUseMats() and Count(pk.bundleID) or 0))
         if crates > 0 then items[#items + 1] = { id = pk.c.id, name = "Waylaid Crate: " .. pk.c.name, qty = crates } end
-        if mats > 0 then items[#items + 1] = { id = pk.bundleID, name = pk.bundle, qty = mats } end
+        pool.Buy(pk.bundleID, pk.bundle, pk.n * pk.qty, pk.crafted, items)
       end
     end
   end
@@ -1719,15 +1712,16 @@ end
 -- favor crates and bundles, their empty crates, then the writs after Friendly.
 local function PlanShopping(p)
   local items = {}
+  local pool = ns.MatPool(ns.PlanUseMats())
   local function Writs(stage)
     for _, it in ipairs(p.list) do
-      if not it.spent and not (it.e.done and it.day == 1) and (it.stage or 2) == stage then EntryItems(it, items) end
+      if not it.spent and not (it.e.done and it.day == 1) and (it.stage or 2) == stage then EntryItems(it, items, pool) end
     end
   end
   Writs(1)
   if p.containers then
-    ContainerItems(p.containers, items, "favor")
-    ContainerItems(p.containers, items, "crates")
+    ContainerItems(p.containers, items, "favor", nil, pool)
+    ContainerItems(p.containers, items, "crates", nil, pool)
   end
   Writs(2)
   local t = Target()

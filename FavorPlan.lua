@@ -92,30 +92,41 @@ local function LabelDone()
   return false
 end
 
--- One crate kind: Cost(n) = what filling n of it costs (crates you hold and materials in your
--- bags first), the bundle used, and whether it's priced past what the AH scan read.
+-- One crate kind: Cost(n, taken) = what filling n of it costs (crates you hold and materials in
+-- your bags first), the bundle used, and whether it's priced past what the AH scan read.
+-- `taken[id]`: bundle units the other crate kinds already use from your bags, so two kinds that
+-- take the same bars don't both count them. Then { id, units } this one uses, and whether the
+-- bundle is crafted.
 local function Kind(c)
   -- the plan options: crates you hold, materials in your bags (ns.PlanUseOwned / PlanUseMats)
   local mats = ns.PlanUseMats()
   -- Craft mode: a bundle your profession makes, at its reagents' cost when that's cheaper
   local craft = ns.PlanCraft() and (ns.MyProfessions and ns.MyProfessions() or {}) or nil
   local k = { c = c, held = ns.PlanUseOwned() and Count(c.id) or 0, memo = {} }
-  function k.Cost(n)
-    local m = k.memo[n]
-    if m then return m[1], m[2], m[3], m[4] end
+  function k.Cost(n, taken)
+    local key = n
+    if taken then
+      for _, b in ipairs(c.bundles) do
+        local id = ns.ItemIDs[b[1]]
+        key = key .. ":" .. (id and taken[id] or 0)
+      end
+    end
+    local m = k.memo[key]
+    if m then return m[1], m[2], m[3], m[4], m[5], m[6] end
     local buy = math.max(0, n - k.held)
     local crateCost, guess = 0, false
     if buy > 0 then
       local how
       crateCost, how = ns.FillCost(c.id, buy)
-      if not crateCost or how.short then k.memo[n] = { nil } return nil end
+      if not crateCost or how.short then k.memo[key] = { nil } return nil end
       guess = how.guess or not how.depth
     end
-    local best, bi, bguess
+    local best, bi, bguess, buse, bmade
     for i, b in ipairs(c.bundles) do
       local id = ns.ItemIDs[b[1]]
       if id then
-        local need = math.max(0, b[2] * n - (mats and Count(id) or 0))
+        local avail = mats and math.max(0, Count(id) - (taken and taken[id] or 0)) or 0
+        local need = math.max(0, b[2] * n - avail)
         local bc, bh = 0, {}
         if need > 0 then bc, bh = ns.FillCost(id, need) end
         if bh.short then bc = nil end
@@ -127,17 +138,16 @@ local function Kind(c)
         end
         if bc and (not best or bc < best) then
           best, bi, bguess = bc, i, need > 0 and not made and (bh.guess or not bh.depth) or false
-          k.madeBundle = k.madeBundle or {}
-          k.madeBundle[n] = made
+          buse, bmade = { id, math.min(avail, b[2] * n) }, made
         end
       end
     end
-    if not best then k.memo[n] = { nil } return nil end
+    if not best then k.memo[key] = { nil } return nil end
     -- cost: net of the turn-in silver; upFront: what the crates and bundles cost to buy
     local upFront = crateCost + best
     local cost = math.max(0, upFront - (c.pay1 or 0) * n)
-    k.memo[n] = { cost, bi, guess or bguess, upFront }
-    return cost, bi, guess or bguess, upFront
+    k.memo[key] = { cost, bi, guess or bguess, upFront, buse, bmade }
+    return cost, bi, guess or bguess, upFront, buse, bmade
   end
   return k
 end
@@ -156,16 +166,26 @@ local function Mix(need)
   for _, c in ipairs(ns.CrateEntries and ns.CrateEntries() or {}) do
     if c.id and c.favor and (LEVEL[c.rank] or 0) <= level then kinds[#kinds + 1] = Kind(c) end
   end
-  local counts, spent = {}, {}
+  local counts, uses = {}, {}
+  -- the bundle units every other kind takes from your bags
+  local function Taken(i)
+    local t = {}
+    for j, u in pairs(uses) do
+      if j ~= i and u[1] then t[u[1]] = (t[u[1]] or 0) + u[2] end
+    end
+    return t
+  end
   local got = 0
   while got < need do
     local left = need - got
     local rateK, rate, finK, fin
     for i, k in ipairs(kinds) do
       local n = (counts[i] or 0) + 1
-      local cost = k.Cost(n)
-      if cost then
-        local extra = cost - (spent[i] or 0)
+      local taken = Taken(i)
+      local cost = k.Cost(n, taken)
+      local before = n > 1 and k.Cost(n - 1, taken) or 0
+      if cost and before then
+        local extra = cost - before
         local r = extra / k.c.favor
         if not rate or r < rate then rateK, rate = i, r end
         -- one crate that reaches the target
@@ -176,16 +196,17 @@ local function Mix(need)
     if finK and fin <= (rate or math.huge) * kinds[rateK].c.favor then pick = finK end
     if not pick then break end
     counts[pick] = (counts[pick] or 0) + 1
-    spent[pick] = kinds[pick].Cost(counts[pick])
+    local _, _, _, _, use = kinds[pick].Cost(counts[pick], Taken(pick))
+    uses[pick] = use or {}
     got = got + kinds[pick].c.favor
   end
   m.short = got < need
   for i, n in pairs(counts) do
     local k = kinds[i]
-    local cost, bi, guess, upFront = k.Cost(n)
+    local cost, bi, guess, upFront, _, made = k.Cost(n, Taken(i))
     local b = k.c.bundles[bi]
     local pay = (k.c.pay1 or 0) * n
-    local crafted = k.madeBundle and k.madeBundle[n] or false
+    local crafted = made or false
     table.insert(m.picks, { c = k.c, n = n, cost = cost, pay = pay, upFront = upFront, bundle = b[1], qty = b[2],
       bundleID = ns.ItemIDs[b[1]], held = math.min(n, k.held), guess = guess, crafted = crafted })
     m.pay = m.pay + pay
@@ -262,12 +283,14 @@ local function Lines(p)
   return lines
 end
 
-local function PickItems(pick, items)
+-- `pool` (ns.MatPool): the bags' materials shared over every pick, so two crates (or a crate and
+-- a crafted bundle's reagents) don't both count the same ones.
+local function PickItems(pick, items, pool)
   local c = pick.c
   local buy = pick.n - pick.held
   if buy > 0 then items[#items + 1] = { id = c.id, name = "Waylaid Crate: " .. c.name, qty = buy } end
-  local need = pick.crafted and 0 or math.max(0, pick.qty * pick.n - (ns.PlanUseMats() and Count(pick.bundleID) or 0))
-  if need > 0 then items[#items + 1] = { id = pick.bundleID, name = pick.bundle, qty = need } end
+  pool = pool or ns.MatPool(ns.PlanUseMats())
+  pool.Buy(pick.bundleID, pick.bundle, pick.qty * pick.n, pick.crafted, items)
 end
 
 local function Fill()
@@ -594,7 +617,8 @@ local function Build()
   UI.PlanFooter(f, function()
     if not plan then return end
     local items = {}
-    for _, pick in ipairs(plan.picks) do PickItems(pick, items) end
+    local pool = ns.MatPool(ns.PlanUseMats())
+    for _, pick in ipairs(plan.picks) do PickItems(pick, items, pool) end
     ns.ShowShoppingReview(items, "Favor plan to " .. Num(plan.target) .. ": shopping list", "CrateCost favor plan")
   end, "Every crate to buy and the bundle materials not in your bags: review them, then make the "
     .. "Auctionator shopping list.", "favor", LEFT_W / 2)

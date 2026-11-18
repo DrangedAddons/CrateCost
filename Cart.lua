@@ -32,6 +32,52 @@ end
 
 local function Key(it) return it.id or it.name end
 
+-- Materials in your bags and bank, shared out over a plan's steps in order: each step takes
+-- what the steps before it left, so the same bars never count for two crates, or for a crate
+-- and a craft. `useMats` false: nothing is taken (the plan buys everything).
+function ns.MatPool(useMats)
+  local pool, left = {}, {}
+  function pool.Take(id, n)
+    if not (useMats and id and n and n > 0) then return 0 end
+    if left[id] == nil then
+      local ok, c = pcall(C_Item.GetItemCount, id, true)
+      left[id] = (ok and type(c) == "number") and c or 0
+    end
+    local t = math.min(left[id], n)
+    left[id] = left[id] - t
+    return t
+  end
+  -- `n` of `id`: what's in your bags first, then the rest bought, or crafted from its reagents
+  -- when `craft` (their bags share first too). Returns { { id, name, need, have, qty, crafted,
+  -- reagent } }: the item, then each reagent when crafted; `qty` = what's left to buy.
+  function pool.Need(id, name, n, craft)
+    local out = {}
+    if not n or n <= 0 then return out end
+    local have = pool.Take(id, n)
+    local short = n - have
+    local r = craft and ns.Crafts and ns.Crafts[id]
+    out[1] = { id = id, name = name, need = n, have = have, qty = r and 0 or short, crafted = r and true or false }
+    if r and short > 0 then
+      local makes = math.ceil(short / r[1])
+      for i = 3, #r do
+        local rid, per = r[i][1], r[i][2]
+        local need = per * makes
+        local got = pool.Take(rid, need)
+        out[#out + 1] = { id = rid, name = ItemName(rid, "item " .. rid), need = need, have = got,
+          qty = need - got, reagent = true }
+      end
+    end
+    return out
+  end
+  -- the same, as shopping-list items (only what's left to buy)
+  function pool.Buy(id, name, n, craft, items)
+    for _, x in ipairs(pool.Need(id, name, n, craft)) do
+      if x.qty > 0 then items[#items + 1] = { id = x.id, name = x.name, qty = x.qty } end
+    end
+  end
+  return pool
+end
+
 -- items: { { id = n|nil, name = "..", qty = n } }; same item adds up.
 function ns.CartAdd(items)
   local cart = Cart()

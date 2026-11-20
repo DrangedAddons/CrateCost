@@ -6,6 +6,10 @@
 ## Dependencies: Auctionator
 ## OptionalDeps: Syndicator, EllesmereUIBags
 ## X-DrangedAddons-Games: _forever_
+## X-DrangedHub-Frame: CrateCostConfig
+## X-DrangedHub-Open: /cratecost config
+## X-DrangedHub-Crop: 42
+## X-DrangedHub-Actions: Home=/cratecost; Crate list=/cratecost list; Writs=/cratecost writs; Merchant=/cratecost merchant; Cart=/cratecost cart
 ## IconTexture: Interface\AddOns\CrateCost\icon
 ## AddonCompartmentFunc: CrateCost_OnCompartmentClick
 ## SavedVariables: CrateCostDB, ShoppingDockDB

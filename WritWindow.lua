@@ -640,8 +640,16 @@ local function WritCosts(groups, need)
   return best, N
 end
 
+-- Use writs / Use crates (rep plan only, per character, both on by default): which ways to rep
+-- the plan may use. Crates = Notarized Shipping Containers (and the favor crates for their
+-- receipts). At least one stays on.
+local function RepOpt(key) return not (type(CrateCostCharDB) == "table" and CrateCostCharDB[key] == false) end
+function ns.PlanUseWrits() return RepOpt("repUseWrits") end
+function ns.PlanUseCrates() return RepOpt("repUseCrates") end
+
 local function MakePlan(need)
   local profs = MyProfessions()
+  local useWrits, useCrates = ns.PlanUseWrits(), ns.PlanUseCrates()
   -- the Shipping Label first: it covers the first 2,000 rep for nothing (assumed done)
   local label = LabelStep()
   local after = label and math.max(0, need - label.rep) or need
@@ -660,12 +668,19 @@ local function MakePlan(need)
     end
     return u
   end
-  if after > gate and pf then
+  if after > gate and pf and useCrates then
     local kmax = math.ceil((after - gate) / CONTAINER_REP)
-    local best, N = WritCosts((Copies(1, profs, true)), after)
+    local best, N
+    if useWrits then best, N = WritCosts((Copies(1, profs, true)), after) end
     local gu = math.ceil(gate / 25)
     local function Pick(price, used)
       cont = ContainerPricing(kmax, price, have, used)
+      -- no writs: containers for all of it, as many as the AH has
+      if not useWrits then
+        local k = 0
+        while k < kmax and cont.cum[k + 1] do k = k + 1 end
+        return k
+      end
       local bestTotal, pick = nil, 0
       for k = 0, kmax do
         local cc = cont.cum[k]
@@ -693,6 +708,7 @@ local function MakePlan(need)
     if mix and #mix.picks == 0 then mix = nil end
   end
   local writNeed = nCont > 0 and math.max(gate, after - nCont * CONTAINER_REP) or after
+  if not useWrits then writNeed = 0 end
   local plan
   if writNeed == 0 then
     plan = { need = need, days = 1, cost = 0, rep = 0, short = false, list = {} }
@@ -722,6 +738,11 @@ local function MakePlan(need)
     plan.rep = plan.rep + nCont * CONTAINER_REP
     -- the target's reached with containers, whatever the writs alone could do
     plan.short = plan.rep < need
+  end
+  if not useWrits then
+    plan.short = plan.rep < need
+    -- below Friendly with writs off: containers can't start, nothing gets you there
+    plan.blocked = gate > 0
   end
   local ideal = writNeed > 0 and BuildPlan(writNeed, profs, false) or nil
   plan.spent = 0
@@ -1250,7 +1271,8 @@ function ns.RefreshWrits()
           .. (p.containers and (p.containers.n .. " containers + ") or ""),
         PlanCount(p), ns.Money(p.cost),
         (p.spent or 0) > 0 and string.format(", |cffff4040%d of the best already done today|r", p.spent) or "",
-        p.short and (" |cffff4040- gets " .. Num(p.rep) .. " rep; regenerate tomorrow for the rest|r") or "")
+        p.short and (" |cffff4040- gets " .. Num(p.rep) .. " rep; "
+          .. (p.blocked and "containers need Friendly, tick Use writs|r" or "regenerate tomorrow for the rest|r")) or "")
     else
       plan = plan .. GREY .. "No plan: no writ has a price yet.|r"
     end
@@ -1491,6 +1513,9 @@ local function PlanLines(p)
   for _, it in ipairs(p.list) do if it.stage == 2 and not it.spent then past = true end end
   local staged = (p.gate or 0) > 0 and (p.containers or past)
   if p.label then lines[#lines + 1] = { label = p.label } end
+  if p.blocked then
+    lines[#lines + 1] = { head = "To Friendly: " .. Num(p.gate) .. " rep, writs only: tick Use writs" }
+  end
   local function Writs(stage)
     for _, it in ipairs(p.list) do
       if (it.stage or 2) == stage and (ShowCD() or not it.e.done) then lines[#lines + 1] = { it = it } end
@@ -1661,7 +1686,8 @@ local function FillPlan()
     pf.title:SetText("Rep plan")
     pf.total:SetText(string.format("%d writs%s, %s rep%s", PlanCount(p),
       p.containers and (" + " .. p.containers.n .. " containers") or "", Num(p.rep),
-      p.short and " |cffff4040(short of the target: regenerate tomorrow)|r" or ""))
+      p.short and (p.blocked and " |cffff4040(containers need Friendly: tick Use writs)|r"
+        or " |cffff4040(short of the target: regenerate tomorrow)|r") or ""))
     -- you buy everything first; the favor crates' turn-in silver comes back after
     local c = p.containers
     local back = c and c.pay or 0
@@ -1820,6 +1846,39 @@ function ns.ShowWritPlan()
     end)
     -- Scan AH, as on the writs view: deep enough for this plan, then it's made again
     pf.scanBtn = ScanButton(pf, tb, 14)
+    -- Use writs / Use crates: which ways to rep this plan uses (either or both)
+    local function WayBox(key, label, tip, anchor)
+      local wb = CreateFrame("CheckButton", nil, pf, "UICheckButtonTemplate")
+      wb:SetSize(22, 22)
+      wb:SetPoint("LEFT", anchor, "RIGHT", anchor == pf.scanBtn and 16 or 90, 0)
+      local wl = wb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+      wl:SetPoint("LEFT", wb, "RIGHT", 1, 0)
+      wl:SetText(label)
+      wb:SetChecked(RepOpt(key))
+      wb:SetScript("OnShow", function(self) self:SetChecked(RepOpt(key)) end)
+      wb:SetScript("OnClick", function(self)
+        if type(CrateCostCharDB) ~= "table" then CrateCostCharDB = {} end
+        local other = key == "repUseWrits" and "repUseCrates" or "repUseWrits"
+        if not self:GetChecked() and not RepOpt(other) then
+          -- one of them has to stay on
+          self:SetChecked(true)
+          ns.Print("the rep plan needs writs or crates: tick the other one first.")
+          return
+        end
+        CrateCostCharDB[key] = self:GetChecked() and true or false
+        ns.RegenerateWritPlan()
+        pf.offset = 0
+        FillPlan()
+        if frame and frame:IsShown() then ns.RefreshWrits() end
+      end)
+      UI.Tip(wb, label, tip)
+      return wb
+    end
+    pf.useWrits = WayBox("repUseWrits", "Use writs", "Plan with Craftsman's Writs. Untick for containers "
+      .. "only (they need Friendly, so below it the plan can't start).", pf.scanBtn)
+    pf.useCrates = WayBox("repUseCrates", "Use crates", "Plan with Notarized Shipping Containers: a Forged "
+      .. "Delivery Receipt on an empty Waylaid Crate, 50 rep each from Friendly, plus the favor crates to "
+      .. "fill for the receipts. Untick for writs only.", pf.useWrits)
     -- use what you have / materials you have (shared with the favor plan): the footer's left side
     UI.PlanOptions(pf, 14, 56, function()
       ns.RegenerateWritPlan()

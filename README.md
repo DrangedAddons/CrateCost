@@ -87,6 +87,8 @@ Closing a view (its X or Escape) goes back to Home; closing Home closes the wind
 
 Two tickboxes in both plans (per character, shared, on by default):
 
+**Use writs / Use crates** (rep plan, next to Scan AH, per character, both on by default): which ways to rep the plan uses. Untick **Use crates** for writs only; untick **Use writs** for Notarized Shipping Containers only (with the favor crates for their receipts). Containers need Friendly, so below it a crates-only plan can't start and says so. One of the two always stays ticked.
+
 **Buy | Craft** (top right of both plans, per character, shared, Craft by default): **Buy** buys everything on the AH, no crafting. **Craft** makes what your professions can, a writ's item when you have the profession at its skill, and Fabrics, Ingots and Parts bundles, when that's cheaper than buying; everything else is bought. Crafted rows say "craft", and the cart leaves crafted items out.
 
 - **Use writs/crates you have**: writs you hold (any character) are free in the rep plan; crates you hold and the Sealed Crates in your bags count in the favor plan and for the rep plan's container favor. They're used where they're worth it: a writ you hold costs nothing, so it's picked first among writs worth the same rep. Untick to plan as if you had none.

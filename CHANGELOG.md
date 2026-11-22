@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.60.0
+- Rep plan: **Use writs** and **Use crates** ticks next to Scan AH (per character, both on by default). Untick one to plan with only the other: writs only, or Notarized Shipping Containers only. Containers need Friendly, so a crates-only plan below Friendly says to tick Use writs. One always stays ticked.
+
 ## 0.59.5
 - Shopping dock (ShoppingDock 0.8.0): craft lists for addons that send one craft (CraftRoute's single-recipe cart). CrateCost's lists work as before.
 
